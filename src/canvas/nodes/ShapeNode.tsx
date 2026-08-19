@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Handle, Position, NodeProps, NodeToolbar } from '@xyflow/react';
+import { Handle, Position, NodeProps } from '@xyflow/react';
 import { MermaidShapeType } from '../../ast/types';
 import { ShapeRenderer } from './ShapeRenderer';
-import { PlusIcon, ShapeIcons, TrashIcon } from '../icons/Icons';
+import { FloatingNodeToolbar } from '../toolbar/FloatingNodeToolbar';
+import { PlusIcon } from '../icons/Icons';
 
 export interface ShapeNodeData {
   id: string;
@@ -15,32 +16,6 @@ export interface ShapeNodeData {
   onColorChange?: (id: string, color: string) => void;
   onDelete?: (id: string) => void;
 }
-
-const SHAPES: Array<{
-  type: MermaidShapeType;
-  label: string;
-  renderIcon: () => React.ReactNode;
-}> = [
-  { type: 'rectangle', label: 'Rectangle [text]', renderIcon: ShapeIcons.rectangle },
-  { type: 'rounded', label: 'Rounded (text)', renderIcon: ShapeIcons.rounded },
-  { type: 'stadium', label: 'Stadium ([text])', renderIcon: ShapeIcons.stadium },
-  { type: 'cylinder', label: 'Database [(text)]', renderIcon: ShapeIcons.cylinder },
-  { type: 'circle', label: 'Circle ((text))', renderIcon: ShapeIcons.circle },
-  { type: 'diamond', label: 'Decision {text}', renderIcon: ShapeIcons.diamond },
-  { type: 'hexagon', label: 'Hexagon {{text}}', renderIcon: ShapeIcons.hexagon },
-  { type: 'subroutine', label: 'Subroutine [[text]]', renderIcon: ShapeIcons.subroutine },
-  { type: 'parallelogram', label: 'Parallelogram [/text/]', renderIcon: ShapeIcons.parallelogram },
-];
-
-const COLORS = [
-  { name: 'Default', value: '' },
-  { name: 'Blue', value: '#2563eb' },
-  { name: 'Purple', value: '#7c3aed' },
-  { name: 'Emerald', value: '#059669' },
-  { name: 'Amber', value: '#d97706' },
-  { name: 'Rose', value: '#e11d48' },
-  { name: 'Slate', value: '#475569' },
-];
 
 export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const nodeData = data as unknown as ShapeNodeData;
@@ -106,12 +81,12 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
     }
   };
 
-  const customFill = nodeData.style?.fill || 'var(--background-secondary, #252525)';
+  const customFill = nodeData.style?.fill || 'var(--background-primary, #1e1e1e)';
   const customStroke =
     nodeData.style?.stroke ||
     (selected
       ? 'var(--interactive-accent, #7c3aed)'
-      : 'var(--background-modifier-border, #555555)');
+      : 'var(--canvas-card-border, var(--background-modifier-border, #3a3a3a))');
   const customColor = nodeData.style?.color || 'var(--text-normal, #e0e0e0)';
 
   return (
@@ -141,61 +116,15 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         }
       }}
     >
-      {/* Floating Context Toolbar */}
-      <NodeToolbar
-        isVisible={!!selected}
-        position={Position.Top}
-        className="mermaid-floating-toolbar"
-      >
-        {/* Shape Morphing Buttons */}
-        <div className="mermaid-pill-group">
-          {SHAPES.map((s) => (
-            <button
-              key={s.type}
-              className={`mermaid-pill-btn ${shape === s.type ? 'is-active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                nodeData.onShapeChange?.(id, s.type);
-              }}
-              title={s.label}
-            >
-              {s.renderIcon()}
-            </button>
-          ))}
-        </div>
-
-        <div className="mermaid-pill-divider" />
-
-        {/* Color Palette */}
-        <div className="mermaid-pill-group colors">
-          {COLORS.map((c) => (
-            <button
-              key={c.name}
-              className={`mermaid-color-dot ${!c.value ? 'default' : ''}`}
-              style={{ background: c.value || 'var(--background-secondary, #333)' }}
-              onClick={(e) => {
-                e.stopPropagation();
-                nodeData.onColorChange?.(id, c.value);
-              }}
-              title={`Color: ${c.name}`}
-            />
-          ))}
-        </div>
-
-        <div className="mermaid-pill-divider" />
-
-        {/* Delete */}
-        <button
-          className="mermaid-pill-btn delete"
-          onClick={(e) => {
-            e.stopPropagation();
-            nodeData.onDelete?.(id);
-          }}
-          title="Delete Node (Backspace)"
-        >
-          <TrashIcon size={14} />
-        </button>
-      </NodeToolbar>
+      {/* Obsidian Canvas Style Floating Context Toolbar */}
+      {selected && (
+        <FloatingNodeToolbar
+          currentShape={shape}
+          onShapeChange={(newShape) => nodeData.onShapeChange?.(id, newShape)}
+          onColorChange={(color) => nodeData.onColorChange?.(id, color)}
+          onDelete={() => nodeData.onDelete?.(id)}
+        />
+      )}
 
       {/* Crisp Vector Shape Canvas */}
       <ShapeRenderer
@@ -204,7 +133,7 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         height={dimensions.height}
         fill={customFill}
         stroke={customStroke}
-        strokeWidth={selected ? 2.5 : 1.75}
+        strokeWidth={selected ? 2 : 1.25}
       />
 
       {/* Non-Conflicting 4-Directional Anchors (Source z-index: 3, Target z-index: 2) */}
@@ -272,6 +201,7 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
       {selected && nodeData.onSprout && (
         <>
           <button
+            type="button"
             className="mermaid-sprout-btn sprout-right"
             title="Sprout Right [Tab]"
             onClick={(e) => {
@@ -279,9 +209,10 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               nodeData.onSprout?.(id, 'right');
             }}
           >
-            <PlusIcon size={12} />
+            <PlusIcon size={11} />
           </button>
           <button
+            type="button"
             className="mermaid-sprout-btn sprout-down"
             title="Sprout Down"
             onClick={(e) => {
@@ -289,9 +220,10 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               nodeData.onSprout?.(id, 'down');
             }}
           >
-            <PlusIcon size={12} />
+            <PlusIcon size={11} />
           </button>
           <button
+            type="button"
             className="mermaid-sprout-btn sprout-left"
             title="Sprout Left"
             onClick={(e) => {
@@ -299,9 +231,10 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               nodeData.onSprout?.(id, 'left');
             }}
           >
-            <PlusIcon size={12} />
+            <PlusIcon size={11} />
           </button>
           <button
+            type="button"
             className="mermaid-sprout-btn sprout-up"
             title="Sprout Up"
             onClick={(e) => {
@@ -309,7 +242,7 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               nodeData.onSprout?.(id, 'up');
             }}
           >
-            <PlusIcon size={12} />
+            <PlusIcon size={11} />
           </button>
         </>
       )}
@@ -319,7 +252,7 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         style={{
           position: 'relative',
           zIndex: 5,
-          padding: shape === 'diamond' ? '0 24px' : '0 10px',
+          padding: shape === 'diamond' ? '0 24px' : '0 12px',
           textAlign: 'center',
           maxWidth: '92%',
           pointerEvents: 'all',

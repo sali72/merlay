@@ -130,3 +130,18 @@ test('Round-trip semantic idempotency', () => {
   assert.equal(ast1.nodes.size, ast2.nodes.size);
   assert.equal(ast1.edges.length, ast2.edges.length);
 });
+
+test('Parser and Serializer handle multiline and special characters cleanly', () => {
+  const code = `flowchart TD
+    A["Line 1\\nLine 2"] --> B["Card with (parens) and [brackets]"]
+`;
+
+  const ast = parseMermaidFlowchart(code);
+  assert.equal(ast.nodes.size, 2);
+  assert.equal(ast.edges.length, 1);
+
+  const serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('Line 1\\nLine 2'));
+  assert.ok(serialized.includes('Card with (parens) and [brackets]'));
+});
+

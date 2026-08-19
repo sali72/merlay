@@ -23,17 +23,17 @@ const SHAPES: Array<{
   { type: 'diamond', label: 'Decision {text}', renderIcon: ShapeIcons.diamond },
   { type: 'hexagon', label: 'Hexagon {{text}}', renderIcon: ShapeIcons.hexagon },
   { type: 'subroutine', label: 'Subroutine [[text]]', renderIcon: ShapeIcons.subroutine },
-  { type: 'parallelogram', label: 'Input/Output [/text/]', renderIcon: ShapeIcons.parallelogram },
+  { type: 'parallelogram', label: 'Parallelogram [/text/]', renderIcon: ShapeIcons.parallelogram },
 ];
 
-const COLORS = [
+const CANVAS_COLORS = [
   { name: 'Default', value: '' },
-  { name: 'Blue', value: '#2563eb' },
-  { name: 'Purple', value: '#7c3aed' },
-  { name: 'Emerald', value: '#059669' },
-  { name: 'Amber', value: '#d97706' },
-  { name: 'Rose', value: '#e11d48' },
-  { name: 'Slate', value: '#475569' },
+  { name: 'Red', value: '#e93d82' },
+  { name: 'Orange', value: '#e57028' },
+  { name: 'Yellow', value: '#e5a000' },
+  { name: 'Green', value: '#2e9e62' },
+  { name: 'Blue', value: '#1d8cf8' },
+  { name: 'Purple', value: '#8b5cf6' },
 ];
 
 export const FloatingNodeToolbar: React.FC<FloatingNodeToolbarProps> = ({
@@ -46,47 +46,62 @@ export const FloatingNodeToolbar: React.FC<FloatingNodeToolbarProps> = ({
     <NodeToolbar
       isVisible={true}
       position={Position.Top}
-      className="mermaid-floating-toolbar"
+      offset={10}
+      className="mermaid-floating-toolbar-container nodrag nopan"
     >
-      {/* Shape Selector */}
-      <div className="mermaid-pill-group">
-        {SHAPES.map((s) => (
-          <button
-            key={s.type}
-            className={`mermaid-pill-btn ${currentShape === s.type ? 'is-active' : ''}`}
-            onClick={() => onShapeChange(s.type)}
-            title={s.label}
-          >
-            {s.renderIcon()}
-          </button>
-        ))}
+      <div className="mermaid-floating-toolbar">
+        {/* Shape Selector */}
+        <div className="mermaid-pill-group">
+          {SHAPES.map((s) => (
+            <button
+              key={s.type}
+              type="button"
+              className={`mermaid-pill-btn ${currentShape === s.type ? 'is-active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onShapeChange(s.type);
+              }}
+              title={s.label}
+            >
+              {s.renderIcon()}
+            </button>
+          ))}
+        </div>
+
+        <div className="mermaid-pill-divider" />
+
+        {/* Canvas Color Palette */}
+        <div className="mermaid-pill-group colors">
+          {CANVAS_COLORS.map((c) => (
+            <button
+              key={c.name}
+              type="button"
+              className={`mermaid-color-dot ${!c.value ? 'default' : ''}`}
+              style={{ background: c.value || 'var(--background-secondary, #333)' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onColorChange(c.value);
+              }}
+              title={`Color: ${c.name}`}
+            />
+          ))}
+        </div>
+
+        <div className="mermaid-pill-divider" />
+
+        {/* Delete */}
+        <button
+          type="button"
+          className="mermaid-pill-btn delete"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          title="Delete (Backspace)"
+        >
+          <TrashIcon size={14} />
+        </button>
       </div>
-
-      <div className="mermaid-pill-divider" />
-
-      {/* Color Palette */}
-      <div className="mermaid-pill-group colors">
-        {COLORS.map((c) => (
-          <button
-            key={c.name}
-            className={`mermaid-color-dot ${!c.value ? 'default' : ''}`}
-            style={{ background: c.value || 'var(--background-secondary, #333)' }}
-            onClick={() => onColorChange(c.value)}
-            title={`Color: ${c.name}`}
-          />
-        ))}
-      </div>
-
-      <div className="mermaid-pill-divider" />
-
-      {/* Delete */}
-      <button
-        className="mermaid-pill-btn delete"
-        onClick={onDelete}
-        title="Delete Node (Backspace)"
-      >
-        <TrashIcon size={14} />
-      </button>
     </NodeToolbar>
   );
 };

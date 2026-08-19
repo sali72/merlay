@@ -13,6 +13,7 @@ export interface CustomEdgeData {
   label?: string;
   onArrowTypeChange?: (edgeId: string, newType: ArrowType) => void;
   onLabelChange?: (edgeId: string, label: string) => void;
+  onReverse?: (edgeId: string) => void;
   onDelete?: (edgeId: string) => void;
 }
 
@@ -82,6 +83,7 @@ export const CustomEdge: React.FC<EdgeProps> = ({
               currentLabel={edgeData?.label || ''}
               onArrowTypeChange={(newType) => edgeData?.onArrowTypeChange?.(id, newType)}
               onLabelChange={(newLabel) => edgeData?.onLabelChange?.(id, newLabel)}
+              onReverse={() => edgeData?.onReverse?.(id)}
               onDelete={() => edgeData?.onDelete?.(id)}
             />
           </div>
@@ -111,3 +113,4 @@ export const CustomEdge: React.FC<EdgeProps> = ({
     </>
   );
 };
+

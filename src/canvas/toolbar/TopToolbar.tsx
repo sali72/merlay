@@ -5,8 +5,10 @@ import {
   CopyIcon,
   FolderIcon,
   ImageIcon,
+  MaximizeIcon,
   PlusIcon,
   RedoIcon,
+  ShapesIcon,
   UndoIcon,
   VectorIcon,
   WandIcon,
@@ -23,10 +25,12 @@ export interface TopToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onCopyCode: () => void;
+  onCopyImage?: () => void;
   onExportPng: () => void;
   onExportSvg: () => void;
   showCodePanel: boolean;
   onToggleCodePanel: () => void;
+  onFitView?: () => void;
 }
 
 export const TopToolbar: React.FC<TopToolbarProps> = ({
@@ -40,97 +44,95 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
   canUndo,
   canRedo,
   onCopyCode,
+  onCopyImage,
   onExportPng,
   onExportSvg,
   showCodePanel,
   onToggleCodePanel,
+  onFitView,
 }) => {
   return (
     <div className="mermaid-top-toolbar">
-      {/* Brand / Title */}
-      <div className="mermaid-brand">
-        <span className="mermaid-brand-icon">⬡</span>
-        <span className="mermaid-brand-text">Mermaid Studio</span>
-      </div>
-
-      <div className="mermaid-toolbar-divider" />
-
       {/* Creation Tools */}
       <div className="mermaid-toolbar-group">
         <button
-          className="mermaid-tool-btn"
+          className="mermaid-tool-btn mod-cta"
           onClick={() => onAddNode('rectangle')}
-          title="Add Rectangle Node"
+          title="Add Card (Double-click canvas)"
         >
           <PlusIcon size={14} />
-          <span>Node</span>
+          <span>Card</span>
         </button>
 
-        {/* Direct Shape Selector */}
-        <select
-          className="mermaid-dropdown"
-          value=""
-          onChange={(e) => {
-            if (e.target.value) {
-              onAddNode(e.target.value as MermaidShapeType);
-              e.target.value = '';
-            }
-          }}
-          title="Add specific shape directly"
-        >
-          <option value="" disabled>
-            + Shape...
-          </option>
-          <option value="rectangle">Rectangle [text]</option>
-          <option value="rounded">Rounded (text)</option>
-          <option value="stadium">Stadium ([text])</option>
-          <option value="cylinder">Database [(text)]</option>
-          <option value="circle">Circle ((text))</option>
-          <option value="diamond">Decision {"{text}"}</option>
-          <option value="hexagon">Hexagon {"{{text}}"}</option>
-          <option value="subroutine">Subroutine [[text]]</option>
-          <option value="parallelogram">Parallelogram [/text/]</option>
-        </select>
+        <div className="mermaid-dropdown-wrapper" title="Choose shape">
+          <div className="mermaid-dropdown-icon">
+            <ShapesIcon size={14} />
+          </div>
+          <select
+            className="mermaid-dropdown with-icon"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) {
+                onAddNode(e.target.value as MermaidShapeType);
+                e.target.value = '';
+              }
+            }}
+          >
+            <option value="" disabled>
+              Shape...
+            </option>
+            <option value="rectangle">Rectangle [text]</option>
+            <option value="rounded">Rounded (text)</option>
+            <option value="stadium">Stadium ([text])</option>
+            <option value="cylinder">Database [(text)]</option>
+            <option value="circle">Circle ((text))</option>
+            <option value="diamond">Decision {"{text}"}</option>
+            <option value="hexagon">Hexagon {"{{text}}"}</option>
+            <option value="subroutine">Subroutine [[text]]</option>
+            <option value="parallelogram">Parallelogram [/text/]</option>
+          </select>
+        </div>
 
         <button
           className="mermaid-tool-btn"
           onClick={onAddSubgraph}
-          title="Add Subgraph Container (or select nodes first)"
+          title="Add Group Container (or select cards first)"
         >
           <FolderIcon size={14} />
-          <span>Subgraph</span>
+          <span>Group</span>
         </button>
       </div>
 
       <div className="mermaid-toolbar-divider" />
 
-      {/* Direction Picker */}
+      {/* Direction & Auto-Layout */}
       <div className="mermaid-toolbar-group">
-        <label className="mermaid-control-label">Direction:</label>
         <select
           className="mermaid-dropdown"
           value={direction}
           onChange={(e) => onDirectionChange(e.target.value as FlowchartDirection)}
+          title="Flowchart layout direction"
         >
-          <option value="LR">Left → Right (LR)</option>
-          <option value="TD">Top → Down (TD)</option>
-          <option value="BT">Bottom → Top (BT)</option>
-          <option value="RL">Right → Left (RL)</option>
+          <option value="LR">Left to Right (LR)</option>
+          <option value="TD">Top to Bottom (TD)</option>
+          <option value="BT">Bottom to Top (BT)</option>
+          <option value="RL">Right to Left (RL)</option>
         </select>
+
+        <button
+          className="mermaid-tool-btn"
+          onClick={onAutoTidy}
+          title="Auto-align canvas layout"
+        >
+          <WandIcon size={14} />
+          <span>Auto-Layout</span>
+        </button>
       </div>
 
       <div className="mermaid-toolbar-divider" />
 
-      {/* Auto-Tidy & History */}
+      {/* History & Zoom */}
       <div className="mermaid-toolbar-group">
-        <button
-          className="mermaid-tool-btn mod-cta"
-          onClick={onAutoTidy}
-          title="Re-calculate clean layout using Elk.js"
-        >
-          <WandIcon size={14} />
-          <span>Auto-Tidy</span>
-        </button>
         <button
           className="mermaid-tool-btn icon-only"
           onClick={onUndo}
@@ -147,40 +149,46 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
         >
           <RedoIcon size={14} />
         </button>
+        {onFitView && (
+          <button
+            className="mermaid-tool-btn icon-only"
+            onClick={onFitView}
+            title="Zoom to Fit Canvas"
+          >
+            <MaximizeIcon size={14} />
+          </button>
+        )}
       </div>
 
       <div className="mermaid-toolbar-spacer" />
 
-      {/* Export & Actions */}
+      {/* Export & Code Toggle */}
       <div className="mermaid-toolbar-group">
         <button
-          className="mermaid-tool-btn"
+          className="mermaid-tool-btn icon-only"
           onClick={onExportPng}
-          title="Export High-Resolution PNG"
+          title="Export high-resolution PNG"
         >
           <ImageIcon size={14} />
-          <span>PNG</span>
         </button>
         <button
-          className="mermaid-tool-btn"
+          className="mermaid-tool-btn icon-only"
           onClick={onExportSvg}
-          title="Export Scalable Vector Graphics (SVG)"
+          title="Export scalable SVG"
         >
           <VectorIcon size={14} />
-          <span>SVG</span>
         </button>
         <button
-          className="mermaid-tool-btn"
+          className="mermaid-tool-btn icon-only"
           onClick={onCopyCode}
-          title="Copy Mermaid Code"
+          title="Copy Mermaid syntax"
         >
           <CopyIcon size={14} />
-          <span>Copy</span>
         </button>
         <button
           className={`mermaid-tool-btn ${showCodePanel ? 'is-active' : ''}`}
           onClick={onToggleCodePanel}
-          title="Toggle Mermaid Code Split View"
+          title="Toggle code editor pane"
         >
           <CodeIcon size={14} />
           <span>{showCodePanel ? 'Hide Code' : 'Code'}</span>

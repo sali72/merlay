@@ -15,6 +15,7 @@ export class MermaidBlockModal extends Modal {
   private sectionInfo: SectionInfo;
   private initialCode: string;
   private latestCode: string;
+  private saveTimeout: number | null = null;
 
   constructor(
     app: App,
@@ -30,7 +31,8 @@ export class MermaidBlockModal extends Modal {
   }
 
   onOpen(): void {
-    const { contentEl } = this;
+    const { contentEl, modalEl } = this;
+    modalEl.addClass('mod-mermaid-block-modal');
     contentEl.empty();
     contentEl.addClass('mermaid-block-modal-root');
 
@@ -41,7 +43,7 @@ export class MermaidBlockModal extends Modal {
           initialCode={this.initialCode}
           onCodeChange={(newCode) => {
             this.latestCode = newCode;
-            this.saveToNote();
+            this.scheduleSave();
           }}
           onCopyNotice={() => {
             new Notice('Copied Mermaid syntax to clipboard!');
@@ -52,10 +54,26 @@ export class MermaidBlockModal extends Modal {
   }
 
   onClose(): void {
+    if (this.saveTimeout !== null) {
+      window.clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+      this.saveToNote();
+    }
+
     if (this.root) {
       this.root.unmount();
       this.root = null;
     }
+  }
+
+  private scheduleSave(): void {
+    if (this.saveTimeout !== null) {
+      window.clearTimeout(this.saveTimeout);
+    }
+    this.saveTimeout = window.setTimeout(() => {
+      this.saveTimeout = null;
+      this.saveToNote();
+    }, 250);
   }
 
   private async saveToNote(): Promise<void> {
@@ -77,6 +95,8 @@ export class MermaidBlockModal extends Modal {
       });
     } catch (e: any) {
       console.error('Error saving mermaid block to note:', e);
+      new Notice(`Failed to save Mermaid diagram: ${e.message}`);
     }
   }
 }
+

@@ -226,10 +226,40 @@ function matchShape(
 
   for (const s of shapes) {
     if (sub.startsWith(s.open)) {
+      const remainder = sub.substring(s.open.length);
+
+      // Check if quoted string inside shape: ["..."]
+      if (remainder.startsWith('"')) {
+        let qPos = 1;
+        let foundEndQuote = false;
+        while (qPos < remainder.length) {
+          if (remainder[qPos] === '"' && remainder[qPos - 1] !== '\\') {
+            foundEndQuote = true;
+            break;
+          }
+          qPos++;
+        }
+
+        if (foundEndQuote) {
+          const afterQuote = remainder.substring(qPos + 1).trimStart();
+          if (afterQuote.startsWith(s.close)) {
+            const label = remainder.substring(1, qPos).replace(/#quot;/g, '"');
+            const skipWhitespace = remainder.substring(qPos + 1).indexOf(s.close);
+            const fullLength = s.open.length + qPos + 1 + skipWhitespace + s.close.length;
+            return {
+              shapeType: s.type,
+              label,
+              raw: sub.substring(0, fullLength),
+              length: fullLength,
+            };
+          }
+        }
+      }
+
+      // Non-quoted or fallback
       const closeIdx = sub.indexOf(s.close, s.open.length);
       if (closeIdx !== -1) {
         let label = sub.substring(s.open.length, closeIdx).trim();
-        // Remove surrounding quotes if present
         if (
           (label.startsWith('"') && label.endsWith('"')) ||
           (label.startsWith("'") && label.endsWith("'"))
@@ -239,7 +269,7 @@ function matchShape(
         const fullLength = closeIdx + s.close.length;
         return {
           shapeType: s.type,
-          label,
+          label: label.replace(/#quot;/g, '"'),
           raw: sub.substring(0, fullLength),
           length: fullLength,
         };
@@ -249,3 +279,4 @@ function matchShape(
 
   return null;
 }
+
