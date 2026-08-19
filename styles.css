@@ -15,171 +15,186 @@
 }
 
 .mermaid-studio-container {
+  position: relative;
   display: flex;
-  flex-direction: column;
   width: 100%;
   height: 100%;
   background: var(--canvas-background, var(--background-primary, #181818));
   color: var(--text-normal, #dcddde);
   font-family: var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   user-select: none;
+  overflow: hidden;
 }
 
-/* Minimal Top Header Toolbar */
-.mermaid-top-toolbar {
+/* Floating Compact Canvas Dock (Overlaid at Top Center) */
+.mermaid-floating-dock {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  background: rgba(28, 28, 28, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.mermaid-dock-group {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  background: var(--background-secondary, #202020);
-  border-bottom: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08));
-  flex-shrink: 0;
-  z-index: 10;
-  height: 44px;
-  box-sizing: border-box;
+  gap: 2px;
 }
 
-.mermaid-toolbar-divider {
+.mermaid-dock-divider {
   width: 1px;
-  height: 18px;
-  background: var(--background-modifier-border, rgba(255, 255, 255, 0.12));
-  margin: 0 4px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.14);
+  margin: 0 3px;
 }
 
-.mermaid-toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.mermaid-toolbar-spacer {
-  flex: 1;
-}
-
-.mermaid-tool-btn {
+.mermaid-dock-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: var(--radius-s, 6px);
-  font-size: 0.82rem;
-  font-weight: 500;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted, #999);
   cursor: pointer;
-  background: var(--background-primary, #1a1a1a);
-  color: var(--text-normal, #ccc);
-  border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));
-  transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.mermaid-tool-btn:hover:not(:disabled) {
-  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
-  color: var(--text-bright, #fff);
-  border-color: var(--interactive-accent, #7c3aed);
-}
-
-.mermaid-tool-btn.icon-only {
-  width: 30px;
+  transition: all 120ms ease;
   padding: 0;
 }
 
-.mermaid-tool-btn.mod-cta {
-  background: var(--interactive-accent, #7c3aed);
-  color: #ffffff;
-  border-color: transparent;
+.mermaid-dock-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-bright, #fff);
 }
 
-.mermaid-tool-btn.mod-cta:hover {
+.mermaid-dock-btn.mod-cta {
+  background: var(--interactive-accent, #7c3aed);
+  color: #ffffff;
+}
+
+.mermaid-dock-btn.mod-cta:hover {
   background: var(--interactive-accent-hover, #6d28d9);
-  color: #ffffff;
 }
 
-.mermaid-tool-btn.is-active {
-  background: var(--interactive-accent, #7c3aed);
-  color: #fff;
-  border-color: transparent;
+.mermaid-dock-btn.is-active {
+  background: rgba(124, 58, 237, 0.25);
+  color: var(--interactive-accent, #7c3aed);
+  border-color: var(--interactive-accent, #7c3aed);
 }
 
-.mermaid-tool-btn:disabled {
+.mermaid-dock-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }
 
-/* Dropdown with icon wrapper */
-.mermaid-dropdown-wrapper {
+/* Dock Dropdowns */
+.mermaid-dock-dropdown-wrapper {
   position: relative;
   display: inline-flex;
   align-items: center;
 }
 
-.mermaid-dropdown-icon {
+.mermaid-dock-dropdown-icon {
   position: absolute;
-  left: 8px;
+  left: 6px;
   pointer-events: none;
   display: flex;
   align-items: center;
   color: var(--text-muted, #888);
 }
 
-.mermaid-dropdown {
-  background: var(--background-primary, #1a1a1a);
+.mermaid-dock-dropdown {
+  background: transparent;
   color: var(--text-normal, #ddd);
-  border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));
-  padding: 0 8px;
-  border-radius: var(--radius-s, 6px);
-  font-size: 0.8rem;
-  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  height: 28px;
+  padding: 0 4px 0 24px;
+  font-size: 0.76rem;
   outline: none;
   cursor: pointer;
-  transition: border-color 120ms ease;
+  transition: background 120ms ease;
 }
 
-.mermaid-dropdown.with-icon {
-  padding-left: 28px;
+.mermaid-dock-dropdown.simple {
+  padding: 0 6px;
 }
 
-.mermaid-dropdown:focus {
+.mermaid-dock-dropdown:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mermaid-dock-dropdown:focus {
   border-color: var(--interactive-accent, #7c3aed);
 }
 
-/* Studio Body Split View */
+/* Studio Body: 100% Full-Screen Canvas Edge-to-Edge */
 .mermaid-studio-body {
-  display: flex;
-  flex: 1;
+  position: relative;
   width: 100%;
-  height: calc(100% - 44px);
+  height: 100%;
   overflow: hidden;
 }
 
 .mermaid-canvas-pane {
-  flex: 1;
+  width: 100%;
   height: 100%;
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
   background: var(--canvas-background, var(--background-primary, #161616));
 }
 
+/* Sliding Code Pane Drawer on Right */
 .mermaid-code-pane {
-  width: 320px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 330px;
   height: 100%;
-  background: var(--background-secondary, #1c1c1c);
-  border-left: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08));
+  background: rgba(24, 24, 24, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45);
+  z-index: 90;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  animation: mermaidSlideInRight 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes mermaidSlideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 .mermaid-code-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px;
-  font-size: 0.78rem;
+  padding: 10px 14px;
+  font-size: 0.8rem;
   font-weight: 600;
-  color: var(--text-muted, #888);
-  border-bottom: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08));
-  background: var(--background-secondary-alt, #161616);
-  height: 34px;
+  color: var(--text-normal, #ddd);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 18, 18, 0.7);
+  height: 38px;
+  box-sizing: border-box;
 }
 
 .mermaid-error-badge {
@@ -201,6 +216,7 @@
   resize: none;
   outline: none;
   white-space: pre;
+  box-sizing: border-box;
 }
 
 /* Obsidian Canvas Card Styles */
@@ -329,7 +345,7 @@
   transform: translateX(-50%) scale(1.25);
 }
 
-/* Obsidian Canvas Floating Pill Toolbars */
+/* Floating Toolbars */
 .mermaid-floating-toolbar {
   display: flex;
   align-items: center;

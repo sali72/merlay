@@ -44,7 +44,6 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
   canUndo,
   canRedo,
   onCopyCode,
-  onCopyImage,
   onExportPng,
   onExportSvg,
   showCodePanel,
@@ -52,24 +51,24 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
   onFitView,
 }) => {
   return (
-    <div className="mermaid-top-toolbar">
+    <div className="mermaid-floating-dock nodrag nopan">
       {/* Creation Tools */}
-      <div className="mermaid-toolbar-group">
+      <div className="mermaid-dock-group">
         <button
-          className="mermaid-tool-btn mod-cta"
+          type="button"
+          className="mermaid-dock-btn mod-cta"
           onClick={() => onAddNode('rectangle')}
           title="Add Card (Double-click canvas)"
         >
-          <PlusIcon size={14} />
-          <span>Card</span>
+          <PlusIcon size={15} />
         </button>
 
-        <div className="mermaid-dropdown-wrapper" title="Choose shape">
-          <div className="mermaid-dropdown-icon">
+        <div className="mermaid-dock-dropdown-wrapper" title="Choose Shape">
+          <div className="mermaid-dock-dropdown-icon">
             <ShapesIcon size={14} />
           </div>
           <select
-            className="mermaid-dropdown with-icon"
+            className="mermaid-dock-dropdown"
             value=""
             onChange={(e) => {
               if (e.target.value) {
@@ -79,7 +78,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
             }}
           >
             <option value="" disabled>
-              Shape...
+              Shape
             </option>
             <option value="rectangle">Rectangle [text]</option>
             <option value="rounded">Rounded (text)</option>
@@ -94,47 +93,48 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
         </div>
 
         <button
-          className="mermaid-tool-btn"
+          type="button"
+          className="mermaid-dock-btn"
           onClick={onAddSubgraph}
-          title="Add Group Container (or select cards first)"
+          title="Add Group (or select cards first)"
         >
-          <FolderIcon size={14} />
-          <span>Group</span>
+          <FolderIcon size={15} />
         </button>
       </div>
 
-      <div className="mermaid-toolbar-divider" />
+      <div className="mermaid-dock-divider" />
 
       {/* Direction & Auto-Layout */}
-      <div className="mermaid-toolbar-group">
+      <div className="mermaid-dock-group">
         <select
-          className="mermaid-dropdown"
+          className="mermaid-dock-dropdown simple"
           value={direction}
           onChange={(e) => onDirectionChange(e.target.value as FlowchartDirection)}
-          title="Flowchart layout direction"
+          title="Layout Direction"
         >
-          <option value="LR">Left to Right (LR)</option>
-          <option value="TD">Top to Bottom (TD)</option>
-          <option value="BT">Bottom to Top (BT)</option>
-          <option value="RL">Right to Left (RL)</option>
+          <option value="LR">LR →</option>
+          <option value="TD">TD ↓</option>
+          <option value="BT">BT ↑</option>
+          <option value="RL">RL ←</option>
         </select>
 
         <button
-          className="mermaid-tool-btn"
+          type="button"
+          className="mermaid-dock-btn"
           onClick={onAutoTidy}
-          title="Auto-align canvas layout"
+          title="Auto-Layout Clean Alignment"
         >
           <WandIcon size={14} />
-          <span>Auto-Layout</span>
         </button>
       </div>
 
-      <div className="mermaid-toolbar-divider" />
+      <div className="mermaid-dock-divider" />
 
       {/* History & Zoom */}
-      <div className="mermaid-toolbar-group">
+      <div className="mermaid-dock-group">
         <button
-          className="mermaid-tool-btn icon-only"
+          type="button"
+          className="mermaid-dock-btn"
           onClick={onUndo}
           disabled={!canUndo}
           title="Undo (Ctrl+Z)"
@@ -142,7 +142,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
           <UndoIcon size={14} />
         </button>
         <button
-          className="mermaid-tool-btn icon-only"
+          type="button"
+          className="mermaid-dock-btn"
           onClick={onRedo}
           disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z)"
@@ -151,47 +152,51 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
         </button>
         {onFitView && (
           <button
-            className="mermaid-tool-btn icon-only"
+            type="button"
+            className="mermaid-dock-btn"
             onClick={onFitView}
-            title="Zoom to Fit Canvas"
+            title="Zoom to Fit"
           >
             <MaximizeIcon size={14} />
           </button>
         )}
       </div>
 
-      <div className="mermaid-toolbar-spacer" />
+      <div className="mermaid-dock-divider" />
 
       {/* Export & Code Toggle */}
-      <div className="mermaid-toolbar-group">
+      <div className="mermaid-dock-group">
         <button
-          className="mermaid-tool-btn icon-only"
+          type="button"
+          className="mermaid-dock-btn"
           onClick={onExportPng}
-          title="Export high-resolution PNG"
+          title="Export PNG"
         >
           <ImageIcon size={14} />
         </button>
         <button
-          className="mermaid-tool-btn icon-only"
+          type="button"
+          className="mermaid-dock-btn"
           onClick={onExportSvg}
-          title="Export scalable SVG"
+          title="Export SVG"
         >
           <VectorIcon size={14} />
         </button>
         <button
-          className="mermaid-tool-btn icon-only"
+          type="button"
+          className="mermaid-dock-btn"
           onClick={onCopyCode}
-          title="Copy Mermaid syntax"
+          title="Copy Mermaid Syntax"
         >
           <CopyIcon size={14} />
         </button>
         <button
-          className={`mermaid-tool-btn ${showCodePanel ? 'is-active' : ''}`}
+          type="button"
+          className={`mermaid-dock-btn ${showCodePanel ? 'is-active' : ''}`}
           onClick={onToggleCodePanel}
-          title="Toggle code editor pane"
+          title="Toggle Mermaid Syntax Editor"
         >
           <CodeIcon size={14} />
-          <span>{showCodePanel ? 'Hide Code' : 'Code'}</span>
         </button>
       </div>
     </div>
