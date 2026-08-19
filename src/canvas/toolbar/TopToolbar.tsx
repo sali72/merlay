@@ -12,6 +12,8 @@ export interface TopToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onCopyCode: () => void;
+  onExportPng: () => void;
+  onExportSvg: () => void;
   showCodePanel: boolean;
   onToggleCodePanel: () => void;
 }
@@ -27,6 +29,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
   canUndo,
   canRedo,
   onCopyCode,
+  onExportPng,
+  onExportSvg,
   showCodePanel,
   onToggleCodePanel,
 }) => {
@@ -52,7 +56,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
         <button
           className="mermaid-tool-btn"
           onClick={onAddSubgraph}
-          title="Add Subgraph Container"
+          title="Add Subgraph Container (or select nodes first)"
         >
           📦 Subgraph
         </button>
@@ -106,14 +110,28 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
 
       <div className="mermaid-toolbar-spacer" />
 
-      {/* Actions */}
+      {/* Export & Actions */}
       <div className="mermaid-toolbar-group">
+        <button
+          className="mermaid-tool-btn"
+          onClick={onExportPng}
+          title="Export High-Resolution PNG"
+        >
+          🖼️ PNG
+        </button>
+        <button
+          className="mermaid-tool-btn"
+          onClick={onExportSvg}
+          title="Export Scalable Vector Graphics (SVG)"
+        >
+          📐 SVG
+        </button>
         <button
           className="mermaid-tool-btn"
           onClick={onCopyCode}
           title="Copy Mermaid Code Block"
         >
-          📋 Copy Code
+          📋 Copy
         </button>
         <button
           className={`mermaid-tool-btn ${showCodePanel ? 'is-active' : ''}`}

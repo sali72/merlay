@@ -18,6 +18,7 @@ import { parseMermaidFlowchart } from '../ast/parser';
 import { serializeMermaidFlowchart } from '../ast/serializer';
 import { calculateElkLayout } from '../layout/elkLayout';
 import { findSpliceCandidateEdge } from '../layout/geometry';
+import { exportDiagramAsPng, exportDiagramAsSvg } from './exportUtils';
 import {
   ArrowType,
   FlowchartDirection,
@@ -655,6 +656,28 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     }));
   }, [nodes, handleLabelChange, handleSprout]);
 
+  const canvasPaneRef = useRef<HTMLDivElement>(null);
+
+  const handleExportPng = useCallback(async () => {
+    if (canvasPaneRef.current) {
+      try {
+        await exportDiagramAsPng(canvasPaneRef.current, 'mermaid-diagram.png');
+      } catch (err) {
+        console.error('Failed to export PNG:', err);
+      }
+    }
+  }, []);
+
+  const handleExportSvg = useCallback(async () => {
+    if (canvasPaneRef.current) {
+      try {
+        await exportDiagramAsSvg(canvasPaneRef.current, 'mermaid-diagram.svg');
+      } catch (err) {
+        console.error('Failed to export SVG:', err);
+      }
+    }
+  }, []);
+
   const selectedNode = ast.nodes.get(selectedNodeId || '');
   const selectedEdge = ast.edges.find((e) => e.id === selectedEdgeId);
 
@@ -675,6 +698,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
           navigator.clipboard.writeText(`\`\`\`mermaid\n${code}\n\`\`\``);
           if (onCopyNotice) onCopyNotice();
         }}
+        onExportPng={handleExportPng}
+        onExportSvg={handleExportSvg}
         showCodePanel={showCodePanel}
         onToggleCodePanel={() => setShowCodePanel(!showCodePanel)}
       />
@@ -682,7 +707,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       {/* Main Split Body */}
       <div className="mermaid-studio-body">
         {/* Visual Canvas Panel */}
-        <div className="mermaid-canvas-pane">
+        <div className="mermaid-canvas-pane" ref={canvasPaneRef}>
           <ReactFlow
             nodes={augmentedNodes}
             edges={edges}

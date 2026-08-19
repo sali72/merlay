@@ -1,15 +1,19 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type VisualMermaidPlugin from '../main';
-import { FlowchartDirection } from '../ast/types';
+import { ArrowType, FlowchartDirection, MermaidShapeType } from '../ast/types';
 
 export interface VisualMermaidSettings {
   defaultDirection: FlowchartDirection;
+  defaultShape: MermaidShapeType;
+  defaultArrowType: ArrowType;
   autoTidyOnOpen: boolean;
   showCodePanelByDefault: boolean;
 }
 
 export const DEFAULT_SETTINGS: VisualMermaidSettings = {
   defaultDirection: 'LR',
+  defaultShape: 'rectangle',
+  defaultArrowType: 'arrow',
   autoTidyOnOpen: true,
   showCodePanelByDefault: true,
 };
@@ -30,7 +34,7 @@ export class VisualMermaidSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Default Layout Direction')
-      .setDesc('Direction for new flowcharts and auto-layouts.')
+      .setDesc('Default flow direction for newly created diagrams.')
       .addDropdown((drop) =>
         drop
           .addOption('LR', 'Left to Right (LR)')
@@ -45,8 +49,46 @@ export class VisualMermaidSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName('Default Node Shape')
+      .setDesc('Shape used when sprouting or creating new nodes.')
+      .addDropdown((drop) =>
+        drop
+          .addOption('rectangle', 'Rectangle [text]')
+          .addOption('rounded', 'Rounded (text)')
+          .addOption('stadium', 'Stadium ([text])')
+          .addOption('cylinder', 'Database [(text)]')
+          .addOption('circle', 'Circle ((text))')
+          .addOption('diamond', 'Decision {text}')
+          .addOption('hexagon', 'Hexagon {{text}}')
+          .addOption('subroutine', 'Subroutine [[text]]')
+          .addOption('parallelogram', 'Parallelogram [/text/]')
+          .setValue(this.plugin.settings.defaultShape)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultShape = value as MermaidShapeType;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Default Connection Style')
+      .setDesc('Arrow connector style used when connecting nodes.')
+      .addDropdown((drop) =>
+        drop
+          .addOption('arrow', 'Solid Arrow (-->)')
+          .addOption('dotted', 'Dotted Arrow (-.->)')
+          .addOption('thick', 'Thick Arrow (==>)')
+          .addOption('bidirectional', 'Bidirectional (<-->)')
+          .addOption('open', 'Solid Line (---)')
+          .setValue(this.plugin.settings.defaultArrowType)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultArrowType = value as ArrowType;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName('Auto-Tidy on Open')
-      .setDesc('Automatically calculates a clean layout when opening diagrams.')
+      .setDesc('Automatically calculates a clean Elk.js layout when opening diagrams.')
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.autoTidyOnOpen)
