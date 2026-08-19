@@ -5,6 +5,7 @@
   "minAppVersion": "1.4.0",
   "description": "Bidirectional drag-and-drop visual editor for Mermaid diagrams with zero code lock-in and seamless AI round-trip support.",
   "author": "Ali",
-  "authorUrl": "https://github.com",
+  "authorUrl": "https://github.com/sali72",
+  "fundingUrl": "https://github.com/sali72/obsidian-visual-mermaid",
   "isDesktopOnly": false
 }

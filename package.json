@@ -19,6 +19,14 @@
   ],
   "author": "Ali",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sali72/obsidian-visual-mermaid.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sali72/obsidian-visual-mermaid/issues"
+  },
+  "homepage": "https://github.com/sali72/obsidian-visual-mermaid#readme",
   "dependencies": {
     "@xyflow/react": "^12.4.2",
     "elkjs": "^0.9.3",

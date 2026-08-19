@@ -30,7 +30,7 @@ Build and modify **Mermaid flowcharts visually** with zero coding friction, whil
 3. Enter this GitHub repository URL and click **"Add Plugin"**.
 
 ### Manual Installation
-1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com).
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com/sali72/obsidian-visual-mermaid/releases).
 2. Copy them into your vault under `.obsidian/plugins/obsidian-visual-mermaid/`.
 3. In Obsidian, go to **Settings → Community plugins** and enable **Visual Mermaid Studio**.
 
