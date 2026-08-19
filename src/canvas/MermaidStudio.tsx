@@ -15,30 +15,6 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-function getEdgeMarkers(arrowType: ArrowType) {
-  const isBidirectional = arrowType === 'bidirectional';
-  const isOpen = arrowType === 'open' || arrowType === 'dotted_open' || arrowType === 'thick_open';
-
-  return {
-    markerEnd: isOpen
-      ? undefined
-      : {
-          type: MarkerType.ArrowClosed,
-          color: 'var(--text-muted, #888888)',
-          width: 16,
-          height: 16,
-        },
-    markerStart: isBidirectional
-      ? {
-          type: MarkerType.ArrowClosed,
-          color: 'var(--text-muted, #888888)',
-          width: 16,
-          height: 16,
-        }
-      : undefined,
-  };
-}
-
 import { parseMermaidFlowchart } from '../ast/parser';
 import { serializeMermaidFlowchart } from '../ast/serializer';
 import { calculateElkLayout } from '../layout/elkLayout';
@@ -57,9 +33,53 @@ import { ShapeNode } from './nodes/ShapeNode';
 import { SubgraphNode } from './nodes/SubgraphNode';
 import { CustomEdge } from './edges/CustomEdge';
 import { TopToolbar } from './toolbar/TopToolbar';
-import { FloatingNodeToolbar } from './toolbar/FloatingNodeToolbar';
-import { FloatingEdgeToolbar } from './toolbar/FloatingEdgeToolbar';
 import { useUndoRedo } from './hooks/useUndoRedo';
+
+function getEdgeMarkers(arrowType: ArrowType, isSelected = false) {
+  const isBidirectional = arrowType === 'bidirectional';
+  const isOpen =
+    arrowType === 'open' ||
+    arrowType === 'dotted_open' ||
+    arrowType === 'thick_open';
+
+  const markerColor = isSelected
+    ? 'var(--interactive-accent, #7c3aed)'
+    : 'var(--text-muted, #888888)';
+
+  return {
+    markerEnd: isOpen
+      ? undefined
+      : {
+          type: MarkerType.ArrowClosed,
+          color: markerColor,
+          width: 16,
+          height: 16,
+        },
+    markerStart: isBidirectional
+      ? {
+          type: MarkerType.ArrowClosed,
+          color: markerColor,
+          width: 16,
+          height: 16,
+        }
+      : undefined,
+  };
+}
+
+function getDefaultHandles(direction: FlowchartDirection) {
+  switch (direction) {
+    case 'TD':
+    case 'TB':
+      return { sourceHandle: 'bottom-src', targetHandle: 'top-tgt' };
+    case 'BT':
+      return { sourceHandle: 'top-src', targetHandle: 'bottom-tgt' };
+    case 'RL':
+      return { sourceHandle: 'left-src', targetHandle: 'right-tgt' };
+    case 'LR':
+    default:
+      return { sourceHandle: 'right-src', targetHandle: 'left-tgt' };
+  }
+}
 
 export interface MermaidStudioProps {
   initialCode: string;
@@ -123,6 +143,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
         if (runLayout) {
           const layout = await calculateElkLayout(parsedAst);
+          const defaultHandles = getDefaultHandles(parsedAst.direction);
 
           const flowNodes: Node[] = [];
 
@@ -159,6 +180,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             id: e.id,
             source: e.from,
             target: e.to,
+            sourceHandle: defaultHandles.sourceHandle,
+            targetHandle: defaultHandles.targetHandle,
             type: 'customEdge',
             ...getEdgeMarkers(e.arrowType),
             data: {
@@ -241,9 +264,9 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       const candidateEdge = findSpliceCandidateEdge(node, nodes, edges, 35);
       if (!candidateEdge) return;
 
-      // Splice candidateEdge (A --> B) into (A --> node.id) and (node.id --> B)
       const sourceId = candidateEdge.source;
       const targetId = candidateEdge.target;
+      const defaultHandles = getDefaultHandles(ast.direction);
 
       const edge1Def: MermaidEdgeDef = {
         type: 'edge',
@@ -262,7 +285,11 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       };
 
       const updatedEdges = ast.edges
-        .filter((e) => e.id !== candidateEdge.id && !(e.from === sourceId && e.to === targetId))
+        .filter(
+          (e) =>
+            e.id !== candidateEdge.id &&
+            !(e.from === sourceId && e.to === targetId)
+        )
         .concat([edge1Def, edge2Def]);
 
       const updatedAst: MermaidFlowchartAST = {
@@ -278,6 +305,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               id: edge1Def.id,
               source: sourceId,
               target: node.id,
+              sourceHandle: defaultHandles.sourceHandle,
+              targetHandle: defaultHandles.targetHandle,
               type: 'customEdge',
               ...getEdgeMarkers('arrow'),
               data: { arrowType: 'arrow' },
@@ -286,6 +315,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               id: edge2Def.id,
               source: node.id,
               target: targetId,
+              sourceHandle: defaultHandles.sourceHandle,
+              targetHandle: defaultHandles.targetHandle,
               type: 'customEdge',
               ...getEdgeMarkers('arrow'),
               data: { arrowType: 'arrow' },
@@ -298,7 +329,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [code, nodes, edges, ast, pushSnapshot, setEdges, updateCodeFromAST]
   );
 
-  // Sprout handler with accurate directional handle connection
+  // Sprout handler
   const handleSprout = useCallback(
     (sourceId: string, direction: 'right' | 'down' | 'left' | 'up') => {
       const sourceNode = nodes.find((n) => n.id === sourceId);
@@ -405,77 +436,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, updateCodeFromAST, setNodes]
   );
 
-  // Shape change
-  const handleShapeChange = useCallback(
-    (newShape: MermaidShapeType) => {
-      if (!selectedNodeId) return;
-      const node = ast.nodes.get(selectedNodeId);
-      if (!node) return;
-
-      node.shape = newShape;
-      updateCodeFromAST({ ...ast });
-
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === selectedNodeId
-            ? { ...n, data: { ...n.data, shape: newShape } }
-            : n
-        )
-      );
-    },
-    [selectedNodeId, ast, updateCodeFromAST, setNodes]
-  );
-
-  // Color change
-  const handleColorChange = useCallback(
-    (color: string) => {
-      if (!selectedNodeId) return;
-
-      const styleObj: Record<string, string> = color
-        ? { fill: color, stroke: color, color: '#ffffff' }
-        : {};
-      const existingStyleIdx = ast.styles.findIndex(
-        (s) => s.targetId === selectedNodeId
-      );
-
-      const updatedStyles = [...ast.styles];
-      if (color) {
-        if (existingStyleIdx !== -1) {
-          updatedStyles[existingStyleIdx] = {
-            type: 'style',
-            targetId: selectedNodeId,
-            styles: styleObj,
-          };
-        } else {
-          updatedStyles.push({
-            type: 'style',
-            targetId: selectedNodeId,
-            styles: styleObj,
-          });
-        }
-      } else if (existingStyleIdx !== -1) {
-        updatedStyles.splice(existingStyleIdx, 1);
-      }
-
-      const updatedAst = { ...ast, styles: updatedStyles };
-      updateCodeFromAST(updatedAst);
-
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === selectedNodeId
-            ? { ...n, data: { ...n.data, style: styleObj } }
-            : n
-        )
-      );
-    },
-    [selectedNodeId, ast, updateCodeFromAST, setNodes]
-  );
-
   // Edge Style change
   const handleEdgeArrowTypeChange = useCallback(
-    (newArrowType: ArrowType) => {
-      if (!selectedEdgeId) return;
-      const edge = ast.edges.find((e) => e.id === selectedEdgeId);
+    (edgeId: string, newArrowType: ArrowType) => {
+      const edge = ast.edges.find((e) => e.id === edgeId);
       if (!edge) return;
 
       edge.arrowType = newArrowType;
@@ -483,24 +447,23 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
       setEdges((eds) =>
         eds.map((e) =>
-          e.id === selectedEdgeId
+          e.id === edgeId
             ? {
                 ...e,
-                ...getEdgeMarkers(newArrowType),
+                ...getEdgeMarkers(newArrowType, true),
                 data: { ...e.data, arrowType: newArrowType },
               }
             : e
         )
       );
     },
-    [selectedEdgeId, ast, updateCodeFromAST, setEdges]
+    [ast, updateCodeFromAST, setEdges]
   );
 
   // Edge Label change
   const handleEdgeLabelChange = useCallback(
-    (newLabel: string) => {
-      if (!selectedEdgeId) return;
-      const edge = ast.edges.find((e) => e.id === selectedEdgeId);
+    (edgeId: string, newLabel: string) => {
+      const edge = ast.edges.find((e) => e.id === edgeId);
       if (!edge) return;
 
       edge.label = newLabel;
@@ -508,61 +471,81 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
       setEdges((eds) =>
         eds.map((e) =>
-          e.id === selectedEdgeId
-            ? { ...e, data: { ...e.data, label: newLabel } }
-            : e
+          e.id === edgeId ? { ...e, data: { ...e.data, label: newLabel } } : e
         )
       );
+    },
+    [ast, updateCodeFromAST, setEdges]
+  );
+
+  // Delete edge
+  const handleDeleteEdge = useCallback(
+    (edgeId?: string) => {
+      const targetId = edgeId || selectedEdgeId;
+      if (!targetId) return;
+
+      const updatedEdges = ast.edges.filter((e) => e.id !== targetId);
+      const updatedAst: MermaidFlowchartAST = {
+        ...ast,
+        edges: updatedEdges,
+      };
+
+      updateCodeFromAST(updatedAst);
+      setEdges((eds) => eds.filter((e) => e.id !== targetId));
+      if (selectedEdgeId === targetId) setSelectedEdgeId(null);
     },
     [selectedEdgeId, ast, updateCodeFromAST, setEdges]
   );
 
-  // Delete selected edge
-  const handleDeleteEdge = useCallback(() => {
-    if (!selectedEdgeId) return;
+  // Delete node
+  const handleDeleteNode = useCallback(
+    (nodeId?: string) => {
+      const targetId = nodeId || selectedNodeId;
+      if (!targetId) return;
 
-    const updatedEdges = ast.edges.filter((e) => e.id !== selectedEdgeId);
-    const updatedAst: MermaidFlowchartAST = {
-      ...ast,
-      edges: updatedEdges,
-    };
+      const updatedNodes = new Map(ast.nodes);
+      updatedNodes.delete(targetId);
 
-    updateCodeFromAST(updatedAst);
-    setEdges((eds) => eds.filter((e) => e.id !== selectedEdgeId));
-    setSelectedEdgeId(null);
-  }, [selectedEdgeId, ast, updateCodeFromAST, setEdges]);
+      const updatedEdges = ast.edges.filter(
+        (e) => e.from !== targetId && e.to !== targetId
+      );
 
-  // Delete selected node
-  const handleDeleteNode = useCallback(() => {
-    if (!selectedNodeId) return;
+      const updatedAst: MermaidFlowchartAST = {
+        ...ast,
+        nodes: updatedNodes,
+        edges: updatedEdges,
+      };
 
-    const updatedNodes = new Map(ast.nodes);
-    updatedNodes.delete(selectedNodeId);
+      updateCodeFromAST(updatedAst);
 
-    const updatedEdges = ast.edges.filter(
-      (e) => e.from !== selectedNodeId && e.to !== selectedNodeId
-    );
+      setNodes((nds) => nds.filter((n) => n.id !== targetId));
+      setEdges((eds) =>
+        eds.filter((e) => e.source !== targetId && e.target !== targetId)
+      );
+      if (selectedNodeId === targetId) setSelectedNodeId(null);
+    },
+    [selectedNodeId, ast, updateCodeFromAST, setNodes, setEdges]
+  );
 
-    const updatedAst: MermaidFlowchartAST = {
-      ...ast,
-      nodes: updatedNodes,
-      edges: updatedEdges,
-    };
-
-    updateCodeFromAST(updatedAst);
-
-    setNodes((nds) => nds.filter((n) => n.id !== selectedNodeId));
-    setEdges((eds) =>
-      eds.filter(
-        (e) => e.source !== selectedNodeId && e.target !== selectedNodeId
-      )
-    );
-    setSelectedNodeId(null);
-  }, [selectedNodeId, ast, updateCodeFromAST, setNodes, setEdges]);
-
-  // Add new standalone node with custom shape
+  // Add new standalone node or morph selected node shape
   const handleAddNode = useCallback(
     (shape: MermaidShapeType = 'rectangle') => {
+      if (selectedNodeId && ast.nodes.has(selectedNodeId)) {
+        // Contextual Morph: If a node is selected, morph its shape!
+        const node = ast.nodes.get(selectedNodeId)!;
+        node.shape = shape;
+        updateCodeFromAST({ ...ast });
+        setNodes((nds) =>
+          nds.map((n) =>
+            n.id === selectedNodeId
+              ? { ...n, data: { ...n.data, shape } }
+              : n
+          )
+        );
+        return;
+      }
+
+      // Otherwise, create a new node
       const newId = `node_${Date.now().toString().slice(-4)}`;
       const newNodeDef: MermaidNodeDef = {
         type: 'node',
@@ -582,7 +565,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         {
           id: newId,
           type: 'shapeNode',
-          position: { x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 },
+          position: {
+            x: 100 + Math.random() * 50,
+            y: 100 + Math.random() * 50,
+          },
           data: {
             id: newId,
             label: 'New Node',
@@ -591,7 +577,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         },
       ]);
     },
-    [ast, updateCodeFromAST, setNodes]
+    [selectedNodeId, ast, updateCodeFromAST, setNodes]
   );
 
   // Add new subgraph / Group selected nodes
@@ -633,17 +619,27 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       const updatedAst = { ...ast, direction: dir };
       updateCodeFromAST(updatedAst);
       const layout = await calculateElkLayout(updatedAst);
+      const defaultHandles = getDefaultHandles(dir);
+
       setNodes((nds) =>
         nds.map((n) => {
           const found = layout.nodes.find((ln) => ln.id === n.id);
           return found ? { ...n, position: { x: found.x, y: found.y } } : n;
         })
       );
+
+      setEdges((eds) =>
+        eds.map((e) => ({
+          ...e,
+          sourceHandle: defaultHandles.sourceHandle,
+          targetHandle: defaultHandles.targetHandle,
+        }))
+      );
     },
-    [ast, updateCodeFromAST, setNodes]
+    [ast, updateCodeFromAST, setNodes, setEdges]
   );
 
-  // Undo / Redo handlers preserving node positions!
+  // Undo / Redo handlers preserving node positions
   const handleUndo = useCallback(() => {
     const snap = undo();
     if (snap) {
@@ -774,22 +770,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
           );
         },
         onDelete: (nodeId: string) => {
-          const updatedNodes = new Map(ast.nodes);
-          updatedNodes.delete(nodeId);
-          const updatedEdges = ast.edges.filter(
-            (e) => e.from !== nodeId && e.to !== nodeId
-          );
-          const updatedAst: MermaidFlowchartAST = {
-            ...ast,
-            nodes: updatedNodes,
-            edges: updatedEdges,
-          };
-          updateCodeFromAST(updatedAst);
-          setNodes((nds) => nds.filter((n) => n.id !== nodeId));
-          setEdges((eds) =>
-            eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
-          );
-          setSelectedNodeId(null);
+          handleDeleteNode(nodeId);
         },
       },
     }));
@@ -798,9 +779,27 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     ast,
     handleLabelChange,
     handleSprout,
+    handleDeleteNode,
     updateCodeFromAST,
     setNodes,
-    setEdges,
+  ]);
+
+  // Inject callbacks into edge data
+  const augmentedEdges = useMemo(() => {
+    return edges.map((edge) => ({
+      ...edge,
+      data: {
+        ...edge.data,
+        onArrowTypeChange: handleEdgeArrowTypeChange,
+        onLabelChange: handleEdgeLabelChange,
+        onDelete: handleDeleteEdge,
+      },
+    }));
+  }, [
+    edges,
+    handleEdgeArrowTypeChange,
+    handleEdgeLabelChange,
+    handleDeleteEdge,
   ]);
 
   const handleExportPng = useCallback(async () => {
@@ -822,9 +821,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       }
     }
   }, []);
-
-  const selectedNode = ast.nodes.get(selectedNodeId || '');
-  const selectedEdge = ast.edges.find((e) => e.id === selectedEdgeId);
 
   return (
     <div className="mermaid-studio-container" ref={containerRef}>
@@ -855,7 +851,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         <div className="mermaid-canvas-pane" ref={canvasPaneRef}>
           <ReactFlow
             nodes={augmentedNodes}
-            edges={edges}
+            edges={augmentedEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -871,27 +867,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               nodeColor={() => 'var(--interactive-accent, #7c3aed)'}
               maskColor="rgba(0,0,0,0.6)"
             />
-
-            {/* Floating Edge Toolbar on edge selection */}
-            {selectedEdge && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 20,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 50,
-                }}
-              >
-                <FloatingEdgeToolbar
-                  currentArrowType={selectedEdge.arrowType}
-                  currentLabel={selectedEdge.label || ''}
-                  onArrowTypeChange={handleEdgeArrowTypeChange}
-                  onLabelChange={handleEdgeLabelChange}
-                  onDelete={handleDeleteEdge}
-                />
-              </div>
-            )}
           </ReactFlow>
         </div>
 

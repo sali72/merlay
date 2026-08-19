@@ -6,11 +6,14 @@ import {
   getBezierPath,
 } from '@xyflow/react';
 import { ArrowType } from '../../ast/types';
+import { FloatingEdgeToolbar } from '../toolbar/FloatingEdgeToolbar';
 
 export interface CustomEdgeData {
   arrowType: ArrowType;
   label?: string;
+  onArrowTypeChange?: (edgeId: string, newType: ArrowType) => void;
   onLabelChange?: (edgeId: string, label: string) => void;
+  onDelete?: (edgeId: string) => void;
 }
 
 export const CustomEdge: React.FC<EdgeProps> = ({
@@ -61,28 +64,50 @@ export const CustomEdge: React.FC<EdgeProps> = ({
           stroke: strokeColor,
         }}
       />
-      {edgeData?.label && (
-        <EdgeLabelRenderer>
+
+      <EdgeLabelRenderer>
+        {/* Floating Context Toolbar directly at selected edge midpoint */}
+        {selected ? (
           <div
             style={{
               position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              background: 'var(--background-secondary, #202020)',
-              padding: '2px 8px',
-              borderRadius: 4,
-              fontSize: '0.75rem',
-              fontWeight: 500,
-              color: 'var(--text-normal, #ddd)',
-              border: '1px solid var(--background-modifier-border, #444)',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+              transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - 12}px)`,
+              zIndex: 1000,
               pointerEvents: 'all',
             }}
-            className="nodrag nopan mermaid-edge-label"
+            className="nodrag nopan"
           >
-            {edgeData.label}
+            <FloatingEdgeToolbar
+              currentArrowType={arrowType}
+              currentLabel={edgeData?.label || ''}
+              onArrowTypeChange={(newType) => edgeData?.onArrowTypeChange?.(id, newType)}
+              onLabelChange={(newLabel) => edgeData?.onLabelChange?.(id, newLabel)}
+              onDelete={() => edgeData?.onDelete?.(id)}
+            />
           </div>
-        </EdgeLabelRenderer>
-      )}
+        ) : (
+          edgeData?.label && (
+            <div
+              style={{
+                position: 'absolute',
+                transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+                background: 'var(--background-secondary, #202020)',
+                padding: '2px 8px',
+                borderRadius: 4,
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                color: 'var(--text-normal, #ddd)',
+                border: '1px solid var(--background-modifier-border, #444)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                pointerEvents: 'all',
+              }}
+              className="nodrag nopan mermaid-edge-label"
+            >
+              {edgeData.label}
+            </div>
+          )
+        )}
+      </EdgeLabelRenderer>
     </>
   );
 };

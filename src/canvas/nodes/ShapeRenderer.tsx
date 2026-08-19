@@ -18,7 +18,7 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = ({
   stroke,
   strokeWidth: sw,
 }) => {
-  const safeW = Math.max(w, 80);
+  const safeW = Math.max(w, 70);
   const safeH = Math.max(h, 44);
 
   switch (shape) {
@@ -37,26 +37,39 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = ({
       );
 
     case 'circle': {
-      const r = Math.min(safeW, safeH) / 2 - sw;
+      const diameter = Math.min(safeW, safeH);
+      const r = diameter / 2 - sw;
       return (
-        <svg width="100%" height="100%" viewBox={`0 0 ${safeW} ${safeH}`} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
-          <circle cx={safeW / 2} cy={safeH / 2} r={r} fill={fill} stroke={stroke} strokeWidth={sw} />
+        <svg width="100%" height="100%" viewBox={`0 0 ${diameter} ${diameter}`} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+          <circle cx={diameter / 2} cy={diameter / 2} r={r} fill={fill} stroke={stroke} strokeWidth={sw} />
         </svg>
       );
     }
 
     case 'cylinder': {
       const rx = safeW / 2 - sw - 2;
-      const ry = 6;
+      const ry = 8;
+      const topY = ry + sw;
+      const bottomY = safeH - ry - sw;
+
       return (
         <svg width="100%" height="100%" viewBox={`0 0 ${safeW} ${safeH}`} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+          {/* Cylinder Main Body */}
           <path
-            d={`M ${sw + 2},${ry + 2} L ${sw + 2},${safeH - ry - 2} A ${rx},${ry} 0 0,0 ${safeW - sw - 2},${safeH - ry - 2} L ${safeW - sw - 2},${ry + 2} Z`}
+            d={`M ${sw + 2},${topY} L ${sw + 2},${bottomY} A ${rx},${ry} 0 0,0 ${safeW - sw - 2},${bottomY} L ${safeW - sw - 2},${topY} Z`}
             fill={fill}
             stroke={stroke}
             strokeWidth={sw}
           />
-          <ellipse cx={safeW / 2} cy={ry + 2} rx={rx} ry={ry} fill={fill} stroke={stroke} strokeWidth={sw} />
+          {/* Bottom 3D curved arc outline */}
+          <path
+            d={`M ${sw + 2},${bottomY} A ${rx},${ry} 0 0,0 ${safeW - sw - 2},${bottomY}`}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={sw}
+          />
+          {/* Top Elliptical Lid */}
+          <ellipse cx={safeW / 2} cy={topY} rx={rx} ry={ry} fill={fill} stroke={stroke} strokeWidth={sw} />
         </svg>
       );
     }
@@ -65,7 +78,7 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = ({
       return (
         <svg width="100%" height="100%" viewBox={`0 0 ${safeW} ${safeH}`} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
           <polygon
-            points={`${safeW / 2},${sw} ${safeW - sw},${safeH / 2} ${safeW / 2},${safeH - sw} ${sw},${safeH / 2}`}
+            points={`${safeW / 2},${sw + 1} ${safeW - sw - 1},${safeH / 2} ${safeW / 2},${safeH - sw - 1} ${sw + 1},${safeH / 2}`}
             fill={fill}
             stroke={stroke}
             strokeWidth={sw}
@@ -77,7 +90,7 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = ({
       return (
         <svg width="100%" height="100%" viewBox={`0 0 ${safeW} ${safeH}`} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
           <polygon
-            points={`18,${sw} ${safeW - 18},${sw} ${safeW - sw},${safeH / 2} ${safeW - 18},${safeH - sw} 18,${safeH - sw} ${sw},${safeH / 2}`}
+            points={`18,${sw + 1} ${safeW - 18},${sw + 1} ${safeW - sw - 1},${safeH / 2} ${safeW - 18},${safeH - sw - 1} 18,${safeH - sw - 1} ${sw + 1},${safeH / 2}`}
             fill={fill}
             stroke={stroke}
             strokeWidth={sw}
@@ -89,7 +102,7 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = ({
       return (
         <svg width="100%" height="100%" viewBox={`0 0 ${safeW} ${safeH}`} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
           <polygon
-            points={`16,${sw} ${safeW - sw},${sw} ${safeW - 16},${safeH - sw} ${sw},${safeH - sw}`}
+            points={`18,${sw + 1} ${safeW - sw - 1},${sw + 1} ${safeW - 18},${safeH - sw - 1} ${sw + 1},${safeH - sw - 1}`}
             fill={fill}
             stroke={stroke}
             strokeWidth={sw}
@@ -101,8 +114,8 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = ({
       return (
         <svg width="100%" height="100%" viewBox={`0 0 ${safeW} ${safeH}`} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
           <rect x={sw} y={sw} width={safeW - sw * 2} height={safeH - sw * 2} rx="4" fill={fill} stroke={stroke} strokeWidth={sw} />
-          <line x1="10" y1={sw} x2="10" y2={safeH - sw} stroke={stroke} strokeWidth={sw} />
-          <line x1={safeW - 10} y1={sw} x2={safeW - 10} y2={safeH - sw} stroke={stroke} strokeWidth={sw} />
+          <line x1="12" y1={sw} x2="12" y2={safeH - sw} stroke={stroke} strokeWidth={sw} />
+          <line x1={safeW - 12} y1={sw} x2={safeW - 12} y2={safeH - sw} stroke={stroke} strokeWidth={sw} />
         </svg>
       );
 
