@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeProps, NodeToolbar } from '@xyflow/react';
 import { MermaidShapeType } from '../../ast/types';
 import { ShapeRenderer } from './ShapeRenderer';
-import { PlusIcon } from '../icons/Icons';
+import { PlusIcon, ShapeIcons, TrashIcon } from '../icons/Icons';
 
 export interface ShapeNodeData {
   id: string;
@@ -11,7 +11,36 @@ export interface ShapeNodeData {
   style?: Record<string, string>;
   onLabelChange?: (id: string, newLabel: string) => void;
   onSprout?: (sourceId: string, direction: 'right' | 'down' | 'left' | 'up') => void;
+  onShapeChange?: (id: string, newShape: MermaidShapeType) => void;
+  onColorChange?: (id: string, color: string) => void;
+  onDelete?: (id: string) => void;
 }
+
+const SHAPES: Array<{
+  type: MermaidShapeType;
+  label: string;
+  renderIcon: () => React.ReactNode;
+}> = [
+  { type: 'rectangle', label: 'Rectangle [text]', renderIcon: ShapeIcons.rectangle },
+  { type: 'rounded', label: 'Rounded (text)', renderIcon: ShapeIcons.rounded },
+  { type: 'stadium', label: 'Stadium ([text])', renderIcon: ShapeIcons.stadium },
+  { type: 'cylinder', label: 'Database [(text)]', renderIcon: ShapeIcons.cylinder },
+  { type: 'circle', label: 'Circle ((text))', renderIcon: ShapeIcons.circle },
+  { type: 'diamond', label: 'Decision {text}', renderIcon: ShapeIcons.diamond },
+  { type: 'hexagon', label: 'Hexagon {{text}}', renderIcon: ShapeIcons.hexagon },
+  { type: 'subroutine', label: 'Subroutine [[text]]', renderIcon: ShapeIcons.subroutine },
+  { type: 'parallelogram', label: 'Parallelogram [/text/]', renderIcon: ShapeIcons.parallelogram },
+];
+
+const COLORS = [
+  { name: 'Default', value: '' },
+  { name: 'Blue', value: '#2563eb' },
+  { name: 'Purple', value: '#7c3aed' },
+  { name: 'Emerald', value: '#059669' },
+  { name: 'Amber', value: '#d97706' },
+  { name: 'Rose', value: '#e11d48' },
+  { name: 'Slate', value: '#475569' },
+];
 
 export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const nodeData = data as unknown as ShapeNodeData;
@@ -28,7 +57,7 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   useEffect(() => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const minW = nodeData.shape === 'circle' ? 68 : Math.max(120, (label.length * 8.5) + 36);
+      const minW = nodeData.shape === 'circle' ? 68 : Math.max(120, label.length * 8.5 + 36);
       const minH = nodeData.shape === 'circle' ? 68 : 46;
       setDimensions({
         width: Math.max(minW, rect.width || minW),
@@ -97,6 +126,62 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         }
       }}
     >
+      {/* Floating Toolbar Directly Attached to Node */}
+      <NodeToolbar
+        isVisible={!!selected}
+        position={Position.Top}
+        className="mermaid-floating-toolbar"
+      >
+        {/* Shape Morphing Buttons */}
+        <div className="mermaid-pill-group">
+          {SHAPES.map((s) => (
+            <button
+              key={s.type}
+              className={`mermaid-pill-btn ${shape === s.type ? 'is-active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                nodeData.onShapeChange?.(id, s.type);
+              }}
+              title={s.label}
+            >
+              {s.renderIcon()}
+            </button>
+          ))}
+        </div>
+
+        <div className="mermaid-pill-divider" />
+
+        {/* Color Palette */}
+        <div className="mermaid-pill-group colors">
+          {COLORS.map((c) => (
+            <button
+              key={c.name}
+              className={`mermaid-color-dot ${!c.value ? 'default' : ''}`}
+              style={{ background: c.value || 'var(--background-secondary, #333)' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                nodeData.onColorChange?.(id, c.value);
+              }}
+              title={`Color: ${c.name}`}
+            />
+          ))}
+        </div>
+
+        <div className="mermaid-pill-divider" />
+
+        {/* Delete */}
+        <button
+          className="mermaid-pill-btn delete"
+          onClick={(e) => {
+            e.stopPropagation();
+            nodeData.onDelete?.(id);
+          }}
+          title="Delete Node (Backspace)"
+        >
+          <TrashIcon size={14} />
+        </button>
+      </NodeToolbar>
+
       {/* Crisp Vector Shape Canvas */}
       <ShapeRenderer
         shape={shape}

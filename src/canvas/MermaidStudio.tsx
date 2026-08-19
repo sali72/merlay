@@ -560,36 +560,39 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     setSelectedNodeId(null);
   }, [selectedNodeId, ast, updateCodeFromAST, setNodes, setEdges]);
 
-  // Add new standalone node
-  const handleAddNode = useCallback(() => {
-    const newId = `node_${Date.now().toString().slice(-4)}`;
-    const newNodeDef: MermaidNodeDef = {
-      type: 'node',
-      id: newId,
-      label: 'New Node',
-      shape: 'rectangle',
-    };
-
-    const updatedNodes = new Map(ast.nodes);
-    updatedNodes.set(newId, newNodeDef);
-
-    const updatedAst = { ...ast, nodes: updatedNodes };
-    updateCodeFromAST(updatedAst);
-
-    setNodes((nds) => [
-      ...nds,
-      {
+  // Add new standalone node with custom shape
+  const handleAddNode = useCallback(
+    (shape: MermaidShapeType = 'rectangle') => {
+      const newId = `node_${Date.now().toString().slice(-4)}`;
+      const newNodeDef: MermaidNodeDef = {
+        type: 'node',
         id: newId,
-        type: 'shapeNode',
-        position: { x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 },
-        data: {
+        label: 'New Node',
+        shape,
+      };
+
+      const updatedNodes = new Map(ast.nodes);
+      updatedNodes.set(newId, newNodeDef);
+
+      const updatedAst = { ...ast, nodes: updatedNodes };
+      updateCodeFromAST(updatedAst);
+
+      setNodes((nds) => [
+        ...nds,
+        {
           id: newId,
-          label: 'New Node',
-          shape: 'rectangle',
+          type: 'shapeNode',
+          position: { x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 },
+          data: {
+            id: newId,
+            label: 'New Node',
+            shape,
+          },
         },
-      },
-    ]);
-  }, [ast, updateCodeFromAST, setNodes]);
+      ]);
+    },
+    [ast, updateCodeFromAST, setNodes]
+  );
 
   // Add new subgraph / Group selected nodes
   const handleAddSubgraph = useCallback(() => {
@@ -722,9 +725,83 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         ...node.data,
         onLabelChange: handleLabelChange,
         onSprout: handleSprout,
+        onShapeChange: (nodeId: string, newShape: MermaidShapeType) => {
+          const targetNode = ast.nodes.get(nodeId);
+          if (!targetNode) return;
+          targetNode.shape = newShape;
+          updateCodeFromAST({ ...ast });
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === nodeId
+                ? { ...n, data: { ...n.data, shape: newShape } }
+                : n
+            )
+          );
+        },
+        onColorChange: (nodeId: string, color: string) => {
+          const styleObj: Record<string, string> = color
+            ? { fill: color, stroke: color, color: '#ffffff' }
+            : {};
+          const existingStyleIdx = ast.styles.findIndex(
+            (s) => s.targetId === nodeId
+          );
+          const updatedStyles = [...ast.styles];
+          if (color) {
+            if (existingStyleIdx !== -1) {
+              updatedStyles[existingStyleIdx] = {
+                type: 'style',
+                targetId: nodeId,
+                styles: styleObj,
+              };
+            } else {
+              updatedStyles.push({
+                type: 'style',
+                targetId: nodeId,
+                styles: styleObj,
+              });
+            }
+          } else if (existingStyleIdx !== -1) {
+            updatedStyles.splice(existingStyleIdx, 1);
+          }
+          const updatedAst = { ...ast, styles: updatedStyles };
+          updateCodeFromAST(updatedAst);
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === nodeId
+                ? { ...n, data: { ...n.data, style: styleObj } }
+                : n
+            )
+          );
+        },
+        onDelete: (nodeId: string) => {
+          const updatedNodes = new Map(ast.nodes);
+          updatedNodes.delete(nodeId);
+          const updatedEdges = ast.edges.filter(
+            (e) => e.from !== nodeId && e.to !== nodeId
+          );
+          const updatedAst: MermaidFlowchartAST = {
+            ...ast,
+            nodes: updatedNodes,
+            edges: updatedEdges,
+          };
+          updateCodeFromAST(updatedAst);
+          setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+          setEdges((eds) =>
+            eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
+          );
+          setSelectedNodeId(null);
+        },
       },
     }));
-  }, [nodes, handleLabelChange, handleSprout]);
+  }, [
+    nodes,
+    ast,
+    handleLabelChange,
+    handleSprout,
+    updateCodeFromAST,
+    setNodes,
+    setEdges,
+  ]);
 
   const handleExportPng = useCallback(async () => {
     if (canvasPaneRef.current) {
@@ -794,16 +871,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               nodeColor={() => 'var(--interactive-accent, #7c3aed)'}
               maskColor="rgba(0,0,0,0.6)"
             />
-
-            {/* Floating Node Toolbar on selection */}
-            {selectedNode && (
-              <FloatingNodeToolbar
-                currentShape={selectedNode.shape}
-                onShapeChange={handleShapeChange}
-                onColorChange={handleColorChange}
-                onDelete={handleDeleteNode}
-              />
-            )}
 
             {/* Floating Edge Toolbar on edge selection */}
             {selectedEdge && (

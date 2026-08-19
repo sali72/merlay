@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlowchartDirection } from '../../ast/types';
+import { FlowchartDirection, MermaidShapeType } from '../../ast/types';
 import {
   CodeIcon,
   CopyIcon,
@@ -16,7 +16,7 @@ export interface TopToolbarProps {
   direction: FlowchartDirection;
   onDirectionChange: (dir: FlowchartDirection) => void;
   onAutoTidy: () => void;
-  onAddNode: () => void;
+  onAddNode: (shape?: MermaidShapeType) => void;
   onAddSubgraph: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -59,12 +59,39 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
       <div className="mermaid-toolbar-group">
         <button
           className="mermaid-tool-btn"
-          onClick={onAddNode}
-          title="Add New Node (Double click canvas or Enter)"
+          onClick={() => onAddNode('rectangle')}
+          title="Add Rectangle Node"
         >
           <PlusIcon size={14} />
           <span>Node</span>
         </button>
+
+        {/* Direct Shape Selector */}
+        <select
+          className="mermaid-dropdown"
+          value=""
+          onChange={(e) => {
+            if (e.target.value) {
+              onAddNode(e.target.value as MermaidShapeType);
+              e.target.value = '';
+            }
+          }}
+          title="Add specific shape directly"
+        >
+          <option value="" disabled>
+            + Shape...
+          </option>
+          <option value="rectangle">Rectangle [text]</option>
+          <option value="rounded">Rounded (text)</option>
+          <option value="stadium">Stadium ([text])</option>
+          <option value="cylinder">Database [(text)]</option>
+          <option value="circle">Circle ((text))</option>
+          <option value="diamond">Decision {"{text}"}</option>
+          <option value="hexagon">Hexagon {"{{text}}"}</option>
+          <option value="subroutine">Subroutine [[text]]</option>
+          <option value="parallelogram">Parallelogram [/text/]</option>
+        </select>
+
         <button
           className="mermaid-tool-btn"
           onClick={onAddSubgraph}
