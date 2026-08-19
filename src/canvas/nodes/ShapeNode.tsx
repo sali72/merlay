@@ -41,6 +41,10 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
     } else if (e.key === 'Escape') {
       setLabel(nodeData.label || id);
       setIsEditing(false);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      handleBlur();
+      nodeData.onSprout?.(id, 'right');
     }
   };
 
@@ -59,27 +63,84 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '8px 16px',
+        padding: '8px 18px',
         color: customColor,
         background: customFill,
         border: `2px solid ${customStroke}`,
-        boxShadow: selected ? '0 0 0 2px var(--interactive-accent, #7c3aed)' : '0 2px 5px rgba(0,0,0,0.2)',
-        ...getShapeBorderRadius(shape),
+        boxShadow: selected
+          ? '0 0 0 2px var(--interactive-accent, #7c3aed), 0 4px 12px rgba(0,0,0,0.3)'
+          : '0 2px 6px rgba(0,0,0,0.2)',
+        ...getShapeStyles(shape),
       }}
+      tabIndex={0}
       onDoubleClick={() => setIsEditing(true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Tab' && !isEditing) {
+          e.preventDefault();
+          nodeData.onSprout?.(id, 'right');
+        } else if (e.key === 'Enter' && !isEditing) {
+          e.preventDefault();
+          setIsEditing(true);
+        }
+      }}
     >
+      {/* 3D Database cylinder top lid line */}
+      {shape === 'cylinder' && (
+        <div
+          className="mermaid-cylinder-lid"
+          style={{
+            position: 'absolute',
+            top: 6,
+            left: 0,
+            right: 0,
+            height: 10,
+            borderBottom: `2px solid ${customStroke}`,
+            borderRadius: '50%',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Subroutine double border indicators */}
+      {shape === 'subroutine' && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 6,
+              width: 2,
+              background: customStroke,
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              right: 6,
+              width: 2,
+              background: customStroke,
+              pointerEvents: 'none',
+            }}
+          />
+        </>
+      )}
+
       {/* Standard Connection Handles */}
       <Handle type="target" position={Position.Top} id="top" className="mermaid-handle" />
       <Handle type="source" position={Position.Right} id="right" className="mermaid-handle" />
       <Handle type="source" position={Position.Bottom} id="bottom" className="mermaid-handle" />
       <Handle type="target" position={Position.Left} id="left" className="mermaid-handle" />
 
-      {/* Quick Sprout Directional Handles */}
+      {/* Quick Sprout Directional Handles (All 4 Directions on Selection) */}
       {selected && nodeData.onSprout && (
         <>
           <button
             className="mermaid-sprout-btn sprout-right"
-            title="Sprout Connected Node (Right)"
+            title="Sprout Connected Node (Right) [Tab]"
             onClick={(e) => {
               e.stopPropagation();
               nodeData.onSprout?.(id, 'right');
@@ -93,6 +154,26 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
             onClick={(e) => {
               e.stopPropagation();
               nodeData.onSprout?.(id, 'down');
+            }}
+          >
+            +
+          </button>
+          <button
+            className="mermaid-sprout-btn sprout-left"
+            title="Sprout Connected Node (Left)"
+            onClick={(e) => {
+              e.stopPropagation();
+              nodeData.onSprout?.(id, 'left');
+            }}
+          >
+            +
+          </button>
+          <button
+            className="mermaid-sprout-btn sprout-up"
+            title="Sprout Connected Node (Up)"
+            onClick={(e) => {
+              e.stopPropagation();
+              nodeData.onSprout?.(id, 'up');
             }}
           >
             +
@@ -118,24 +199,24 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   );
 };
 
-function getShapeBorderRadius(shape: MermaidShapeType): React.CSSProperties {
+function getShapeStyles(shape: MermaidShapeType): React.CSSProperties {
   switch (shape) {
     case 'rounded':
       return { borderRadius: 10 };
     case 'stadium':
-      return { borderRadius: 24 };
+      return { borderRadius: 24, padding: '8px 22px' };
     case 'circle':
       return { borderRadius: '50%', minWidth: 64, minHeight: 64, aspectRatio: '1/1' };
     case 'cylinder':
-      return { borderRadius: '8px 8px 16px 16px', borderTopWidth: 4 };
+      return { borderRadius: '6px 6px 14px 14px', paddingTop: 14 };
     case 'diamond':
-      return { transform: 'rotate(0deg)', clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', padding: '14px 20px' };
+      return { clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', padding: '14px 22px' };
     case 'hexagon':
-      return { clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)', padding: '10px 24px' };
+      return { clipPath: 'polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%)', padding: '10px 24px' };
     case 'parallelogram':
-      return { transform: 'skewX(-15deg)', padding: '8px 20px' };
+      return { transform: 'skewX(-15deg)', padding: '8px 22px' };
     case 'subroutine':
-      return { borderRadius: 2, outline: '2px solid var(--background-modifier-border, #444)', outlineOffset: -4 };
+      return { borderRadius: 4, padding: '8px 20px' };
     case 'rectangle':
     default:
       return { borderRadius: 4 };

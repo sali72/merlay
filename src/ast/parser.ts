@@ -152,9 +152,12 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
           currentToken().type !== 'EOF'
         ) {
           const part = advance().value;
-          const [key, val] = part.split(':');
-          if (key && val) {
-            styleMap[key.trim()] = val.trim().replace(/[,;]$/, '');
+          const pairs = part.split(',');
+          for (const p of pairs) {
+            const [key, val] = p.split(':');
+            if (key && val) {
+              styleMap[key.trim()] = val.trim().replace(/[,;]$/, '');
+            }
           }
         }
 
@@ -175,9 +178,12 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
           currentToken().type !== 'EOF'
         ) {
           const part = advance().value;
-          const [key, val] = part.split(':');
-          if (key && val) {
-            styleMap[key.trim()] = val.trim().replace(/[,;]$/, '');
+          const pairs = part.split(',');
+          for (const p of pairs) {
+            const [key, val] = p.split(':');
+            if (key && val) {
+              styleMap[key.trim()] = val.trim().replace(/[,;]$/, '');
+            }
           }
         }
 
@@ -203,7 +209,7 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
   return ast;
 
   function parseNodeOrEdgeStatement() {
-    const leftNode = parseSingleNode();
+    let leftNode = parseSingleNode();
     if (!leftNode) return;
 
     ensureNodeExists(leftNode);
@@ -240,6 +246,7 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
       };
 
       ast.edges.push(edgeDef);
+      leftNode = rightNode;
     }
   }
 

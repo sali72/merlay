@@ -252,6 +252,24 @@
   transform: translateX(-50%) scale(1.25);
 }
 
+.mermaid-sprout-btn.sprout-left {
+  left: -28px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.mermaid-sprout-btn.sprout-left:hover {
+  transform: translateY(-50%) scale(1.25);
+}
+
+.mermaid-sprout-btn.sprout-up {
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.mermaid-sprout-btn.sprout-up:hover {
+  transform: translateX(-50%) scale(1.25);
+}
+
 /* Floating Toolbar */
 .mermaid-floating-toolbar {
   display: flex;

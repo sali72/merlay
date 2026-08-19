@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -17,9 +17,11 @@ import '@xyflow/react/dist/style.css';
 import { parseMermaidFlowchart } from '../ast/parser';
 import { serializeMermaidFlowchart } from '../ast/serializer';
 import { calculateElkLayout } from '../layout/elkLayout';
+import { findSpliceCandidateEdge } from '../layout/geometry';
 import {
   ArrowType,
   FlowchartDirection,
+  MermaidEdgeDef,
   MermaidFlowchartAST,
   MermaidNodeDef,
   MermaidShapeType,
@@ -44,7 +46,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
   onCodeChange,
   onCopyNotice,
 }) => {
-  const [code, setCode] = useState<string>(initialCode || 'flowchart LR\n    A["Start"] --> B["Process"]\n    B --> C["End"]');
+  const [code, setCode] = useState<string>(
+    initialCode ||
+      'flowchart LR\n    A["Start"] --> B["Process"]\n    B --> C["End"]'
+  );
   const [showCodePanel, setShowCodePanel] = useState<boolean>(true);
   const [syntaxError, setSyntaxError] = useState<string | null>(null);
 
@@ -53,10 +58,14 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
 
-  const [ast, setAst] = useState<MermaidFlowchartAST>(() => parseMermaidFlowchart(code));
+  const [ast, setAst] = useState<MermaidFlowchartAST>(() =>
+    parseMermaidFlowchart(code)
+  );
 
   const { pushSnapshot, undo, redo, canUndo, canRedo } = useUndoRedo(code);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const nodeTypes = useMemo(
     () => ({
@@ -74,62 +83,65 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
   );
 
   // Sync AST and Canvas layout from Code
-  const loadFromCode = useCallback(async (newCode: string, runLayout = true) => {
-    try {
-      const parsedAst = parseMermaidFlowchart(newCode);
-      setAst(parsedAst);
-      setSyntaxError(null);
+  const loadFromCode = useCallback(
+    async (newCode: string, runLayout = true) => {
+      try {
+        const parsedAst = parseMermaidFlowchart(newCode);
+        setAst(parsedAst);
+        setSyntaxError(null);
 
-      if (runLayout) {
-        const layout = await calculateElkLayout(parsedAst);
+        if (runLayout) {
+          const layout = await calculateElkLayout(parsedAst);
 
-        const flowNodes: Node[] = [];
+          const flowNodes: Node[] = [];
 
-        // Add subgraphs as background nodes
-        for (const sub of layout.subgraphs) {
-          flowNodes.push({
-            id: sub.id,
-            type: 'subgraphNode',
-            position: { x: sub.x, y: sub.y },
-            style: { width: sub.width, height: sub.height },
-            data: { id: sub.id, label: sub.label },
-            draggable: true,
-          });
-        }
+          // Add subgraphs as background nodes
+          for (const sub of layout.subgraphs) {
+            flowNodes.push({
+              id: sub.id,
+              type: 'subgraphNode',
+              position: { x: sub.x, y: sub.y },
+              style: { width: sub.width, height: sub.height },
+              data: { id: sub.id, label: sub.label },
+              draggable: true,
+            });
+          }
 
-        // Add regular nodes
-        for (const node of layout.nodes) {
-          flowNodes.push({
-            id: node.id,
-            type: 'shapeNode',
-            position: { x: node.x, y: node.y },
-            data: {
+          // Add regular nodes
+          for (const node of layout.nodes) {
+            flowNodes.push({
               id: node.id,
-              label: node.label,
-              shape: node.shape,
-              style: node.style,
+              type: 'shapeNode',
+              position: { x: node.x, y: node.y },
+              data: {
+                id: node.id,
+                label: node.label,
+                shape: node.shape,
+                style: node.style,
+              },
+            });
+          }
+
+          const flowEdges: Edge[] = layout.edges.map((e) => ({
+            id: e.id,
+            source: e.from,
+            target: e.to,
+            type: 'customEdge',
+            data: {
+              arrowType: e.arrowType,
+              label: e.label,
             },
-          });
+          }));
+
+          setNodes(flowNodes);
+          setEdges(flowEdges);
         }
-
-        const flowEdges: Edge[] = layout.edges.map((e) => ({
-          id: e.id,
-          source: e.from,
-          target: e.to,
-          type: 'customEdge',
-          data: {
-            arrowType: e.arrowType,
-            label: e.label,
-          },
-        }));
-
-        setNodes(flowNodes);
-        setEdges(flowEdges);
+      } catch (e: any) {
+        setSyntaxError(e.message || 'Syntax error parsing Mermaid code');
       }
-    } catch (e: any) {
-      setSyntaxError(e.message || 'Syntax error parsing Mermaid code');
-    }
-  }, [setNodes, setEdges]);
+    },
+    [setNodes, setEdges]
+  );
 
   // Initial load
   useEffect(() => {
@@ -153,8 +165,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     (params: Connection) => {
       if (!params.source || !params.target) return;
 
-      const newEdgeDef = {
-        type: 'edge' as const,
+      const newEdgeDef: MermaidEdgeDef = {
+        type: 'edge',
         id: `e_${params.source}_${params.target}_${Date.now()}`,
         from: params.source,
         to: params.target,
@@ -184,6 +196,69 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, setEdges, updateCodeFromAST]
   );
 
+  // Drag-to-Splice Handler (Brilliant UX)
+  const onNodeDragStop = useCallback(
+    (_event: any, node: Node) => {
+      if (node.type !== 'shapeNode') return;
+
+      const candidateEdge = findSpliceCandidateEdge(node, nodes, edges, 35);
+      if (!candidateEdge) return;
+
+      // Splice candidateEdge (A --> B) into (A --> node.id) and (node.id --> B)
+      const sourceId = candidateEdge.source;
+      const targetId = candidateEdge.target;
+
+      const edge1Def: MermaidEdgeDef = {
+        type: 'edge',
+        id: `e_${sourceId}_${node.id}_${Date.now()}`,
+        from: sourceId,
+        to: node.id,
+        arrowType: 'arrow',
+      };
+
+      const edge2Def: MermaidEdgeDef = {
+        type: 'edge',
+        id: `e_${node.id}_${targetId}_${Date.now() + 1}`,
+        from: node.id,
+        to: targetId,
+        arrowType: 'arrow',
+      };
+
+      const updatedEdges = ast.edges
+        .filter((e) => e.id !== candidateEdge.id && !(e.from === sourceId && e.to === targetId))
+        .concat([edge1Def, edge2Def]);
+
+      const updatedAst: MermaidFlowchartAST = {
+        ...ast,
+        edges: updatedEdges,
+      };
+
+      setEdges((eds) =>
+        eds
+          .filter((e) => e.id !== candidateEdge.id)
+          .concat([
+            {
+              id: edge1Def.id,
+              source: sourceId,
+              target: node.id,
+              type: 'customEdge',
+              data: { arrowType: 'arrow' },
+            },
+            {
+              id: edge2Def.id,
+              source: node.id,
+              target: targetId,
+              type: 'customEdge',
+              data: { arrowType: 'arrow' },
+            },
+          ])
+      );
+
+      updateCodeFromAST(updatedAst);
+    },
+    [nodes, edges, ast, setEdges, updateCodeFromAST]
+  );
+
   // Sprout handler
   const handleSprout = useCallback(
     (sourceId: string, direction: 'right' | 'down' | 'left' | 'up') => {
@@ -207,8 +282,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         shape: 'rectangle',
       };
 
-      const newEdgeDef = {
-        type: 'edge' as const,
+      const newEdgeDef: MermaidEdgeDef = {
+        type: 'edge',
         id: `e_${sourceId}_${newId}_${Date.now()}`,
         from: sourceId,
         to: newId,
@@ -299,15 +374,27 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     (color: string) => {
       if (!selectedNodeId) return;
 
-      const styleObj: Record<string, string> = color ? { fill: color, stroke: color, color: '#ffffff' } : {};
-      const existingStyleIdx = ast.styles.findIndex((s) => s.targetId === selectedNodeId);
+      const styleObj: Record<string, string> = color
+        ? { fill: color, stroke: color, color: '#ffffff' }
+        : {};
+      const existingStyleIdx = ast.styles.findIndex(
+        (s) => s.targetId === selectedNodeId
+      );
 
       const updatedStyles = [...ast.styles];
       if (color) {
         if (existingStyleIdx !== -1) {
-          updatedStyles[existingStyleIdx] = { type: 'style', targetId: selectedNodeId, styles: styleObj };
+          updatedStyles[existingStyleIdx] = {
+            type: 'style',
+            targetId: selectedNodeId,
+            styles: styleObj,
+          };
         } else {
-          updatedStyles.push({ type: 'style', targetId: selectedNodeId, styles: styleObj });
+          updatedStyles.push({
+            type: 'style',
+            targetId: selectedNodeId,
+            styles: styleObj,
+          });
         }
       } else if (existingStyleIdx !== -1) {
         updatedStyles.splice(existingStyleIdx, 1);
@@ -326,6 +413,63 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     },
     [selectedNodeId, ast, updateCodeFromAST, setNodes]
   );
+
+  // Edge Style change
+  const handleEdgeArrowTypeChange = useCallback(
+    (newArrowType: ArrowType) => {
+      if (!selectedEdgeId) return;
+      const edge = ast.edges.find((e) => e.id === selectedEdgeId);
+      if (!edge) return;
+
+      edge.arrowType = newArrowType;
+      updateCodeFromAST({ ...ast });
+
+      setEdges((eds) =>
+        eds.map((e) =>
+          e.id === selectedEdgeId
+            ? { ...e, data: { ...e.data, arrowType: newArrowType } }
+            : e
+        )
+      );
+    },
+    [selectedEdgeId, ast, updateCodeFromAST, setEdges]
+  );
+
+  // Edge Label change
+  const handleEdgeLabelChange = useCallback(
+    (newLabel: string) => {
+      if (!selectedEdgeId) return;
+      const edge = ast.edges.find((e) => e.id === selectedEdgeId);
+      if (!edge) return;
+
+      edge.label = newLabel;
+      updateCodeFromAST({ ...ast });
+
+      setEdges((eds) =>
+        eds.map((e) =>
+          e.id === selectedEdgeId
+            ? { ...e, data: { ...e.data, label: newLabel } }
+            : e
+        )
+      );
+    },
+    [selectedEdgeId, ast, updateCodeFromAST, setEdges]
+  );
+
+  // Delete selected edge
+  const handleDeleteEdge = useCallback(() => {
+    if (!selectedEdgeId) return;
+
+    const updatedEdges = ast.edges.filter((e) => e.id !== selectedEdgeId);
+    const updatedAst: MermaidFlowchartAST = {
+      ...ast,
+      edges: updatedEdges,
+    };
+
+    updateCodeFromAST(updatedAst);
+    setEdges((eds) => eds.filter((e) => e.id !== selectedEdgeId));
+    setSelectedEdgeId(null);
+  }, [selectedEdgeId, ast, updateCodeFromAST, setEdges]);
 
   // Delete selected node
   const handleDeleteNode = useCallback(() => {
@@ -348,7 +492,9 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
     setNodes((nds) => nds.filter((n) => n.id !== selectedNodeId));
     setEdges((eds) =>
-      eds.filter((e) => e.source !== selectedNodeId && e.target !== selectedNodeId)
+      eds.filter(
+        (e) => e.source !== selectedNodeId && e.target !== selectedNodeId
+      )
     );
     setSelectedNodeId(null);
   }, [selectedNodeId, ast, updateCodeFromAST, setNodes, setEdges]);
@@ -384,34 +530,38 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     ]);
   }, [ast, updateCodeFromAST, setNodes]);
 
-  // Add new subgraph
+  // Add new subgraph / Group selected nodes
   const handleAddSubgraph = useCallback(() => {
     const subId = `sub_${Date.now().toString().slice(-4)}`;
+    const targetNodeIds = selectedNodeIds.length > 0 ? [...selectedNodeIds] : [];
+
     const newSub = {
       type: 'subgraph' as const,
       id: subId,
-      label: 'New Group',
-      nodeIds: [],
+      label: targetNodeIds.length > 0 ? 'Group' : 'New Group',
+      nodeIds: targetNodeIds,
       subgraphIds: [],
     };
 
     const updatedSubs = new Map(ast.subgraphs);
     updatedSubs.set(subId, newSub);
 
-    const updatedAst = { ...ast, subgraphs: updatedSubs };
-    updateCodeFromAST(updatedAst);
+    const updatedNodes = new Map(ast.nodes);
+    for (const nid of targetNodeIds) {
+      const node = updatedNodes.get(nid);
+      if (node) {
+        node.subgraphId = subId;
+      }
+    }
 
-    setNodes((nds) => [
-      ...nds,
-      {
-        id: subId,
-        type: 'subgraphNode',
-        position: { x: 80, y: 80 },
-        style: { width: 260, height: 180 },
-        data: { id: subId, label: 'New Group' },
-      },
-    ]);
-  }, [ast, updateCodeFromAST, setNodes]);
+    const updatedAst = {
+      ...ast,
+      nodes: updatedNodes,
+      subgraphs: updatedSubs,
+    };
+    updateCodeFromAST(updatedAst);
+    loadFromCode(serializeMermaidFlowchart(updatedAst), true);
+  }, [selectedNodeIds, ast, updateCodeFromAST, loadFromCode]);
 
   // Direction change
   const handleDirectionChange = useCallback(
@@ -448,11 +598,47 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     }
   }, [redo, onCodeChange, loadFromCode]);
 
+  // Keyboard shortcut listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedNodeId) {
+          e.preventDefault();
+          handleDeleteNode();
+        } else if (selectedEdgeId) {
+          e.preventDefault();
+          handleDeleteEdge();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [handleUndo, handleRedo, selectedNodeId, selectedEdgeId, handleDeleteNode, handleDeleteEdge]);
+
   // Node selection tracking
   const onSelectionChange = useCallback(
     ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
       setSelectedNodeId(selNodes[0]?.id || null);
       setSelectedEdgeId(selEdges[0]?.id || null);
+      setSelectedNodeIds(selNodes.map((n) => n.id));
     },
     []
   );
@@ -470,9 +656,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
   }, [nodes, handleLabelChange, handleSprout]);
 
   const selectedNode = ast.nodes.get(selectedNodeId || '');
+  const selectedEdge = ast.edges.find((e) => e.id === selectedEdgeId);
 
   return (
-    <div className="mermaid-studio-container">
+    <div className="mermaid-studio-container" ref={containerRef}>
       {/* Top Toolbar */}
       <TopToolbar
         direction={ast.direction}
@@ -502,6 +689,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeDragStop={onNodeDragStop}
             onSelectionChange={onSelectionChange}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
@@ -523,6 +711,27 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
                 onDelete={handleDeleteNode}
               />
             )}
+
+            {/* Floating Edge Toolbar on edge selection */}
+            {selectedEdge && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 20,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 50,
+                }}
+              >
+                <FloatingEdgeToolbar
+                  currentArrowType={selectedEdge.arrowType}
+                  currentLabel={selectedEdge.label || ''}
+                  onArrowTypeChange={handleEdgeArrowTypeChange}
+                  onLabelChange={handleEdgeLabelChange}
+                  onDelete={handleDeleteEdge}
+                />
+              </div>
+            )}
           </ReactFlow>
         </div>
 
@@ -531,7 +740,9 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
           <div className="mermaid-code-pane">
             <div className="mermaid-code-header">
               <span>Mermaid Syntax</span>
-              {syntaxError && <span className="mermaid-error-badge">⚠️ Syntax Warning</span>}
+              {syntaxError && (
+                <span className="mermaid-error-badge">⚠️ Syntax Warning</span>
+              )}
             </div>
             <textarea
               className="mermaid-code-textarea"
