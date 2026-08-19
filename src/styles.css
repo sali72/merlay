@@ -1,0 +1,357 @@
+/* Visual Mermaid Studio Styles */
+
+.mermaid-studio-leaf-root,
+.mermaid-block-modal-root {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mermaid-studio-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--background-primary, #1e1e1e);
+  color: var(--text-normal, #dcddde);
+  font-family: var(--font-interface, sans-serif);
+}
+
+/* Top Toolbar */
+.mermaid-top-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--background-secondary, #252525);
+  border-bottom: 1px solid var(--background-modifier-border, #333);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.mermaid-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--interactive-accent, #7c3aed);
+}
+
+.mermaid-brand-icon {
+  font-size: 1.2rem;
+}
+
+.mermaid-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--background-modifier-border, #444);
+  margin: 0 4px;
+}
+
+.mermaid-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mermaid-toolbar-spacer {
+  flex: 1;
+}
+
+.mermaid-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--interactive-normal, #333);
+  color: var(--text-normal, #ddd);
+  border: 1px solid var(--background-modifier-border, #444);
+  transition: all 120ms ease;
+}
+
+.mermaid-tool-btn:hover:not(:disabled) {
+  background: var(--interactive-hover, #444);
+  color: var(--text-bright, #fff);
+  border-color: var(--interactive-accent, #7c3aed);
+}
+
+.mermaid-tool-btn.mod-cta {
+  background: var(--interactive-accent, #7c3aed);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.mermaid-tool-btn.mod-cta:hover {
+  background: var(--interactive-accent-hover, #6d28d9);
+}
+
+.mermaid-tool-btn.is-active {
+  background: var(--interactive-accent, #7c3aed);
+  color: #fff;
+}
+
+.mermaid-tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mermaid-control-label {
+  font-size: 0.8rem;
+  color: var(--text-muted, #888);
+}
+
+.mermaid-dropdown {
+  background: var(--background-primary, #1e1e1e);
+  color: var(--text-normal, #ddd);
+  border: 1px solid var(--background-modifier-border, #444);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+
+/* Studio Body Split View */
+.mermaid-studio-body {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: calc(100% - 45px);
+  overflow: hidden;
+}
+
+.mermaid-canvas-pane {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  background: var(--background-primary, #181818);
+}
+
+.mermaid-code-pane {
+  width: 320px;
+  height: 100%;
+  background: var(--background-secondary, #202020);
+  border-left: 1px solid var(--background-modifier-border, #333);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.mermaid-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted, #888);
+  border-bottom: 1px solid var(--background-modifier-border, #333);
+  background: var(--background-secondary-alt, #1a1a1a);
+}
+
+.mermaid-error-badge {
+  font-size: 0.75rem;
+  color: #f59e0b;
+}
+
+.mermaid-code-textarea {
+  flex: 1;
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  color: var(--text-normal, #e0e0e0);
+  font-family: var(--font-monospace, monospace);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  border: none;
+  resize: none;
+  outline: none;
+  white-space: pre;
+}
+
+/* Custom Shape Nodes */
+.mermaid-shape-node {
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  cursor: grab;
+}
+
+.mermaid-shape-node:active {
+  cursor: grabbing;
+}
+
+.mermaid-node-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: center;
+  user-select: none;
+}
+
+.mermaid-node-input {
+  background: var(--background-primary, #1e1e1e);
+  color: var(--text-normal, #fff);
+  border: 1px solid var(--interactive-accent, #7c3aed);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  text-align: center;
+  outline: none;
+  width: 100%;
+}
+
+/* Sprout Buttons */
+.mermaid-sprout-btn {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--interactive-accent, #7c3aed);
+  color: #ffffff;
+  border: none;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform 120ms ease, background 120ms ease;
+  z-index: 20;
+}
+
+.mermaid-sprout-btn:hover {
+  transform: scale(1.25);
+  background: var(--interactive-accent-hover, #6d28d9);
+}
+
+.mermaid-sprout-btn.sprout-right {
+  right: -28px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.mermaid-sprout-btn.sprout-right:hover {
+  transform: translateY(-50%) scale(1.25);
+}
+
+.mermaid-sprout-btn.sprout-down {
+  bottom: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.mermaid-sprout-btn.sprout-down:hover {
+  transform: translateX(-50%) scale(1.25);
+}
+
+/* Floating Toolbar */
+.mermaid-floating-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--background-secondary, #282828);
+  border: 1px solid var(--background-modifier-border, #444);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+
+.mermaid-pill-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.mermaid-pill-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-normal, #ccc);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mermaid-pill-btn:hover {
+  background: var(--background-modifier-hover, #3a3a3a);
+  color: #fff;
+}
+
+.mermaid-pill-btn.is-active {
+  background: var(--interactive-accent, #7c3aed);
+  color: #fff;
+}
+
+.mermaid-pill-btn.delete:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.mermaid-pill-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--background-modifier-border, #444);
+  margin: 0 4px;
+}
+
+.mermaid-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--background-modifier-border, #666);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 100ms;
+}
+
+.mermaid-color-dot:hover {
+  transform: scale(1.25);
+}
+
+.mermaid-edge-input {
+  background: var(--background-primary, #1e1e1e);
+  color: var(--text-normal, #ddd);
+  border: 1px solid var(--background-modifier-border, #444);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  width: 90px;
+}
+
+/* In-Note Hover Button */
+.mermaid-studio-edit-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity 150ms ease, transform 150ms ease;
+  background: var(--interactive-accent, #7c3aed);
+  color: #ffffff;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 15;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.block-language-mermaid:hover .mermaid-studio-edit-btn,
+pre.language-mermaid:hover .mermaid-studio-edit-btn {
+  opacity: 1;
+}
+
+.mermaid-studio-edit-btn:hover {
+  background: var(--interactive-accent-hover, #6d28d9);
+  transform: scale(1.05);
+}
