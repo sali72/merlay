@@ -2,6 +2,7 @@ import { Modal, App, Notice, TFile } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { MermaidStudio } from '../canvas/MermaidStudio';
+import type VisualMermaidPlugin from '../main';
 
 export interface SectionInfo {
   lineStart: number;
@@ -15,15 +16,18 @@ export class MermaidBlockModal extends Modal {
   private sectionInfo: SectionInfo;
   private initialCode: string;
   private latestCode: string;
+  private plugin: VisualMermaidPlugin;
   private saveTimeout: number | null = null;
 
   constructor(
     app: App,
+    plugin: VisualMermaidPlugin,
     filePath: string,
     sectionInfo: SectionInfo,
     initialCode: string
   ) {
     super(app);
+    this.plugin = plugin;
     this.filePath = filePath;
     this.sectionInfo = sectionInfo;
     this.initialCode = initialCode.trim();
@@ -41,6 +45,8 @@ export class MermaidBlockModal extends Modal {
       <React.StrictMode>
         <MermaidStudio
           initialCode={this.initialCode}
+          showMinimap={this.plugin.settings.showMinimap}
+          defaultCodePanelWidth={this.plugin.settings.codePanelWidth}
           onCodeChange={(newCode) => {
             this.latestCode = newCode;
             this.scheduleSave();
@@ -86,7 +92,6 @@ export class MermaidBlockModal extends Modal {
         const startLine = this.sectionInfo.lineStart;
         const endLine = this.sectionInfo.lineEnd;
 
-        // Replace the code block slice while preserving opening & closing fences
         const before = lines.slice(0, startLine + 1);
         const after = lines.slice(endLine);
         const codeLines = this.latestCode.split('\n');
@@ -99,4 +104,3 @@ export class MermaidBlockModal extends Modal {
     }
   }
 }
-

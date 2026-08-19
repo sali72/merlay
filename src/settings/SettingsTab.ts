@@ -8,6 +8,8 @@ export interface VisualMermaidSettings {
   defaultArrowType: ArrowType;
   autoTidyOnOpen: boolean;
   showCodePanelByDefault: boolean;
+  showMinimap: boolean;
+  codePanelWidth: number;
 }
 
 export const DEFAULT_SETTINGS: VisualMermaidSettings = {
@@ -16,6 +18,8 @@ export const DEFAULT_SETTINGS: VisualMermaidSettings = {
   defaultArrowType: 'arrow',
   autoTidyOnOpen: true,
   showCodePanelByDefault: true,
+  showMinimap: true,
+  codePanelWidth: 340,
 };
 
 export class VisualMermaidSettingTab extends PluginSettingTab {
@@ -87,6 +91,18 @@ export class VisualMermaidSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName('Show Minimap')
+      .setDesc('Display a navigation minimap in the corner of the canvas.')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.showMinimap)
+          .onChange(async (value) => {
+            this.plugin.settings.showMinimap = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName('Auto-Tidy on Open')
       .setDesc('Automatically calculates a clean Elk.js layout when opening diagrams.')
       .addToggle((toggle) =>
@@ -106,6 +122,20 @@ export class VisualMermaidSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.showCodePanelByDefault)
           .onChange(async (value) => {
             this.plugin.settings.showCodePanelByDefault = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Code Panel Default Width')
+      .setDesc('Default width of the sliding Mermaid code editor (in pixels).')
+      .addSlider((slider) =>
+        slider
+          .setLimits(240, 600, 20)
+          .setValue(this.plugin.settings.codePanelWidth || 340)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.codePanelWidth = value;
             await this.plugin.saveSettings();
           })
       );

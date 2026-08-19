@@ -25,7 +25,7 @@ export default class VisualMermaidPlugin extends Plugin {
     // 1. Register custom File View for standalone .mmd and .mermaid files
     this.registerView(
       VIEW_TYPE_MERMAID_FILE,
-      (leaf: WorkspaceLeaf) => new MermaidFileView(leaf)
+      (leaf: WorkspaceLeaf) => new MermaidFileView(leaf, this)
     );
     this.registerExtensions(['mmd', 'mermaid'], VIEW_TYPE_MERMAID_FILE);
 
@@ -36,7 +36,6 @@ export default class VisualMermaidPlugin extends Plugin {
       );
 
       mermaidBlocks.forEach((block) => {
-        // Prevent duplicate buttons on re-render
         if (block.querySelector('.mermaid-studio-edit-btn')) return;
 
         (block as HTMLElement).style.position = 'relative';
@@ -66,6 +65,7 @@ export default class VisualMermaidPlugin extends Plugin {
 
             new MermaidBlockModal(
               this.app,
+              this,
               context.sourcePath,
               sectionInfo,
               rawCode

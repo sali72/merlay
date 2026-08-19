@@ -2,15 +2,18 @@ import { TextFileView, WorkspaceLeaf, Notice } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { MermaidStudio } from '../canvas/MermaidStudio';
+import type VisualMermaidPlugin from '../main';
 
 export const VIEW_TYPE_MERMAID_FILE = 'mermaid-visual-file-view';
 
 export class MermaidFileView extends TextFileView {
   private root: Root | null = null;
   private currentData: string = '';
+  private plugin: VisualMermaidPlugin;
 
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(leaf: WorkspaceLeaf, plugin: VisualMermaidPlugin) {
     super(leaf);
+    this.plugin = plugin;
   }
 
   getViewType(): string {
@@ -48,6 +51,8 @@ export class MermaidFileView extends TextFileView {
       <React.StrictMode>
         <MermaidStudio
           initialCode={this.currentData}
+          showMinimap={this.plugin.settings.showMinimap}
+          defaultCodePanelWidth={this.plugin.settings.codePanelWidth}
           onCodeChange={(newCode) => {
             this.currentData = newCode;
             this.requestSave();

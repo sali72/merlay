@@ -12,7 +12,6 @@ import {
   Node,
   BackgroundVariant,
   MarkerType,
-  ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -20,11 +19,7 @@ import { parseMermaidFlowchart } from '../ast/parser';
 import { serializeMermaidFlowchart } from '../ast/serializer';
 import { calculateElkLayout } from '../layout/elkLayout';
 import { findSpliceCandidateEdge } from '../layout/geometry';
-import {
-  exportDiagramAsPng,
-  exportDiagramAsSvg,
-  copyDiagramToClipboard,
-} from './exportUtils';
+import { exportDiagramAsPng, exportDiagramAsSvg, copyDiagramToClipboard } from './exportUtils';
 import {
   ArrowType,
   FlowchartDirection,
@@ -90,12 +85,16 @@ export interface MermaidStudioProps {
   initialCode: string;
   onCodeChange: (newCode: string) => void;
   onCopyNotice?: () => void;
+  showMinimap?: boolean;
+  defaultCodePanelWidth?: number;
 }
 
 export const MermaidStudio: React.FC<MermaidStudioProps> = ({
   initialCode,
   onCodeChange,
   onCopyNotice,
+  showMinimap = true,
+  defaultCodePanelWidth = 340,
 }) => {
   const [code, setCode] = useState<string>(
     initialCode ||
@@ -104,13 +103,19 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
   const [showCodePanel, setShowCodePanel] = useState<boolean>(true);
   const [syntaxError, setSyntaxError] = useState<string | null>(null);
 
+  const [codePanelWidth, setCodePanelWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('obsidian-mermaid-panel-width');
+    return saved ? parseInt(saved, 10) : defaultCodePanelWidth;
+  });
+  const [isResizing, setIsResizing] = useState<boolean>(false);
+
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const [rfInstance, setRfInstance] = useState<any>(null);
 
   const [ast, setAst] = useState<MermaidFlowchartAST>(() =>
     parseMermaidFlowchart(code)
@@ -147,14 +152,12 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         setAst(parsedAst);
         setSyntaxError(null);
 
-        const defaultHandles = getDefaultHandles(parsedAst.direction);
-
         if (runLayout) {
           const layout = await calculateElkLayout(parsedAst);
+          const defaultHandles = getDefaultHandles(parsedAst.direction);
 
           const flowNodes: Node[] = [];
 
-          // Add subgraphs as compound background nodes
           for (const sub of layout.subgraphs) {
             const pos = explicitPositions?.[sub.id] || { x: sub.x, y: sub.y };
             flowNodes.push({
@@ -162,16 +165,11 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               type: 'subgraphNode',
               position: pos,
               style: { width: sub.width, height: sub.height },
-              data: {
-                id: sub.id,
-                label: sub.label,
-                direction: parsedAst.subgraphs.get(sub.id)?.direction,
-              },
+              data: { id: sub.id, label: sub.label },
               draggable: true,
             });
           }
 
-          // Add regular nodes
           for (const node of layout.nodes) {
             const pos = explicitPositions?.[node.id] || { x: node.x, y: node.y };
             flowNodes.push({
@@ -183,7 +181,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
                 label: node.label,
                 shape: node.shape,
                 style: node.style,
-                direction: parsedAst.direction,
               },
             });
           }
@@ -204,99 +201,18 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
           setNodes(flowNodes);
           setEdges(flowEdges);
-        } else {
-          // Incremental update without destroying manual node positions
-          const existingPosMap = new Map<string, { x: number; y: number }>();
-          for (const n of nodes) {
-            existingPosMap.set(n.id, { x: n.position.x, y: n.position.y });
-          }
-
-          const flowNodes: Node[] = [];
-
-          // Add subgraphs
-          for (const [subId, subDef] of parsedAst.subgraphs.entries()) {
-            const existingPos = existingPosMap.get(subId) || { x: 50, y: 50 };
-            flowNodes.push({
-              id: subId,
-              type: 'subgraphNode',
-              position: existingPos,
-              data: {
-                id: subId,
-                label: subDef.label,
-                direction: subDef.direction,
-              },
-              draggable: true,
-            });
-          }
-
-          // Add regular nodes
-          let nextOffsetY = 100;
-          for (const [nodeId, nodeDef] of parsedAst.nodes.entries()) {
-            let pos = existingPosMap.get(nodeId);
-            if (!pos) {
-              const connectedEdge = parsedAst.edges.find(
-                (e) => e.to === nodeId || e.from === nodeId
-              );
-              if (connectedEdge) {
-                const otherId =
-                  connectedEdge.to === nodeId
-                    ? connectedEdge.from
-                    : connectedEdge.to;
-                const otherPos = existingPosMap.get(otherId);
-                if (otherPos) {
-                  pos = { x: otherPos.x + 180, y: otherPos.y };
-                }
-              }
-              if (!pos) {
-                pos = { x: 100, y: nextOffsetY };
-                nextOffsetY += 90;
-              }
-            }
-
-            flowNodes.push({
-              id: nodeId,
-              type: 'shapeNode',
-              position: pos,
-              data: {
-                id: nodeId,
-                label: nodeDef.label,
-                shape: nodeDef.shape,
-                style: nodeDef.style,
-                direction: parsedAst.direction,
-              },
-            });
-          }
-
-          const flowEdges: Edge[] = parsedAst.edges.map((e) => ({
-            id: e.id,
-            source: e.from,
-            target: e.to,
-            sourceHandle: defaultHandles.sourceHandle,
-            targetHandle: defaultHandles.targetHandle,
-            type: 'customEdge',
-            ...getEdgeMarkers(e.arrowType),
-            data: {
-              arrowType: e.arrowType,
-              label: e.label,
-            },
-          }));
-
-          setNodes(flowNodes);
-          setEdges(flowEdges);
         }
       } catch (e: any) {
         setSyntaxError(e.message || 'Syntax error parsing Mermaid code');
       }
     },
-    [nodes, setNodes, setEdges]
+    [setNodes, setEdges]
   );
 
-  // Initial load
   useEffect(() => {
     loadFromCode(code, true);
   }, []);
 
-  // Update AST & Code helper
   const updateCodeFromAST = useCallback(
     (newAst: MermaidFlowchartAST) => {
       const serialized = serializeMermaidFlowchart(newAst);
@@ -308,7 +224,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [pushSnapshot, onCodeChange, nodes]
   );
 
-  // Connect handler
   const onConnect = useCallback(
     (params: Connection) => {
       if (!params.source || !params.target) return;
@@ -345,7 +260,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, setEdges, updateCodeFromAST]
   );
 
-  // Drag-to-Splice Handler
   const onNodeDragStop = useCallback(
     (_event: any, node: Node) => {
       pushSnapshot(code, nodes);
@@ -420,7 +334,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [code, nodes, edges, ast, pushSnapshot, setEdges, updateCodeFromAST]
   );
 
-  // Sprout handler
   const handleSprout = useCallback(
     (sourceId: string, direction: 'right' | 'down' | 'left' | 'up') => {
       const sourceNode = nodes.find((n) => n.id === sourceId);
@@ -485,7 +398,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             id: newId,
             label: 'New Step',
             shape: 'rectangle',
-            direction: ast.direction,
           },
         },
       ]);
@@ -509,7 +421,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [nodes, ast, setNodes, setEdges, updateCodeFromAST]
   );
 
-  // Label change
   const handleLabelChange = useCallback(
     (nodeId: string, newLabel: string) => {
       const node = ast.nodes.get(nodeId);
@@ -528,7 +439,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, updateCodeFromAST, setNodes]
   );
 
-  // Subgraph Label change
   const handleSubgraphLabelChange = useCallback(
     (subId: string, newLabel: string) => {
       const sub = ast.subgraphs.get(subId);
@@ -547,72 +457,50 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, updateCodeFromAST, setNodes]
   );
 
-  // Subgraph Ungroup
   const handleUngroupSubgraph = useCallback(
     (subId: string) => {
       const sub = ast.subgraphs.get(subId);
       if (!sub) return;
 
-      const updatedSubs = new Map(ast.subgraphs);
-      updatedSubs.delete(subId);
-
-      const updatedNodes = new Map(ast.nodes);
-      for (const [nid, node] of updatedNodes.entries()) {
-        if (node.subgraphId === subId) {
+      for (const nid of sub.nodeIds) {
+        const node = ast.nodes.get(nid);
+        if (node && node.subgraphId === subId) {
           delete node.subgraphId;
         }
       }
 
-      const updatedAst = {
-        ...ast,
-        nodes: updatedNodes,
-        subgraphs: updatedSubs,
-      };
+      ast.subgraphs.delete(subId);
+      const updatedAst = { ...ast };
       updateCodeFromAST(updatedAst);
-      setNodes((nds) => nds.filter((n) => n.id !== subId));
+      loadFromCode(serializeMermaidFlowchart(updatedAst), true);
     },
-    [ast, updateCodeFromAST, setNodes]
+    [ast, updateCodeFromAST, loadFromCode]
   );
 
-  // Subgraph Delete
   const handleDeleteSubgraph = useCallback(
     (subId: string) => {
       const sub = ast.subgraphs.get(subId);
       if (!sub) return;
-      const nodeIdsToDelete = new Set(sub.nodeIds);
-      const updatedSubs = new Map(ast.subgraphs);
-      updatedSubs.delete(subId);
 
-      const updatedNodes = new Map(ast.nodes);
-      for (const nid of nodeIdsToDelete) {
-        updatedNodes.delete(nid);
-      }
+      const nodesToDelete = new Set(sub.nodeIds);
+      nodesToDelete.forEach((nid) => ast.nodes.delete(nid));
+      ast.subgraphs.delete(subId);
 
       const updatedEdges = ast.edges.filter(
-        (e) => !nodeIdsToDelete.has(e.from) && !nodeIdsToDelete.has(e.to)
+        (e) => !nodesToDelete.has(e.from) && !nodesToDelete.has(e.to)
       );
 
       const updatedAst = {
         ...ast,
-        nodes: updatedNodes,
         edges: updatedEdges,
-        subgraphs: updatedSubs,
       };
+
       updateCodeFromAST(updatedAst);
-      setNodes((nds) =>
-        nds.filter((n) => n.id !== subId && !nodeIdsToDelete.has(n.id))
-      );
-      setEdges((eds) =>
-        eds.filter(
-          (e) =>
-            !nodeIdsToDelete.has(e.source) && !nodeIdsToDelete.has(e.target)
-        )
-      );
+      loadFromCode(serializeMermaidFlowchart(updatedAst), true);
     },
-    [ast, updateCodeFromAST, setNodes, setEdges]
+    [ast, updateCodeFromAST, loadFromCode]
   );
 
-  // Edge Style change
   const handleEdgeArrowTypeChange = useCallback(
     (edgeId: string, newArrowType: ArrowType) => {
       const edge = ast.edges.find((e) => e.id === edgeId);
@@ -636,7 +524,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, updateCodeFromAST, setEdges]
   );
 
-  // Edge Label change
   const handleEdgeLabelChange = useCallback(
     (edgeId: string, newLabel: string) => {
       const edge = ast.edges.find((e) => e.id === edgeId);
@@ -654,41 +541,36 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, updateCodeFromAST, setEdges]
   );
 
-  // Edge Reverse
   const handleReverseEdge = useCallback(
-    (edgeId: string) => {
-      const edgeIdx = ast.edges.findIndex((e) => e.id === edgeId);
-      if (edgeIdx === -1) return;
+    (edgeId?: string) => {
+      const targetId = edgeId || selectedEdgeId;
+      if (!targetId) return;
 
-      const edge = ast.edges[edgeIdx];
-      const reversedEdge: MermaidEdgeDef = {
-        ...edge,
-        from: edge.to,
-        to: edge.from,
-      };
+      const edge = ast.edges.find((e) => e.id === targetId);
+      if (!edge) return;
 
-      const updatedEdges = [...ast.edges];
-      updatedEdges[edgeIdx] = reversedEdge;
+      const oldFrom = edge.from;
+      edge.from = edge.to;
+      edge.to = oldFrom;
 
-      const updatedAst = { ...ast, edges: updatedEdges };
+      const updatedAst = { ...ast };
       updateCodeFromAST(updatedAst);
 
       setEdges((eds) =>
         eds.map((e) =>
-          e.id === edgeId
+          e.id === targetId
             ? {
                 ...e,
-                source: edge.to,
-                target: edge.from,
+                source: edge.from,
+                target: edge.to,
               }
             : e
         )
       );
     },
-    [ast, updateCodeFromAST, setEdges]
+    [selectedEdgeId, ast, updateCodeFromAST, setEdges]
   );
 
-  // Delete edge
   const handleDeleteEdge = useCallback(
     (edgeId?: string) => {
       const targetId = edgeId || selectedEdgeId;
@@ -707,17 +589,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [selectedEdgeId, ast, updateCodeFromAST, setEdges]
   );
 
-  // Delete node
   const handleDeleteNode = useCallback(
     (nodeId?: string) => {
       const targetId = nodeId || selectedNodeId;
       if (!targetId) return;
-
-      // Check if it is a subgraph
-      if (ast.subgraphs.has(targetId)) {
-        handleDeleteSubgraph(targetId);
-        return;
-      }
 
       const updatedNodes = new Map(ast.nodes);
       updatedNodes.delete(targetId);
@@ -740,14 +615,12 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       );
       if (selectedNodeId === targetId) setSelectedNodeId(null);
     },
-    [selectedNodeId, ast, handleDeleteSubgraph, updateCodeFromAST, setNodes, setEdges]
+    [selectedNodeId, ast, updateCodeFromAST, setNodes, setEdges]
   );
 
-  // Add new standalone node or morph selected node shape
   const handleAddNode = useCallback(
     (shape: MermaidShapeType = 'rectangle') => {
       if (selectedNodeId && ast.nodes.has(selectedNodeId)) {
-        // Contextual Morph: If a node is selected, morph its shape!
         const node = ast.nodes.get(selectedNodeId)!;
         node.shape = shape;
         updateCodeFromAST({ ...ast });
@@ -761,7 +634,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         return;
       }
 
-      // Otherwise, create a new node
       const newId = `node_${Date.now().toString().slice(-4)}`;
       const newNodeDef: MermaidNodeDef = {
         type: 'node',
@@ -789,7 +661,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             id: newId,
             label: 'New Node',
             shape,
-            direction: ast.direction,
           },
         },
       ]);
@@ -797,7 +668,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [selectedNodeId, ast, updateCodeFromAST, setNodes]
   );
 
-  // Add new subgraph / Group selected nodes
   const handleAddSubgraph = useCallback(() => {
     const subId = `sub_${Date.now().toString().slice(-4)}`;
     const targetNodeIds = selectedNodeIds.length > 0 ? [...selectedNodeIds] : [];
@@ -830,7 +700,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     loadFromCode(serializeMermaidFlowchart(updatedAst), true);
   }, [selectedNodeIds, ast, updateCodeFromAST, loadFromCode]);
 
-  // Direction change (explicit user action -> runs full Elk layout)
   const handleDirectionChange = useCallback(
     async (dir: FlowchartDirection) => {
       const updatedAst = { ...ast, direction: dir };
@@ -841,13 +710,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       setNodes((nds) =>
         nds.map((n) => {
           const found = layout.nodes.find((ln) => ln.id === n.id);
-          return found
-            ? {
-                ...n,
-                position: { x: found.x, y: found.y },
-                data: { ...n.data, direction: dir },
-              }
-            : n;
+          return found ? { ...n, position: { x: found.x, y: found.y } } : n;
         })
       );
 
@@ -862,7 +725,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, updateCodeFromAST, setNodes, setEdges]
   );
 
-  // Undo / Redo handlers preserving node positions
   const handleUndo = useCallback(() => {
     const snap = undo();
     if (snap) {
@@ -881,14 +743,47 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     }
   }, [redo, onCodeChange, loadFromCode]);
 
-  // Fit View
   const handleFitView = useCallback(() => {
     if (rfInstance) {
       rfInstance.fitView({ padding: 0.2, duration: 400 });
     }
   }, [rfInstance]);
 
-  // Keyboard shortcut listener
+  // Code Panel Resizer handler
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsResizing(true);
+
+      const startX = e.clientX;
+      const startWidth = codePanelWidth;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const deltaX = startX - moveEvent.clientX;
+        const newWidth = Math.min(
+          Math.max(220, startWidth + deltaX),
+          window.innerWidth * 0.75
+        );
+        setCodePanelWidth(newWidth);
+      };
+
+      const handleMouseUp = () => {
+        setIsResizing(false);
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+        localStorage.setItem(
+          'obsidian-mermaid-panel-width',
+          String(codePanelWidth)
+        );
+        window.dispatchEvent(new Event('resize'));
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    },
+    [codePanelWidth]
+  );
+
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (
@@ -937,7 +832,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     handleDeleteEdge,
   ]);
 
-  // Node selection tracking
   const onSelectionChange = useCallback(
     ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
       setSelectedNodeId(selNodes[0]?.id || null);
@@ -947,7 +841,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     []
   );
 
-  // Inject callbacks into node data
   const augmentedNodes = useMemo(() => {
     return nodes.map((node) => {
       if (node.type === 'subgraphNode') {
@@ -1036,7 +929,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     setNodes,
   ]);
 
-  // Inject callbacks into edge data
   const augmentedEdges = useMemo(() => {
     return edges.map((edge) => ({
       ...edge,
@@ -1089,7 +981,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
   return (
     <div className="mermaid-studio-container" ref={containerRef}>
-      {/* Top Toolbar */}
+      {/* Floating Top Toolbar Dock */}
       <TopToolbar
         direction={ast.direction}
         onDirectionChange={handleDirectionChange}
@@ -1117,7 +1009,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         }}
       />
 
-      {/* Main Split Body */}
+      {/* Main Full-Screen Canvas Body */}
       <div className="mermaid-studio-body">
         {/* Visual Canvas Panel */}
         <div className="mermaid-canvas-pane" ref={canvasPaneRef}>
@@ -1147,27 +1039,45 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               color="var(--background-modifier-border, #3a3a3a)"
             />
             <Controls showInteractive={false} />
-            <MiniMap
-              nodeColor={() => 'var(--interactive-accent, #7c3aed)'}
-              maskColor="rgba(0,0,0,0.5)"
-              className="mermaid-minimap"
-            />
+            {showMinimap && (
+              <MiniMap
+                nodeColor={() => 'var(--interactive-accent, #7c3aed)'}
+                maskColor="rgba(0,0,0,0.5)"
+                className="mermaid-minimap"
+              />
+            )}
           </ReactFlow>
         </div>
 
-        {/* Live Synchronized Code Panel */}
+        {/* Resizable Side Code Drawer */}
         {showCodePanel && (
-          <div className="mermaid-code-pane">
+          <div
+            className="mermaid-code-pane"
+            style={{ width: `${codePanelWidth}px` }}
+          >
+            {/* Drag Resizer Handle */}
+            <div
+              className={`mermaid-code-resizer ${isResizing ? 'is-dragging' : ''}`}
+              onMouseDown={handleResizeMouseDown}
+              onDoubleClick={() => setCodePanelWidth(340)}
+              title="Drag to resize code panel (Double click to reset)"
+            />
+
             <div className="mermaid-code-header">
               <span className="mermaid-code-title">Mermaid Code</span>
               {syntaxError && (
-                <span
-                  className="mermaid-error-badge"
-                  title={syntaxError}
-                >
+                <span className="mermaid-error-badge" title={syntaxError}>
                   ⚠️ Syntax Error
                 </span>
               )}
+              <button
+                type="button"
+                className="mermaid-code-close-btn"
+                onClick={() => setShowCodePanel(false)}
+                title="Close Code Panel"
+              >
+                ✕
+              </button>
             </div>
             <textarea
               className="mermaid-code-textarea"
@@ -1187,4 +1097,3 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     </div>
   );
 };
-
