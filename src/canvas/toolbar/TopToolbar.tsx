@@ -1,5 +1,16 @@
 import React from 'react';
 import { FlowchartDirection } from '../../ast/types';
+import {
+  CodeIcon,
+  CopyIcon,
+  FolderIcon,
+  ImageIcon,
+  PlusIcon,
+  RedoIcon,
+  UndoIcon,
+  VectorIcon,
+  WandIcon,
+} from '../icons/Icons';
 
 export interface TopToolbarProps {
   direction: FlowchartDirection;
@@ -51,14 +62,16 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
           onClick={onAddNode}
           title="Add New Node (Double click canvas or Enter)"
         >
-          ➕ Node
+          <PlusIcon size={14} />
+          <span>Node</span>
         </button>
         <button
           className="mermaid-tool-btn"
           onClick={onAddSubgraph}
           title="Add Subgraph Container (or select nodes first)"
         >
-          📦 Subgraph
+          <FolderIcon size={14} />
+          <span>Subgraph</span>
         </button>
       </div>
 
@@ -86,9 +99,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
         <button
           className="mermaid-tool-btn mod-cta"
           onClick={onAutoTidy}
-          title="Calculate clean layout using Elk.js"
+          title="Re-calculate clean layout using Elk.js"
         >
-          🪄 Auto-Tidy
+          <WandIcon size={14} />
+          <span>Auto-Tidy</span>
         </button>
         <button
           className="mermaid-tool-btn icon-only"
@@ -96,7 +110,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
           disabled={!canUndo}
           title="Undo (Ctrl+Z)"
         >
-          ↩️
+          <UndoIcon size={14} />
         </button>
         <button
           className="mermaid-tool-btn icon-only"
@@ -104,7 +118,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
           disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z)"
         >
-          ↪️
+          <RedoIcon size={14} />
         </button>
       </div>
 
@@ -117,28 +131,32 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
           onClick={onExportPng}
           title="Export High-Resolution PNG"
         >
-          🖼️ PNG
+          <ImageIcon size={14} />
+          <span>PNG</span>
         </button>
         <button
           className="mermaid-tool-btn"
           onClick={onExportSvg}
           title="Export Scalable Vector Graphics (SVG)"
         >
-          📐 SVG
+          <VectorIcon size={14} />
+          <span>SVG</span>
         </button>
         <button
           className="mermaid-tool-btn"
           onClick={onCopyCode}
-          title="Copy Mermaid Code Block"
+          title="Copy Mermaid Code"
         >
-          📋 Copy
+          <CopyIcon size={14} />
+          <span>Copy</span>
         </button>
         <button
           className={`mermaid-tool-btn ${showCodePanel ? 'is-active' : ''}`}
           onClick={onToggleCodePanel}
           title="Toggle Mermaid Code Split View"
         >
-          💻 {showCodePanel ? 'Hide Code' : 'Show Code'}
+          <CodeIcon size={14} />
+          <span>{showCodePanel ? 'Hide Code' : 'Code'}</span>
         </button>
       </div>
     </div>

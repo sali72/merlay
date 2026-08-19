@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowType } from '../../ast/types';
+import { TrashIcon } from '../icons/Icons';
 
 export interface FloatingEdgeToolbarProps {
   currentArrowType: ArrowType;
@@ -9,12 +10,12 @@ export interface FloatingEdgeToolbarProps {
   onDelete: () => void;
 }
 
-const ARROW_TYPES: Array<{ type: ArrowType; label: string; icon: string }> = [
-  { type: 'arrow', label: 'Solid Arrow (-->)', icon: '⟶' },
-  { type: 'dotted', label: 'Dotted Arrow (-.->)', icon: '⤍' },
-  { type: 'thick', label: 'Thick Arrow (==>)', icon: '⟹' },
-  { type: 'bidirectional', label: 'Bidirectional (<-->)', icon: '⟷' },
-  { type: 'open', label: 'Solid Line (---)', icon: '―' },
+const ARROW_TYPES: Array<{ type: ArrowType; label: string; text: string }> = [
+  { type: 'arrow', label: 'Solid Arrow (-->)', text: '⟶' },
+  { type: 'dotted', label: 'Dotted Arrow (-.->)', text: '⤍' },
+  { type: 'thick', label: 'Thick Arrow (==>)', text: '⟹' },
+  { type: 'bidirectional', label: 'Bidirectional (<-->)', text: '⟷' },
+  { type: 'open', label: 'Solid Line (---)', text: '―' },
 ];
 
 export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
@@ -35,7 +36,7 @@ export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
             onClick={() => onArrowTypeChange(a.type)}
             title={a.label}
           >
-            {a.icon}
+            <span style={{ fontSize: '1rem', lineHeight: 1 }}>{a.text}</span>
           </button>
         ))}
       </div>
@@ -59,7 +60,7 @@ export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
         onClick={onDelete}
         title="Delete Connection"
       >
-        🗑️
+        <TrashIcon size={14} />
       </button>
     </div>
   );

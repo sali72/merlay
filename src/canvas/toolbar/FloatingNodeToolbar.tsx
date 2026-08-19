@@ -1,6 +1,7 @@
 import React from 'react';
 import { NodeToolbar, Position } from '@xyflow/react';
 import { MermaidShapeType } from '../../ast/types';
+import { ShapeIcons, TrashIcon } from '../icons/Icons';
 
 export interface FloatingNodeToolbarProps {
   currentShape: MermaidShapeType;
@@ -9,26 +10,30 @@ export interface FloatingNodeToolbarProps {
   onDelete: () => void;
 }
 
-const SHAPES: Array<{ type: MermaidShapeType; label: string; icon: string }> = [
-  { type: 'rectangle', label: 'Rectangle', icon: '▢' },
-  { type: 'rounded', label: 'Rounded', icon: '▢' },
-  { type: 'stadium', label: 'Stadium', icon: '⬭' },
-  { type: 'cylinder', label: 'Database', icon: '🛢️' },
-  { type: 'circle', label: 'Circle', icon: '○' },
-  { type: 'diamond', label: 'Decision', icon: '◇' },
-  { type: 'hexagon', label: 'Hexagon', icon: '⬡' },
-  { type: 'subroutine', label: 'Subroutine', icon: '⧉' },
-  { type: 'parallelogram', label: 'Input/Output', icon: '▰' },
+const SHAPES: Array<{
+  type: MermaidShapeType;
+  label: string;
+  renderIcon: () => React.ReactNode;
+}> = [
+  { type: 'rectangle', label: 'Rectangle [text]', renderIcon: ShapeIcons.rectangle },
+  { type: 'rounded', label: 'Rounded (text)', renderIcon: ShapeIcons.rounded },
+  { type: 'stadium', label: 'Stadium ([text])', renderIcon: ShapeIcons.stadium },
+  { type: 'cylinder', label: 'Database [(text)]', renderIcon: ShapeIcons.cylinder },
+  { type: 'circle', label: 'Circle ((text))', renderIcon: ShapeIcons.circle },
+  { type: 'diamond', label: 'Decision {text}', renderIcon: ShapeIcons.diamond },
+  { type: 'hexagon', label: 'Hexagon {{text}}', renderIcon: ShapeIcons.hexagon },
+  { type: 'subroutine', label: 'Subroutine [[text]]', renderIcon: ShapeIcons.subroutine },
+  { type: 'parallelogram', label: 'Input/Output [/text/]', renderIcon: ShapeIcons.parallelogram },
 ];
 
 const COLORS = [
   { name: 'Default', value: '' },
-  { name: 'Blue', value: '#3b82f6' },
-  { name: 'Purple', value: '#8b5cf6' },
-  { name: 'Emerald', value: '#10b981' },
-  { name: 'Amber', value: '#f59e0b' },
-  { name: 'Rose', value: '#f43f5e' },
-  { name: 'Slate', value: '#64748b' },
+  { name: 'Blue', value: '#2563eb' },
+  { name: 'Purple', value: '#7c3aed' },
+  { name: 'Emerald', value: '#059669' },
+  { name: 'Amber', value: '#d97706' },
+  { name: 'Rose', value: '#e11d48' },
+  { name: 'Slate', value: '#475569' },
 ];
 
 export const FloatingNodeToolbar: React.FC<FloatingNodeToolbarProps> = ({
@@ -52,7 +57,7 @@ export const FloatingNodeToolbar: React.FC<FloatingNodeToolbarProps> = ({
             onClick={() => onShapeChange(s.type)}
             title={s.label}
           >
-            {s.icon}
+            {s.renderIcon()}
           </button>
         ))}
       </div>
@@ -64,8 +69,8 @@ export const FloatingNodeToolbar: React.FC<FloatingNodeToolbarProps> = ({
         {COLORS.map((c) => (
           <button
             key={c.name}
-            className="mermaid-color-dot"
-            style={{ background: c.value || 'var(--background-secondary, #444)' }}
+            className={`mermaid-color-dot ${!c.value ? 'default' : ''}`}
+            style={{ background: c.value || 'var(--background-secondary, #333)' }}
             onClick={() => onColorChange(c.value)}
             title={`Color: ${c.name}`}
           />
@@ -80,7 +85,7 @@ export const FloatingNodeToolbar: React.FC<FloatingNodeToolbarProps> = ({
         onClick={onDelete}
         title="Delete Node (Backspace)"
       >
-        🗑️
+        <TrashIcon size={14} />
       </button>
     </NodeToolbar>
   );

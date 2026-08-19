@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { MermaidShapeType } from '../../ast/types';
+import { ShapeRenderer } from './ShapeRenderer';
+import { PlusIcon } from '../icons/Icons';
 
 export interface ShapeNodeData {
   id: string;
@@ -15,11 +17,25 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const nodeData = data as unknown as ShapeNodeData;
   const [isEditing, setIsEditing] = useState(false);
   const [label, setLabel] = useState(nodeData.label || id);
+  const [dimensions, setDimensions] = useState({ width: 130, height: 48 });
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLabel(nodeData.label || id);
   }, [nodeData.label, id]);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const minW = nodeData.shape === 'circle' ? 68 : Math.max(120, (label.length * 8.5) + 36);
+      const minH = nodeData.shape === 'circle' ? 68 : 46;
+      setDimensions({
+        width: Math.max(minW, rect.width || minW),
+        height: Math.max(minH, rect.height || minH),
+      });
+    }
+  }, [label, nodeData.shape]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -49,28 +65,25 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   };
 
   const shape = nodeData.shape || 'rectangle';
-  const customFill = nodeData.style?.fill || 'var(--background-secondary, #202020)';
-  const customStroke = nodeData.style?.stroke || (selected ? 'var(--interactive-accent, #7c3aed)' : 'var(--background-modifier-border, #444)');
-  const customColor = nodeData.style?.color || 'var(--text-normal, #dcddde)';
+  const customFill = nodeData.style?.fill || 'var(--background-secondary, #252525)';
+  const customStroke = nodeData.style?.stroke || (selected ? 'var(--interactive-accent, #7c3aed)' : 'var(--background-modifier-border, #555)');
+  const customColor = nodeData.style?.color || 'var(--text-normal, #e0e0e0)';
 
   return (
     <div
-      className={`mermaid-shape-node ${shape} ${selected ? 'is-selected' : ''}`}
+      ref={containerRef}
+      className={`mermaid-shape-node-wrapper ${selected ? 'is-selected' : ''}`}
       style={{
         position: 'relative',
-        minWidth: 120,
-        minHeight: 44,
+        width: dimensions.width,
+        height: dimensions.height,
+        minWidth: shape === 'circle' ? 68 : 110,
+        minHeight: shape === 'circle' ? 68 : 44,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '8px 18px',
         color: customColor,
-        background: customFill,
-        border: `2px solid ${customStroke}`,
-        boxShadow: selected
-          ? '0 0 0 2px var(--interactive-accent, #7c3aed), 0 4px 12px rgba(0,0,0,0.3)'
-          : '0 2px 6px rgba(0,0,0,0.2)',
-        ...getShapeStyles(shape),
+        background: 'transparent',
       }}
       tabIndex={0}
       onDoubleClick={() => setIsEditing(true)}
@@ -84,141 +97,91 @@ export const ShapeNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         }
       }}
     >
-      {/* 3D Database cylinder top lid line */}
-      {shape === 'cylinder' && (
-        <div
-          className="mermaid-cylinder-lid"
-          style={{
-            position: 'absolute',
-            top: 6,
-            left: 0,
-            right: 0,
-            height: 10,
-            borderBottom: `2px solid ${customStroke}`,
-            borderRadius: '50%',
-            pointerEvents: 'none',
-          }}
-        />
-      )}
+      {/* Crisp Vector Shape Canvas */}
+      <ShapeRenderer
+        shape={shape}
+        width={dimensions.width}
+        height={dimensions.height}
+        fill={customFill}
+        stroke={customStroke}
+        strokeWidth={selected ? 2.5 : 1.75}
+      />
 
-      {/* Subroutine double border indicators */}
-      {shape === 'subroutine' && (
-        <>
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: 6,
-              width: 2,
-              background: customStroke,
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              right: 6,
-              width: 2,
-              background: customStroke,
-              pointerEvents: 'none',
-            }}
-          />
-        </>
-      )}
+      {/* 4-Directional Connection Handles */}
+      <Handle type="source" position={Position.Top} id="top-src" className="mermaid-handle" style={{ top: -3 }} />
+      <Handle type="target" position={Position.Top} id="top-tgt" className="mermaid-handle" style={{ top: -3 }} />
 
-      {/* Standard Connection Handles */}
-      <Handle type="target" position={Position.Top} id="top" className="mermaid-handle" />
-      <Handle type="source" position={Position.Right} id="right" className="mermaid-handle" />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="mermaid-handle" />
-      <Handle type="target" position={Position.Left} id="left" className="mermaid-handle" />
+      <Handle type="source" position={Position.Right} id="right-src" className="mermaid-handle" style={{ right: -3 }} />
+      <Handle type="target" position={Position.Right} id="right-tgt" className="mermaid-handle" style={{ right: -3 }} />
 
-      {/* Quick Sprout Directional Handles (All 4 Directions on Selection) */}
+      <Handle type="source" position={Position.Bottom} id="bottom-src" className="mermaid-handle" style={{ bottom: -3 }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-tgt" className="mermaid-handle" style={{ bottom: -3 }} />
+
+      <Handle type="source" position={Position.Left} id="left-src" className="mermaid-handle" style={{ left: -3 }} />
+      <Handle type="target" position={Position.Left} id="left-tgt" className="mermaid-handle" style={{ left: -3 }} />
+
+      {/* Quick Sprout Directional Handles */}
       {selected && nodeData.onSprout && (
         <>
           <button
             className="mermaid-sprout-btn sprout-right"
-            title="Sprout Connected Node (Right) [Tab]"
+            title="Sprout Right [Tab]"
             onClick={(e) => {
               e.stopPropagation();
               nodeData.onSprout?.(id, 'right');
             }}
           >
-            +
+            <PlusIcon size={12} />
           </button>
           <button
             className="mermaid-sprout-btn sprout-down"
-            title="Sprout Connected Node (Down)"
+            title="Sprout Down"
             onClick={(e) => {
               e.stopPropagation();
               nodeData.onSprout?.(id, 'down');
             }}
           >
-            +
+            <PlusIcon size={12} />
           </button>
           <button
             className="mermaid-sprout-btn sprout-left"
-            title="Sprout Connected Node (Left)"
+            title="Sprout Left"
             onClick={(e) => {
               e.stopPropagation();
               nodeData.onSprout?.(id, 'left');
             }}
           >
-            +
+            <PlusIcon size={12} />
           </button>
           <button
             className="mermaid-sprout-btn sprout-up"
-            title="Sprout Connected Node (Up)"
+            title="Sprout Up"
             onClick={(e) => {
               e.stopPropagation();
               nodeData.onSprout?.(id, 'up');
             }}
           >
-            +
+            <PlusIcon size={12} />
           </button>
         </>
       )}
 
       {/* Label Content / Inline Editor */}
-      {isEditing ? (
-        <input
-          ref={inputRef}
-          type="text"
-          className="mermaid-node-input"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-        />
-      ) : (
-        <span className="mermaid-node-label">{label}</span>
-      )}
+      <div style={{ position: 'relative', zIndex: 5, padding: '0 12px', textAlign: 'center', width: '100%', pointerEvents: 'all' }}>
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            className="mermaid-node-input"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+          />
+        ) : (
+          <span className="mermaid-node-label">{label}</span>
+        )}
+      </div>
     </div>
   );
 };
-
-function getShapeStyles(shape: MermaidShapeType): React.CSSProperties {
-  switch (shape) {
-    case 'rounded':
-      return { borderRadius: 10 };
-    case 'stadium':
-      return { borderRadius: 24, padding: '8px 22px' };
-    case 'circle':
-      return { borderRadius: '50%', minWidth: 64, minHeight: 64, aspectRatio: '1/1' };
-    case 'cylinder':
-      return { borderRadius: '6px 6px 14px 14px', paddingTop: 14 };
-    case 'diamond':
-      return { clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', padding: '14px 22px' };
-    case 'hexagon':
-      return { clipPath: 'polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%)', padding: '10px 24px' };
-    case 'parallelogram':
-      return { transform: 'skewX(-15deg)', padding: '8px 22px' };
-    case 'subroutine':
-      return { borderRadius: 4, padding: '8px 20px' };
-    case 'rectangle':
-    default:
-      return { borderRadius: 4 };
-  }
-}

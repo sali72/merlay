@@ -11,8 +11,33 @@ import {
   Edge,
   Node,
   BackgroundVariant,
+  MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+
+function getEdgeMarkers(arrowType: ArrowType) {
+  const isBidirectional = arrowType === 'bidirectional';
+  const isOpen = arrowType === 'open' || arrowType === 'dotted_open' || arrowType === 'thick_open';
+
+  return {
+    markerEnd: isOpen
+      ? undefined
+      : {
+          type: MarkerType.ArrowClosed,
+          color: 'var(--text-muted, #888888)',
+          width: 16,
+          height: 16,
+        },
+    markerStart: isBidirectional
+      ? {
+          type: MarkerType.ArrowClosed,
+          color: 'var(--text-muted, #888888)',
+          width: 16,
+          height: 16,
+        }
+      : undefined,
+  };
+}
 
 import { parseMermaidFlowchart } from '../ast/parser';
 import { serializeMermaidFlowchart } from '../ast/serializer';
@@ -67,6 +92,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
   const { pushSnapshot, undo, redo, canUndo, canRedo } = useUndoRedo(code);
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasPaneRef = useRef<HTMLDivElement>(null);
 
   const nodeTypes = useMemo(
     () => ({
@@ -85,7 +111,11 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
   // Sync AST and Canvas layout from Code
   const loadFromCode = useCallback(
-    async (newCode: string, runLayout = true) => {
+    async (
+      newCode: string,
+      runLayout = true,
+      explicitPositions?: Record<string, { x: number; y: number }>
+    ) => {
       try {
         const parsedAst = parseMermaidFlowchart(newCode);
         setAst(parsedAst);
@@ -98,10 +128,11 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
           // Add subgraphs as background nodes
           for (const sub of layout.subgraphs) {
+            const pos = explicitPositions?.[sub.id] || { x: sub.x, y: sub.y };
             flowNodes.push({
               id: sub.id,
               type: 'subgraphNode',
-              position: { x: sub.x, y: sub.y },
+              position: pos,
               style: { width: sub.width, height: sub.height },
               data: { id: sub.id, label: sub.label },
               draggable: true,
@@ -110,10 +141,11 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
           // Add regular nodes
           for (const node of layout.nodes) {
+            const pos = explicitPositions?.[node.id] || { x: node.x, y: node.y };
             flowNodes.push({
               id: node.id,
               type: 'shapeNode',
-              position: { x: node.x, y: node.y },
+              position: pos,
               data: {
                 id: node.id,
                 label: node.label,
@@ -128,6 +160,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             source: e.from,
             target: e.to,
             type: 'customEdge',
+            ...getEdgeMarkers(e.arrowType),
             data: {
               arrowType: e.arrowType,
               label: e.label,
@@ -155,10 +188,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       const serialized = serializeMermaidFlowchart(newAst);
       setCode(serialized);
       setAst(newAst);
-      pushSnapshot(serialized);
+      pushSnapshot(serialized, nodes);
       onCodeChange(serialized);
     },
-    [pushSnapshot, onCodeChange]
+    [pushSnapshot, onCodeChange, nodes]
   );
 
   // Connect handler
@@ -186,6 +219,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             ...params,
             id: newEdgeDef.id,
             type: 'customEdge',
+            ...getEdgeMarkers('arrow'),
             data: { arrowType: 'arrow' },
           },
           eds
@@ -197,9 +231,11 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, setEdges, updateCodeFromAST]
   );
 
-  // Drag-to-Splice Handler (Brilliant UX)
+  // Drag-to-Splice Handler
   const onNodeDragStop = useCallback(
     (_event: any, node: Node) => {
+      pushSnapshot(code, nodes);
+
       if (node.type !== 'shapeNode') return;
 
       const candidateEdge = findSpliceCandidateEdge(node, nodes, edges, 35);
@@ -243,6 +279,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               source: sourceId,
               target: node.id,
               type: 'customEdge',
+              ...getEdgeMarkers('arrow'),
               data: { arrowType: 'arrow' },
             },
             {
@@ -250,6 +287,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               source: node.id,
               target: targetId,
               type: 'customEdge',
+              ...getEdgeMarkers('arrow'),
               data: { arrowType: 'arrow' },
             },
           ])
@@ -257,10 +295,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
       updateCodeFromAST(updatedAst);
     },
-    [nodes, edges, ast, setEdges, updateCodeFromAST]
+    [code, nodes, edges, ast, pushSnapshot, setEdges, updateCodeFromAST]
   );
 
-  // Sprout handler
+  // Sprout handler with accurate directional handle connection
   const handleSprout = useCallback(
     (sourceId: string, direction: 'right' | 'down' | 'left' | 'up') => {
       const sourceNode = nodes.find((n) => n.id === sourceId);
@@ -270,11 +308,26 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       const offset = 180;
       let newX = sourceNode.position.x;
       let newY = sourceNode.position.y;
+      let sourceHandle = 'right-src';
+      let targetHandle = 'left-tgt';
 
-      if (direction === 'right') newX += offset;
-      else if (direction === 'down') newY += offset;
-      else if (direction === 'left') newX -= offset;
-      else if (direction === 'up') newY -= offset;
+      if (direction === 'right') {
+        newX += offset;
+        sourceHandle = 'right-src';
+        targetHandle = 'left-tgt';
+      } else if (direction === 'down') {
+        newY += offset;
+        sourceHandle = 'bottom-src';
+        targetHandle = 'top-tgt';
+      } else if (direction === 'left') {
+        newX -= offset;
+        sourceHandle = 'left-src';
+        targetHandle = 'right-tgt';
+      } else if (direction === 'up') {
+        newY -= offset;
+        sourceHandle = 'top-src';
+        targetHandle = 'bottom-tgt';
+      }
 
       const newNodeDef: MermaidNodeDef = {
         type: 'node',
@@ -320,7 +373,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
           id: newEdgeDef.id,
           source: sourceId,
           target: newId,
+          sourceHandle,
+          targetHandle,
           type: 'customEdge',
+          ...getEdgeMarkers('arrow'),
           data: { arrowType: 'arrow' },
         },
       ]);
@@ -428,7 +484,11 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       setEdges((eds) =>
         eds.map((e) =>
           e.id === selectedEdgeId
-            ? { ...e, data: { ...e.data, arrowType: newArrowType } }
+            ? {
+                ...e,
+                ...getEdgeMarkers(newArrowType),
+                data: { ...e.data, arrowType: newArrowType },
+              }
             : e
         )
       );
@@ -564,7 +624,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     loadFromCode(serializeMermaidFlowchart(updatedAst), true);
   }, [selectedNodeIds, ast, updateCodeFromAST, loadFromCode]);
 
-  // Direction change
+  // Direction change (explicit user action -> runs full Elk layout)
   const handleDirectionChange = useCallback(
     async (dir: FlowchartDirection) => {
       const updatedAst = { ...ast, direction: dir };
@@ -580,29 +640,32 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [ast, updateCodeFromAST, setNodes]
   );
 
-  // Undo / Redo handlers
+  // Undo / Redo handlers preserving node positions!
   const handleUndo = useCallback(() => {
-    const prevCode = undo();
-    if (prevCode) {
-      setCode(prevCode);
-      onCodeChange(prevCode);
-      loadFromCode(prevCode, true);
+    const snap = undo();
+    if (snap) {
+      setCode(snap.code);
+      onCodeChange(snap.code);
+      loadFromCode(snap.code, true, snap.positions);
     }
   }, [undo, onCodeChange, loadFromCode]);
 
   const handleRedo = useCallback(() => {
-    const nextCode = redo();
-    if (nextCode) {
-      setCode(nextCode);
-      onCodeChange(nextCode);
-      loadFromCode(nextCode, true);
+    const snap = redo();
+    if (snap) {
+      setCode(snap.code);
+      onCodeChange(snap.code);
+      loadFromCode(snap.code, true, snap.positions);
     }
   }, [redo, onCodeChange, loadFromCode]);
 
   // Keyboard shortcut listener
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
+      if (
+        (e.target as HTMLElement).tagName === 'INPUT' ||
+        (e.target as HTMLElement).tagName === 'TEXTAREA'
+      ) {
         return;
       }
 
@@ -632,7 +695,14 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [handleUndo, handleRedo, selectedNodeId, selectedEdgeId, handleDeleteNode, handleDeleteEdge]);
+  }, [
+    handleUndo,
+    handleRedo,
+    selectedNodeId,
+    selectedEdgeId,
+    handleDeleteNode,
+    handleDeleteEdge,
+  ]);
 
   // Node selection tracking
   const onSelectionChange = useCallback(
@@ -655,8 +725,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       },
     }));
   }, [nodes, handleLabelChange, handleSprout]);
-
-  const canvasPaneRef = useRef<HTMLDivElement>(null);
 
   const handleExportPng = useCallback(async () => {
     if (canvasPaneRef.current) {
