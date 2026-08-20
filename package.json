@@ -30,12 +30,14 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
     "@xyflow/react": "^12.4.2",
+    "d3-shape": "^3.2.0",
     "elkjs": "^0.9.3",
     "html-to-image": "^1.11.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/d3-shape": "^3.1.8",
     "@types/dagre": "^0.7.54",
     "@types/node": "^20.14.9",
     "@types/react": "^18.3.3",

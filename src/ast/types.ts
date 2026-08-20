@@ -110,6 +110,9 @@ export interface PositionedEdge {
   to: string;
   arrowType: ArrowType;
   label?: string;
+  points?: Array<{ x: number; y: number }>;
+  svgPath?: string;
+  labelPosition?: { x: number; y: number };
 }
 
 export interface PositionedSubgraph {

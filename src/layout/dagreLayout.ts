@@ -4,14 +4,21 @@
  */
 
 import dagre from '@dagrejs/dagre';
+import { line, curveBasis } from 'd3-shape';
 import {
   FlowchartDirection,
   MermaidFlowchartAST,
+  PositionedEdge,
   PositionedGraph,
   PositionedNode,
   PositionedSubgraph,
 } from '../ast/types';
 import { serializeMermaidFlowchart } from '../ast/serializer';
+
+const d3CurveGenerator = line<{ x: number; y: number }>()
+  .x((d) => d.x)
+  .y((d) => d.y)
+  .curve(curveBasis);
 
 function getNodeDimensions(label: string, shape: string = 'rectangle') {
   const textLen = label.length;
@@ -203,6 +210,29 @@ export function extractPositionsFromMermaidSvg(
       }
     });
 
+    // 3. Extract Edge Paths from Mermaid SVG
+    const edgePaths = new Map<string, string>();
+    const pathElements = doc.querySelectorAll('.flowchart-link, [class*="flowchart-link"], .edgePath path');
+    pathElements.forEach((pathEl) => {
+      const dAttr = pathEl.getAttribute('d');
+      if (!dAttr) return;
+
+      const idAttr = pathEl.getAttribute('id') || pathEl.parentElement?.getAttribute('id') || '';
+      const classAttr = pathEl.getAttribute('class') || pathEl.parentElement?.getAttribute('class') || '';
+
+      for (const edge of ast.edges) {
+        if (
+          idAttr.includes(`L-${edge.from}-${edge.to}`) ||
+          classAttr.includes(`L-${edge.from}-${edge.to}`) ||
+          idAttr.includes(`${edge.from}-${edge.to}`) ||
+          classAttr.includes(`${edge.from}-${edge.to}`)
+        ) {
+          edgePaths.set(edge.id, dAttr);
+          break;
+        }
+      }
+    });
+
     if (nodeMap.size === ast.nodes.size && nodeMap.size > 0) {
       return {
         direction: ast.direction,
@@ -213,6 +243,7 @@ export function extractPositionsFromMermaidSvg(
           to: e.to,
           arrowType: e.arrowType,
           label: e.label,
+          svgPath: edgePaths.get(e.id),
         })),
         subgraphs,
       };
@@ -222,6 +253,15 @@ export function extractPositionsFromMermaidSvg(
   } catch (err) {
     return null;
   }
+}
+
+/**
+ * Converts a sequence of Dagre 2D points into a smooth cubic B-spline path
+ * matching Mermaid's d3.curveBasis interpolation.
+ */
+export function pointsToSvgPath(points: Array<{ x: number; y: number }>): string {
+  if (!points || points.length === 0) return '';
+  return d3CurveGenerator(points) || '';
 }
 
 /**
@@ -318,16 +358,32 @@ export function calculateDagreLayout(
     });
   }
 
-  return {
-    direction: ast.direction,
-    nodes: positionedNodes,
-    edges: ast.edges.map((e) => ({
+  // 6. Extract positioned edges with Dagre B-spline paths
+  const positionedEdges: PositionedEdge[] = ast.edges.map((e) => {
+    const dEdge = g.edge(e.from, e.to);
+    const points = dEdge?.points;
+    const svgPath = points ? pointsToSvgPath(points) : undefined;
+    const labelPosition =
+      dEdge?.x !== undefined && dEdge?.y !== undefined
+        ? { x: dEdge.x, y: dEdge.y }
+        : undefined;
+
+    return {
       id: e.id,
       from: e.from,
       to: e.to,
       arrowType: e.arrowType,
       label: e.label,
-    })),
+      points,
+      svgPath,
+      labelPosition,
+    };
+  });
+
+  return {
+    direction: ast.direction,
+    nodes: positionedNodes,
+    edges: positionedEdges,
     subgraphs: positionedSubgraphs,
   };
 }

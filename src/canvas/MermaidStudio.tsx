@@ -189,6 +189,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
           data: {
             arrowType: e.arrowType,
             label: e.label,
+            svgPath: e.svgPath,
+            labelPosition: e.labelPosition,
           },
         }));
 
@@ -262,6 +264,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             data: {
               arrowType: e.arrowType,
               label: e.label,
+              svgPath: e.svgPath,
+              labelPosition: e.labelPosition,
             },
           }));
 
@@ -1172,6 +1176,108 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       <div className="mermaid-studio-body">
         {/* Visual Canvas Panel */}
         <div className="mermaid-canvas-pane" ref={canvasPaneRef}>
+          {/* Native Mermaid SVG Arrowhead & Marker Definitions */}
+          <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, pointerEvents: 'none' }}>
+            <defs>
+              <marker
+                id="mermaid-marker-arrow"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="8"
+                markerHeight="6"
+                orient="auto"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--mermaid-text-muted, #888888)" />
+              </marker>
+              <marker
+                id="mermaid-marker-arrow-selected"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="8"
+                markerHeight="6"
+                orient="auto"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--mermaid-accent, #7c3aed)" />
+              </marker>
+              <marker
+                id="mermaid-marker-arrow-start"
+                viewBox="0 0 10 10"
+                refX="2"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="8"
+                markerHeight="6"
+                orient="auto"
+              >
+                <path d="M 10 0 L 0 5 L 10 10 z" fill="var(--mermaid-text-muted, #888888)" />
+              </marker>
+              <marker
+                id="mermaid-marker-arrow-start-selected"
+                viewBox="0 0 10 10"
+                refX="2"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="8"
+                markerHeight="6"
+                orient="auto"
+              >
+                <path d="M 10 0 L 0 5 L 10 10 z" fill="var(--mermaid-accent, #7c3aed)" />
+              </marker>
+              <marker
+                id="mermaid-marker-thick"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="11"
+                markerHeight="8"
+                orient="auto"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--mermaid-text-muted, #888888)" />
+              </marker>
+              <marker
+                id="mermaid-marker-thick-selected"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="11"
+                markerHeight="8"
+                orient="auto"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--mermaid-accent, #7c3aed)" />
+              </marker>
+              <marker
+                id="mermaid-marker-circle"
+                viewBox="0 0 10 10"
+                refX="5"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto"
+              >
+                <circle cx="5" cy="5" r="3.5" fill="var(--mermaid-text-muted, #888888)" />
+              </marker>
+              <marker
+                id="mermaid-marker-cross"
+                viewBox="0 0 10 10"
+                refX="5"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto"
+              >
+                <path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="var(--mermaid-text-muted, #888888)" strokeWidth="2" strokeLinecap="round" />
+              </marker>
+            </defs>
+          </svg>
+
           <ReactFlow
             nodes={augmentedNodes}
             edges={augmentedEdges}
