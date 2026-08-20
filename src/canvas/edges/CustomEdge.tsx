@@ -4,9 +4,11 @@ import {
   EdgeLabelRenderer,
   EdgeProps,
   getBezierPath,
+  useInternalNode,
 } from '@xyflow/react';
 import { ArrowType } from '../../ast/types';
 import { FloatingEdgeToolbar } from '../toolbar/FloatingEdgeToolbar';
+import { getAdaptiveEdgeParams } from '../../layout/geometry';
 
 export interface CustomEdgeData {
   arrowType: ArrowType;
@@ -19,12 +21,14 @@ export interface CustomEdgeData {
 
 export const CustomEdge: React.FC<EdgeProps> = ({
   id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
+  source,
+  target,
+  sourceX: defaultSourceX,
+  sourceY: defaultSourceY,
+  targetX: defaultTargetX,
+  targetY: defaultTargetY,
+  sourcePosition: defaultSourcePosition,
+  targetPosition: defaultTargetPosition,
   style = {},
   data,
   selected,
@@ -32,6 +36,19 @@ export const CustomEdge: React.FC<EdgeProps> = ({
   markerStart,
 }) => {
   const edgeData = data as unknown as CustomEdgeData;
+
+  const sourceNode = useInternalNode(source);
+  const targetNode = useInternalNode(target);
+
+  const adaptiveParams = getAdaptiveEdgeParams(sourceNode, targetNode);
+
+  const sourceX = adaptiveParams ? adaptiveParams.sourceX : defaultSourceX;
+  const sourceY = adaptiveParams ? adaptiveParams.sourceY : defaultSourceY;
+  const targetX = adaptiveParams ? adaptiveParams.targetX : defaultTargetX;
+  const targetY = adaptiveParams ? adaptiveParams.targetY : defaultTargetY;
+  const sourcePosition = adaptiveParams ? adaptiveParams.sourcePosition : defaultSourcePosition;
+  const targetPosition = adaptiveParams ? adaptiveParams.targetPosition : defaultTargetPosition;
+
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -48,8 +65,8 @@ export const CustomEdge: React.FC<EdgeProps> = ({
   const strokeWidth = isThick ? 3 : 1.75;
   const strokeDasharray = isDotted ? '5,5' : undefined;
   const strokeColor = selected
-    ? 'var(--interactive-accent, #7c3aed)'
-    : 'var(--text-muted, #888888)';
+    ? 'var(--mermaid-accent, #7c3aed)'
+    : 'var(--mermaid-text-muted, #888888)';
 
   return (
     <>
@@ -93,14 +110,6 @@ export const CustomEdge: React.FC<EdgeProps> = ({
               style={{
                 position: 'absolute',
                 transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-                background: 'var(--background-secondary, #202020)',
-                padding: '2px 8px',
-                borderRadius: 4,
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                color: 'var(--text-normal, #ddd)',
-                border: '1px solid var(--background-modifier-border, #444)',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                 pointerEvents: 'all',
               }}
               className="nodrag nopan mermaid-edge-label"

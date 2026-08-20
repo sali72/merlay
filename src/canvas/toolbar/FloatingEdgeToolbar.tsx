@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowType } from '../../ast/types';
-import { TrashIcon, ReverseIcon } from '../icons/Icons';
+import {
+  ArrowBidirectionalIcon,
+  ArrowDottedIcon,
+  ArrowOpenIcon,
+  ArrowSolidIcon,
+  ArrowThickIcon,
+  ReverseIcon,
+  TrashIcon,
+} from '../icons/Icons';
 
 export interface FloatingEdgeToolbarProps {
   currentArrowType: ArrowType;
@@ -11,12 +19,16 @@ export interface FloatingEdgeToolbarProps {
   onDelete: () => void;
 }
 
-const ARROW_TYPES: Array<{ type: ArrowType; label: string; text: string }> = [
-  { type: 'arrow', label: 'Solid Arrow (-->)', text: '⟶' },
-  { type: 'dotted', label: 'Dotted Arrow (-.->)', text: '⇢' },
-  { type: 'thick', label: 'Thick Arrow (==>)', text: '⟹' },
-  { type: 'bidirectional', label: 'Bidirectional (<-->)', text: '⟷' },
-  { type: 'open', label: 'Solid Line (---)', text: '―' },
+const ARROW_TYPES: Array<{
+  type: ArrowType;
+  label: string;
+  renderIcon: () => React.ReactNode;
+}> = [
+  { type: 'arrow', label: 'Solid Arrow (-->)', renderIcon: () => <ArrowSolidIcon size={15} /> },
+  { type: 'dotted', label: 'Dotted Arrow (-.->)', renderIcon: () => <ArrowDottedIcon size={15} /> },
+  { type: 'thick', label: 'Thick Arrow (==>)', renderIcon: () => <ArrowThickIcon size={15} /> },
+  { type: 'bidirectional', label: 'Bidirectional (<-->)', renderIcon: () => <ArrowBidirectionalIcon size={15} /> },
+  { type: 'open', label: 'Solid Line (---)', renderIcon: () => <ArrowOpenIcon size={15} /> },
 ];
 
 export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
@@ -41,6 +53,7 @@ export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      commitLabel();
       e.currentTarget.blur();
     } else if (e.key === 'Escape') {
       setLocalLabel(currentLabel);
@@ -63,7 +76,7 @@ export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
             }}
             title={a.label}
           >
-            <span style={{ fontSize: '1rem', lineHeight: 1 }}>{a.text}</span>
+            {a.renderIcon()}
           </button>
         ))}
       </div>
@@ -79,9 +92,9 @@ export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
             e.stopPropagation();
             onReverse();
           }}
-          title="Reverse Direction"
+          title="Reverse Connection Direction"
         >
-          <ReverseIcon size={13} />
+          <ReverseIcon size={14} />
         </button>
       )}
 
@@ -90,8 +103,10 @@ export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
         type="text"
         className="mermaid-edge-input"
         placeholder="Label..."
-        value={currentLabel}
-        onChange={(e) => onLabelChange(e.target.value)}
+        value={localLabel}
+        onChange={(e) => setLocalLabel(e.target.value)}
+        onBlur={commitLabel}
+        onKeyDown={handleKeyDown}
         onClick={(e) => e.stopPropagation()}
       />
 
@@ -105,10 +120,11 @@ export const FloatingEdgeToolbar: React.FC<FloatingEdgeToolbarProps> = ({
           e.stopPropagation();
           onDelete();
         }}
-        title="Delete (Backspace)"
+        title="Delete Connection (Backspace/Delete)"
       >
         <TrashIcon size={14} />
       </button>
     </div>
   );
 };
+

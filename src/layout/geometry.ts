@@ -1,4 +1,109 @@
-import { Edge, Node } from '@xyflow/react';
+import { Edge, Node, Position } from '@xyflow/react';
+
+export function getAdaptiveEdgeParams(sourceNode: any, targetNode: any) {
+  if (!sourceNode || !targetNode) return null;
+
+  const sX = sourceNode.internals?.positionAbsolute?.x ?? sourceNode.position?.x ?? 0;
+  const sY = sourceNode.internals?.positionAbsolute?.y ?? sourceNode.position?.y ?? 0;
+  const sW = sourceNode.measured?.width ?? sourceNode.width ?? 130;
+  const sH = sourceNode.measured?.height ?? sourceNode.height ?? 48;
+
+  const tX = targetNode.internals?.positionAbsolute?.x ?? targetNode.position?.x ?? 0;
+  const tY = targetNode.internals?.positionAbsolute?.y ?? targetNode.position?.y ?? 0;
+  const tW = targetNode.measured?.width ?? targetNode.width ?? 130;
+  const tH = targetNode.measured?.height ?? targetNode.height ?? 48;
+
+  const scX = sX + sW / 2;
+  const scY = sY + sH / 2;
+  const tcX = tX + tW / 2;
+  const tcY = tY + tH / 2;
+
+  const dx = tcX - scX;
+  const dy = tcY - scY;
+
+  if (Math.hypot(dx, dy) < 1) return null;
+
+  // 1. Calculate continuous intersection on source node perimeter
+  const sHw = sW / 2;
+  const sHh = sH / 2;
+  const sTx = dx !== 0 ? Math.abs(sHw / dx) : Infinity;
+  const sTy = dy !== 0 ? Math.abs(sHh / dy) : Infinity;
+  const sT = Math.min(sTx, sTy);
+
+  let sourcePosition = Position.Right;
+  let sourceX = scX;
+  let sourceY = scY;
+
+  if (sTx < sTy) {
+    if (dx > 0) {
+      sourcePosition = Position.Right;
+      sourceX = sX + sW;
+      sourceY = scY + sT * dy;
+    } else {
+      sourcePosition = Position.Left;
+      sourceX = sX;
+      sourceY = scY + sT * dy;
+    }
+    sourceY = Math.max(sY + 4, Math.min(sY + sH - 4, sourceY));
+  } else {
+    if (dy > 0) {
+      sourcePosition = Position.Bottom;
+      sourceX = scX + sT * dx;
+      sourceY = sY + sH;
+    } else {
+      sourcePosition = Position.Top;
+      sourceX = scX + sT * dx;
+      sourceY = sY;
+    }
+    sourceX = Math.max(sX + 4, Math.min(sX + sW - 4, sourceX));
+  }
+
+  // 2. Calculate continuous intersection on target node perimeter
+  const tdx = scX - tcX;
+  const tdy = scY - tcY;
+  const tHw = tW / 2;
+  const tHh = tH / 2;
+  const tTx = tdx !== 0 ? Math.abs(tHw / tdx) : Infinity;
+  const tTy = tdy !== 0 ? Math.abs(tHh / tdy) : Infinity;
+  const tT = Math.min(tTx, tTy);
+
+  let targetPosition = Position.Left;
+  let targetX = tcX;
+  let targetY = tcY;
+
+  if (tTx < tTy) {
+    if (tdx > 0) {
+      targetPosition = Position.Right;
+      targetX = tX + tW;
+      targetY = tcY + tT * tdy;
+    } else {
+      targetPosition = Position.Left;
+      targetX = tX;
+      targetY = tcY + tT * tdy;
+    }
+    targetY = Math.max(tY + 4, Math.min(tY + tH - 4, targetY));
+  } else {
+    if (tdy > 0) {
+      targetPosition = Position.Bottom;
+      targetX = tcX + tT * tdx;
+      targetY = tY + tH;
+    } else {
+      targetPosition = Position.Top;
+      targetX = tcX + tT * tdx;
+      targetY = tY;
+    }
+    targetX = Math.max(tX + 4, Math.min(tX + tW - 4, targetX));
+  }
+
+  return {
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  };
+}
 
 export function findSpliceCandidateEdge(
   draggedNode: Node,
@@ -60,3 +165,4 @@ function pointToSegmentDistance(
 
   return Math.hypot(px - projX, py - projY);
 }
+

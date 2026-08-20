@@ -34,6 +34,7 @@ import { SubgraphNode } from './nodes/SubgraphNode';
 import { CustomEdge } from './edges/CustomEdge';
 import { TopToolbar } from './toolbar/TopToolbar';
 import { useUndoRedo } from './hooks/useUndoRedo';
+import { AlertWarningIcon, CloseIcon, CodeIcon } from './icons/Icons';
 
 function getEdgeMarkers(arrowType: ArrowType, isSelected = false) {
   const isBidirectional = arrowType === 'bidirectional';
@@ -334,36 +335,51 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     [code, nodes, edges, ast, pushSnapshot, setEdges, updateCodeFromAST]
   );
 
-  const handleSprout = useCallback(
-    (sourceId: string, direction: 'right' | 'down' | 'left' | 'up') => {
-      const sourceNode = nodes.find((n) => n.id === sourceId);
-      if (!sourceNode) return;
+  const connectingNodeRef = useRef<{
+    nodeId: string;
+    handleId: string | null;
+    handleType: string | null;
+  } | null>(null);
 
-      const newId = `node_${Date.now().toString().slice(-4)}`;
-      const offset = 180;
-      let newX = sourceNode.position.x;
-      let newY = sourceNode.position.y;
-      let sourceHandle = 'right-src';
-      let targetHandle = 'left-tgt';
+  const onConnectStart = useCallback(
+    (
+      _event: any,
+      params: { nodeId: string | null; handleId: string | null; handleType: string | null }
+    ) => {
+      if (params.nodeId) {
+        connectingNodeRef.current = {
+          nodeId: params.nodeId,
+          handleId: params.handleId,
+          handleType: params.handleType,
+        };
+      }
+    },
+    []
+  );
 
-      if (direction === 'right') {
-        newX += offset;
-        sourceHandle = 'right-src';
-        targetHandle = 'left-tgt';
-      } else if (direction === 'down') {
-        newY += offset;
-        sourceHandle = 'bottom-src';
-        targetHandle = 'top-tgt';
-      } else if (direction === 'left') {
-        newX -= offset;
-        sourceHandle = 'left-src';
-        targetHandle = 'right-tgt';
-      } else if (direction === 'up') {
-        newY -= offset;
-        sourceHandle = 'top-src';
-        targetHandle = 'bottom-tgt';
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent, connectionState?: any) => {
+      const sourceInfo = connectingNodeRef.current;
+      connectingNodeRef.current = null;
+      if (!sourceInfo) return;
+
+      // If dropped on an existing node or handle, let onConnect handle it
+      if (connectionState?.isValid) return;
+
+      const targetEl = event.target as HTMLElement;
+      if (targetEl?.closest('.react-flow__node') || targetEl?.closest('.react-flow__handle')) {
+        return;
       }
 
+      if (!rfInstance) return;
+
+      const clientX = 'clientX' in event ? event.clientX : (event as TouchEvent).touches?.[0]?.clientX ?? 0;
+      const clientY = 'clientY' in event ? event.clientY : (event as TouchEvent).touches?.[0]?.clientY ?? 0;
+
+      const flowPos = rfInstance.screenToFlowPosition({ x: clientX, y: clientY });
+      if (!flowPos) return;
+
+      const newId = `node_${Date.now().toString().slice(-4)}`;
       const newNodeDef: MermaidNodeDef = {
         type: 'node',
         id: newId,
@@ -373,8 +389,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
       const newEdgeDef: MermaidEdgeDef = {
         type: 'edge',
-        id: `e_${sourceId}_${newId}_${Date.now()}`,
-        from: sourceId,
+        id: `e_${sourceInfo.nodeId}_${newId}_${Date.now()}`,
+        from: sourceInfo.nodeId,
         to: newId,
         arrowType: 'arrow' as ArrowType,
       };
@@ -388,37 +404,37 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         edges: [...ast.edges, newEdgeDef],
       };
 
-      setNodes((nds) => [
-        ...nds,
-        {
-          id: newId,
-          type: 'shapeNode',
-          position: { x: newX, y: newY },
-          data: {
-            id: newId,
-            label: 'New Step',
-            shape: 'rectangle',
-          },
-        },
-      ]);
+      const defaultHandles = getDefaultHandles(ast.direction);
+      const newEdge: Edge = {
+        id: newEdgeDef.id,
+        source: sourceInfo.nodeId,
+        target: newId,
+        sourceHandle: sourceInfo.handleId || defaultHandles.sourceHandle,
+        targetHandle: defaultHandles.targetHandle,
+        type: 'customEdge',
+        ...getEdgeMarkers('arrow'),
+        data: { arrowType: 'arrow' },
+      };
 
-      setEdges((eds) => [
-        ...eds,
-        {
-          id: newEdgeDef.id,
-          source: sourceId,
-          target: newId,
-          sourceHandle,
-          targetHandle,
-          type: 'customEdge',
-          ...getEdgeMarkers('arrow'),
-          data: { arrowType: 'arrow' },
+      const newNode: Node = {
+        id: newId,
+        type: 'shapeNode',
+        position: { x: flowPos.x - 65, y: flowPos.y - 24 },
+        data: {
+          id: newId,
+          label: 'New Step',
+          shape: 'rectangle',
         },
-      ]);
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+      setEdges((eds) => [...eds, newEdge]);
+      setSelectedNodeId(newId);
+      setSelectedNodeIds([newId]);
 
       updateCodeFromAST(updatedAst);
     },
-    [nodes, ast, setNodes, setEdges, updateCodeFromAST]
+    [ast, rfInstance, updateCodeFromAST, setNodes, setEdges]
   );
 
   const handleLabelChange = useCallback(
@@ -866,7 +882,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
           ...node.data,
           direction: ast.direction,
           onLabelChange: handleLabelChange,
-          onSprout: handleSprout,
           onShapeChange: (nodeId: string, newShape: MermaidShapeType) => {
             const targetNode = ast.nodes.get(nodeId);
             if (!targetNode) return;
@@ -881,8 +896,9 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             );
           },
           onColorChange: (nodeId: string, color: string) => {
+            const textColor = color === '#e0ac00' ? '#111111' : '#ffffff';
             const styleObj: Record<string, string> = color
-              ? { fill: color, stroke: color, color: '#ffffff' }
+              ? { fill: color, stroke: color, color: textColor }
               : {};
             const existingStyleIdx = ast.styles.findIndex(
               (s) => s.targetId === nodeId
@@ -928,7 +944,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     handleSubgraphLabelChange,
     handleUngroupSubgraph,
     handleDeleteSubgraph,
-    handleSprout,
     handleDeleteNode,
     updateCodeFromAST,
     setNodes,
@@ -1024,6 +1039,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectStart={onConnectStart}
+            onConnectEnd={onConnectEnd}
             onNodeDragStop={onNodeDragStop}
             onSelectionChange={onSelectionChange}
             onInit={(instance) => setRfInstance(instance)}
@@ -1041,13 +1058,13 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               variant={BackgroundVariant.Dots}
               gap={16}
               size={1}
-              color="var(--background-modifier-border, #3a3a3a)"
+              color="var(--mermaid-border, rgba(128, 128, 128, 0.25))"
             />
             <Controls showInteractive={false} />
             {showMinimap && (
               <MiniMap
-                nodeColor={() => 'var(--interactive-accent, #7c3aed)'}
-                maskColor="rgba(0,0,0,0.5)"
+                nodeColor={() => 'var(--mermaid-accent, #7c3aed)'}
+                maskColor="rgba(0, 0, 0, 0.3)"
                 className="mermaid-minimap"
               />
             )}
@@ -1069,19 +1086,25 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             />
 
             <div className="mermaid-code-header">
-              <span className="mermaid-code-title">Mermaid Code</span>
-              {syntaxError && (
-                <span className="mermaid-error-badge" title={syntaxError}>
-                  ⚠️ Syntax Error
+              <div className="mermaid-code-header-left">
+                <span className="mermaid-code-title">
+                  <CodeIcon size={15} />
+                  Mermaid Syntax
                 </span>
-              )}
+                {syntaxError && (
+                  <span className="mermaid-error-badge" title={syntaxError}>
+                    <AlertWarningIcon size={13} />
+                    Syntax Error
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 className="mermaid-code-close-btn"
                 onClick={() => setShowCodePanel(false)}
                 title="Close Code Panel"
               >
-                ✕
+                <CloseIcon size={14} />
               </button>
             </div>
             <textarea

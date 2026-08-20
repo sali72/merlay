@@ -4,6 +4,7 @@ import {
   Notice,
   MarkdownRenderChild,
   TFile,
+  setIcon,
 } from 'obsidian';
 import {
   DEFAULT_SETTINGS,
@@ -42,8 +43,10 @@ export default class VisualMermaidPlugin extends Plugin {
 
         const editBtn = createEl('button', {
           cls: 'mermaid-studio-edit-btn',
-          text: '✏️ Edit Visually',
         });
+        const iconSpan = editBtn.createSpan({ cls: 'mermaid-edit-btn-icon' });
+        setIcon(iconSpan, 'git-pull-request');
+        editBtn.createSpan({ text: 'Edit Diagram' });
 
         editBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
