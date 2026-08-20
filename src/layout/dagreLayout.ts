@@ -1,5 +1,5 @@
 /**
- * Dagre Layout Engine for Mermaid Flowcharts
+ * Dagre & Native Mermaid Layout Engine
  * Matches 1:1 with official Mermaid.js and Obsidian native diagram renderer.
  */
 
@@ -11,6 +11,7 @@ import {
   PositionedNode,
   PositionedSubgraph,
 } from '../ast/types';
+import { serializeMermaidFlowchart } from '../ast/serializer';
 
 function getNodeDimensions(label: string, shape: string = 'rectangle') {
   const textLen = label.length;
@@ -49,6 +50,183 @@ function mapDirectionToDagre(dir: FlowchartDirection): string {
   }
 }
 
+/**
+ * Extracts exact node and subgraph pixel positions from a rendered Mermaid SVG.
+ */
+export function extractPositionsFromMermaidSvg(
+  svgString: string,
+  ast: MermaidFlowchartAST
+): PositionedGraph | null {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgString, 'image/svg+xml');
+    const svgEl = doc.querySelector('svg');
+    if (!svgEl) return null;
+
+    const nodeMap = new Map<string, PositionedNode>();
+    const subgraphs: PositionedSubgraph[] = [];
+
+    // 1. Extract Node Positions
+    const nodeElements = doc.querySelectorAll('.node, [class*="node "]');
+    nodeElements.forEach((el) => {
+      const idAttr = el.getAttribute('id') || '';
+      let matchedId: string | null = null;
+
+      for (const nodeId of ast.nodes.keys()) {
+        if (
+          idAttr.includes(`flowchart-${nodeId}-`) ||
+          idAttr === `flowchart-${nodeId}` ||
+          idAttr.endsWith(`-${nodeId}`) ||
+          idAttr === nodeId
+        ) {
+          matchedId = nodeId;
+          break;
+        }
+      }
+
+      if (!matchedId) {
+        const labelText = el.querySelector('.label, text')?.textContent?.trim();
+        for (const [nid, ndef] of ast.nodes.entries()) {
+          if (ndef.label === labelText || nid === labelText) {
+            matchedId = nid;
+            break;
+          }
+        }
+      }
+
+      if (!matchedId) return;
+
+      const nodeDef = ast.nodes.get(matchedId);
+      if (!nodeDef) return;
+
+      const transform = el.getAttribute('transform') || '';
+      const match = /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/i.exec(transform);
+      if (!match) return;
+
+      const cx = parseFloat(match[1]);
+      const cy = parseFloat(match[2]);
+
+      let width = 110;
+      let height = 48;
+
+      const rect = el.querySelector('rect');
+      const circle = el.querySelector('circle');
+      const polygon = el.querySelector('polygon');
+
+      if (rect) {
+        width = parseFloat(rect.getAttribute('width') || '110');
+        height = parseFloat(rect.getAttribute('height') || '48');
+      } else if (circle) {
+        const r = parseFloat(circle.getAttribute('r') || '30');
+        width = r * 2;
+        height = r * 2;
+      } else if (polygon) {
+        const points = (polygon.getAttribute('points') || '')
+          .trim()
+          .split(/[\s,]+/)
+          .map(parseFloat)
+          .filter((n) => !isNaN(n));
+        if (points.length >= 4) {
+          const xs: number[] = [];
+          const ys: number[] = [];
+          for (let i = 0; i < points.length; i += 2) {
+            xs.push(points[i]);
+            ys.push(points[i + 1]);
+          }
+          width = Math.max(...xs) - Math.min(...xs);
+          height = Math.max(...ys) - Math.min(...ys);
+        }
+      }
+
+      nodeMap.set(matchedId, {
+        id: matchedId,
+        label: nodeDef.label || matchedId,
+        shape: nodeDef.shape || 'rectangle',
+        x: cx - width / 2,
+        y: cy - height / 2,
+        width,
+        height,
+        subgraphId: nodeDef.subgraphId,
+        style: nodeDef.style,
+      });
+    });
+
+    // 2. Extract Cluster / Subgraph Positions
+    const clusterElements = doc.querySelectorAll('.cluster, [class*="cluster"]');
+    clusterElements.forEach((el) => {
+      const idAttr = el.getAttribute('id') || '';
+      let matchedSubId: string | null = null;
+
+      for (const subId of ast.subgraphs.keys()) {
+        if (
+          idAttr.includes(`flowchart-${subId}-`) ||
+          idAttr === `flowchart-${subId}` ||
+          idAttr.endsWith(`-${subId}`) ||
+          idAttr === subId
+        ) {
+          matchedSubId = subId;
+          break;
+        }
+      }
+
+      if (!matchedSubId) {
+        const labelText = el.querySelector('.label, text')?.textContent?.trim();
+        for (const [sid, sdef] of ast.subgraphs.entries()) {
+          if (sdef.label === labelText || sid === labelText) {
+            matchedSubId = sid;
+            break;
+          }
+        }
+      }
+
+      if (!matchedSubId) return;
+
+      const subDef = ast.subgraphs.get(matchedSubId);
+      if (!subDef) return;
+
+      const rect = el.querySelector('rect');
+      if (rect) {
+        const x = parseFloat(rect.getAttribute('x') || '0');
+        const y = parseFloat(rect.getAttribute('y') || '0');
+        const width = parseFloat(rect.getAttribute('width') || '200');
+        const height = parseFloat(rect.getAttribute('height') || '150');
+
+        subgraphs.push({
+          id: matchedSubId,
+          label: subDef.label || matchedSubId,
+          x,
+          y,
+          width,
+          height,
+          nodeIds: subDef.nodeIds,
+        });
+      }
+    });
+
+    if (nodeMap.size === ast.nodes.size && nodeMap.size > 0) {
+      return {
+        direction: ast.direction,
+        nodes: Array.from(nodeMap.values()),
+        edges: ast.edges.map((e) => ({
+          id: e.id,
+          from: e.from,
+          to: e.to,
+          arrowType: e.arrowType,
+          label: e.label,
+        })),
+        subgraphs,
+      };
+    }
+
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Pure Dagre Layout Engine with edge label spacers matching Mermaid specifications.
+ */
 export function calculateDagreLayout(
   ast: MermaidFlowchartAST
 ): PositionedGraph {
@@ -89,10 +267,15 @@ export function calculateDagreLayout(
     }
   }
 
-  // 3. Add Edges
+  // 3. Add Edges with Label Spacers
   for (const edge of ast.edges) {
     if (g.hasNode(edge.from) && g.hasNode(edge.to)) {
-      g.setEdge(edge.from, edge.to);
+      const labelLen = edge.label ? edge.label.length : 0;
+      const edgeOpts =
+        labelLen > 0
+          ? { width: Math.max(30, labelLen * 8.5 + 16), height: 20, labelpos: 'c' }
+          : {};
+      g.setEdge(edge.from, edge.to, edgeOpts);
     }
   }
 
@@ -147,4 +330,35 @@ export function calculateDagreLayout(
     })),
     subgraphs: positionedSubgraphs,
   };
+}
+
+/**
+ * Universal Native Mermaid Layout:
+ * Attempts to render via Obsidian's global mermaid instance for 100% pixel parity,
+ * with instantaneous Dagre fallback.
+ */
+export async function calculateMermaidLayout(
+  ast: MermaidFlowchartAST
+): Promise<PositionedGraph> {
+  const mermaidGlobal = (typeof window !== 'undefined' && (window as any).mermaid) as any;
+
+  if (mermaidGlobal && typeof mermaidGlobal.render === 'function') {
+    try {
+      const code = serializeMermaidFlowchart(ast);
+      const renderId = `m_render_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const result = await mermaidGlobal.render(renderId, code);
+      const svgString = typeof result === 'string' ? result : result?.svg;
+
+      if (svgString) {
+        const nativeLayout = extractPositionsFromMermaidSvg(svgString, ast);
+        if (nativeLayout) {
+          return nativeLayout;
+        }
+      }
+    } catch (e) {
+      // Fall through to Dagre
+    }
+  }
+
+  return calculateDagreLayout(ast);
 }

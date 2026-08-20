@@ -17,7 +17,7 @@ import '@xyflow/react/dist/style.css';
 
 import { parseMermaidFlowchart } from '../ast/parser';
 import { serializeMermaidFlowchart } from '../ast/serializer';
-import { calculateDagreLayout } from '../layout/dagreLayout';
+import { calculateMermaidLayout } from '../layout/dagreLayout';
 import { findSpliceCandidateEdge } from '../layout/geometry';
 import { exportDiagramAsPng, exportDiagramAsSvg, copyDiagramToClipboard } from './exportUtils';
 import {
@@ -142,11 +142,11 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     []
   );
 
-  // Exact 1:1 Live Dagre Layout Engine (matches official Mermaid.js & Obsidian renderer)
+  // Exact 1:1 Live Dagre & Native Mermaid Layout Engine (matches official Mermaid.js & Obsidian renderer)
   const runAutoLayout = useCallback(
-    (targetAst: MermaidFlowchartAST, selectNodeId?: string) => {
+    async (targetAst: MermaidFlowchartAST, selectNodeId?: string) => {
       try {
-        const layout = calculateDagreLayout(targetAst);
+        const layout = await calculateMermaidLayout(targetAst);
         const defaultHandles = getDefaultHandles(targetAst.direction);
 
         const flowNodes: Node[] = [];
@@ -207,7 +207,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
   // Sync AST and Canvas layout from Code
   const loadFromCode = useCallback(
-    (
+    async (
       newCode: string,
       runLayout = true,
       explicitPositions?: Record<string, { x: number; y: number }>
@@ -218,7 +218,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         setSyntaxError(null);
 
         if (runLayout) {
-          const layout = calculateDagreLayout(parsedAst);
+          const layout = await calculateMermaidLayout(parsedAst);
           const defaultHandles = getDefaultHandles(parsedAst.direction);
 
           const flowNodes: Node[] = [];
