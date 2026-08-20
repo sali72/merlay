@@ -60,23 +60,32 @@ function mapDirectionToDagre(dir: FlowchartDirection): string {
 /**
  * Extracts exact node and subgraph pixel positions from a rendered Mermaid SVG.
  */
+/**
+ * Extracts exact node, subgraph, edge paths and label positions from a rendered Mermaid SVG.
+ */
 export function extractPositionsFromMermaidSvg(
   svgString: string,
   ast: MermaidFlowchartAST
 ): PositionedGraph | null {
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(svgString, 'image/svg+xml');
+    let doc: Document | null = null;
+    if (typeof DOMParser !== 'undefined') {
+      const parser = new DOMParser();
+      doc = parser.parseFromString(svgString, 'image/svg+xml');
+    }
+    if (!doc) return null;
+
     const svgEl = doc.querySelector('svg');
     if (!svgEl) return null;
 
     const nodeMap = new Map<string, PositionedNode>();
     const subgraphs: PositionedSubgraph[] = [];
 
-    // 1. Extract Node Positions
-    const nodeElements = doc.querySelectorAll('.node, [class*="node "]');
+    // 1. Extract Node Positions & Dimensions
+    const nodeElements = Array.from(doc.querySelectorAll('.node, [class*="node "]'));
     nodeElements.forEach((el) => {
       const idAttr = el.getAttribute('id') || '';
+      const classAttr = el.getAttribute('class') || '';
       let matchedId: string | null = null;
 
       for (const nodeId of ast.nodes.keys()) {
@@ -84,7 +93,9 @@ export function extractPositionsFromMermaidSvg(
           idAttr.includes(`flowchart-${nodeId}-`) ||
           idAttr === `flowchart-${nodeId}` ||
           idAttr.endsWith(`-${nodeId}`) ||
-          idAttr === nodeId
+          idAttr === nodeId ||
+          classAttr.includes(`flowchart-${nodeId}-`) ||
+          classAttr.includes(`-${nodeId} `)
         ) {
           matchedId = nodeId;
           break;
@@ -113,20 +124,26 @@ export function extractPositionsFromMermaidSvg(
       const cx = parseFloat(match[1]);
       const cy = parseFloat(match[2]);
 
-      let width = 110;
-      let height = 48;
+      const defaultDims = getNodeDimensions(nodeDef.label || matchedId, nodeDef.shape);
+      let width = defaultDims.width;
+      let height = defaultDims.height;
 
       const rect = el.querySelector('rect');
       const circle = el.querySelector('circle');
       const polygon = el.querySelector('polygon');
+      const foreignObject = el.querySelector('foreignObject');
 
       if (rect) {
-        width = parseFloat(rect.getAttribute('width') || '110');
-        height = parseFloat(rect.getAttribute('height') || '48');
+        const rw = parseFloat(rect.getAttribute('width') || '0');
+        const rh = parseFloat(rect.getAttribute('height') || '0');
+        if (rw > 0) width = rw;
+        if (rh > 0) height = rh;
       } else if (circle) {
-        const r = parseFloat(circle.getAttribute('r') || '30');
-        width = r * 2;
-        height = r * 2;
+        const r = parseFloat(circle.getAttribute('r') || '0');
+        if (r > 0) {
+          width = r * 2;
+          height = r * 2;
+        }
       } else if (polygon) {
         const points = (polygon.getAttribute('points') || '')
           .trim()
@@ -143,6 +160,11 @@ export function extractPositionsFromMermaidSvg(
           width = Math.max(...xs) - Math.min(...xs);
           height = Math.max(...ys) - Math.min(...ys);
         }
+      } else if (foreignObject) {
+        const fow = parseFloat(foreignObject.getAttribute('width') || '0');
+        const foh = parseFloat(foreignObject.getAttribute('height') || '0');
+        if (fow > 0) width = Math.max(width, fow + 24);
+        if (foh > 0) height = Math.max(height, foh + 16);
       }
 
       nodeMap.set(matchedId, {
@@ -159,9 +181,10 @@ export function extractPositionsFromMermaidSvg(
     });
 
     // 2. Extract Cluster / Subgraph Positions
-    const clusterElements = doc.querySelectorAll('.cluster, [class*="cluster"]');
+    const clusterElements = Array.from(doc.querySelectorAll('.cluster, [class*="cluster"]'));
     clusterElements.forEach((el) => {
       const idAttr = el.getAttribute('id') || '';
+      const classAttr = el.getAttribute('class') || '';
       let matchedSubId: string | null = null;
 
       for (const subId of ast.subgraphs.keys()) {
@@ -169,7 +192,9 @@ export function extractPositionsFromMermaidSvg(
           idAttr.includes(`flowchart-${subId}-`) ||
           idAttr === `flowchart-${subId}` ||
           idAttr.endsWith(`-${subId}`) ||
-          idAttr === subId
+          idAttr === subId ||
+          classAttr.includes(`-${subId} `) ||
+          classAttr.endsWith(`-${subId}`)
         ) {
           matchedSubId = subId;
           break;
@@ -210,28 +235,139 @@ export function extractPositionsFromMermaidSvg(
       }
     });
 
-    // 3. Extract Edge Paths from Mermaid SVG
+    // 3. Extract Edge Paths from Mermaid SVG (matching modern Mermaid LS-* and LE-* markers, L-* ids, and sequence)
     const edgePaths = new Map<string, string>();
-    const pathElements = doc.querySelectorAll('.flowchart-link, [class*="flowchart-link"], .edgePath path');
-    pathElements.forEach((pathEl) => {
-      const dAttr = pathEl.getAttribute('d');
-      if (!dAttr) return;
+    const pathElements = Array.from(
+      doc.querySelectorAll('.flowchart-link, [class*="flowchart-link"], .edgePath path, .edgePaths path')
+    );
+    const usedPathElements = new Set<Element>();
 
-      const idAttr = pathEl.getAttribute('id') || pathEl.parentElement?.getAttribute('id') || '';
-      const classAttr = pathEl.getAttribute('class') || pathEl.parentElement?.getAttribute('class') || '';
+    for (const edge of ast.edges) {
+      let matchedPathEl: Element | null = null;
 
-      for (const edge of ast.edges) {
-        if (
-          idAttr.includes(`L-${edge.from}-${edge.to}`) ||
-          classAttr.includes(`L-${edge.from}-${edge.to}`) ||
-          idAttr.includes(`${edge.from}-${edge.to}`) ||
-          classAttr.includes(`${edge.from}-${edge.to}`)
-        ) {
-          edgePaths.set(edge.id, dAttr);
+      // Match Strategy 1: Source & Target markers (Mermaid v10+ standard: LS-nodeId and LE-nodeId)
+      for (const pathEl of pathElements) {
+        if (usedPathElements.has(pathEl)) continue;
+        const classAttr =
+          (pathEl.getAttribute('class') || '') + ' ' + (pathEl.parentElement?.getAttribute('class') || '');
+        const idAttr =
+          (pathEl.getAttribute('id') || '') + ' ' + (pathEl.parentElement?.getAttribute('id') || '');
+
+        const hasSource =
+          classAttr.includes(`LS-${edge.from}`) ||
+          classAttr.includes(`LS-${edge.from}_`) ||
+          idAttr.includes(`LS-${edge.from}`);
+        const hasTarget =
+          classAttr.includes(`LE-${edge.to}`) ||
+          classAttr.includes(`LE-${edge.to}_`) ||
+          idAttr.includes(`LE-${edge.to}`);
+
+        if (hasSource && hasTarget) {
+          matchedPathEl = pathEl;
           break;
         }
       }
-    });
+
+      // Match Strategy 2: ID or Class containing L-${from}-${to} or flowchart-${from}-${to}
+      if (!matchedPathEl) {
+        for (const pathEl of pathElements) {
+          if (usedPathElements.has(pathEl)) continue;
+          const classAttr =
+            (pathEl.getAttribute('class') || '') + ' ' + (pathEl.parentElement?.getAttribute('class') || '');
+          const idAttr =
+            (pathEl.getAttribute('id') || '') + ' ' + (pathEl.parentElement?.getAttribute('id') || '');
+
+          if (
+            idAttr.includes(`L-${edge.from}-${edge.to}`) ||
+            idAttr.includes(`L_${edge.from}_${edge.to}`) ||
+            idAttr.includes(`flowchart-${edge.from}-${edge.to}`) ||
+            idAttr.includes(`${edge.from}-${edge.to}`) ||
+            classAttr.includes(`L-${edge.from}-${edge.to}`) ||
+            classAttr.includes(`L_${edge.from}_${edge.to}`) ||
+            classAttr.includes(`${edge.from}-${edge.to}`)
+          ) {
+            matchedPathEl = pathEl;
+            break;
+          }
+        }
+      }
+
+      // Match Strategy 3: Unused path element by sequence fallback
+      if (!matchedPathEl) {
+        const unused = pathElements.filter((el) => !usedPathElements.has(el));
+        if (unused.length > 0) {
+          matchedPathEl = unused[0];
+        }
+      }
+
+      if (matchedPathEl) {
+        usedPathElements.add(matchedPathEl);
+        const dAttr = matchedPathEl.getAttribute('d');
+        if (dAttr) {
+          edgePaths.set(edge.id, dAttr);
+        }
+      }
+    }
+
+    // 4. Extract Edge Label Positions
+    const edgeLabels = new Map<string, { x: number; y: number }>();
+    const labelElements = Array.from(
+      doc.querySelectorAll('.edgeLabel, [class*="edgeLabel"], .edgeLabels .edgeLabel')
+    );
+    const usedLabelElements = new Set<Element>();
+
+    for (const edge of ast.edges) {
+      if (!edge.label) continue;
+
+      let matchedLabelEl: Element | null = null;
+
+      // Try matching by source/target markers
+      for (const labelEl of labelElements) {
+        if (usedLabelElements.has(labelEl)) continue;
+        const classAttr =
+          (labelEl.getAttribute('class') || '') + ' ' + (labelEl.parentElement?.getAttribute('class') || '');
+        const idAttr =
+          (labelEl.getAttribute('id') || '') + ' ' + (labelEl.parentElement?.getAttribute('id') || '');
+
+        const hasSource = classAttr.includes(`LS-${edge.from}`) || idAttr.includes(`LS-${edge.from}`);
+        const hasTarget = classAttr.includes(`LE-${edge.to}`) || idAttr.includes(`LE-${edge.to}`);
+        if (hasSource && hasTarget) {
+          matchedLabelEl = labelEl;
+          break;
+        }
+      }
+
+      // Try matching by label text content
+      if (!matchedLabelEl) {
+        for (const labelEl of labelElements) {
+          if (usedLabelElements.has(labelEl)) continue;
+          const text = labelEl.textContent?.trim();
+          if (text === edge.label) {
+            matchedLabelEl = labelEl;
+            break;
+          }
+        }
+      }
+
+      // Fallback by remaining sequence
+      if (!matchedLabelEl) {
+        const unused = labelElements.filter((el) => !usedLabelElements.has(el));
+        if (unused.length > 0) {
+          matchedLabelEl = unused[0];
+        }
+      }
+
+      if (matchedLabelEl) {
+        usedLabelElements.add(matchedLabelEl);
+        const transform = matchedLabelEl.getAttribute('transform') || '';
+        const match = /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/i.exec(transform);
+        if (match) {
+          const lx = parseFloat(match[1]);
+          const ly = parseFloat(match[2]);
+          edgeLabels.set(edge.id, { x: lx, y: ly });
+        }
+      }
+    }
 
     if (nodeMap.size === ast.nodes.size && nodeMap.size > 0) {
       return {
@@ -244,6 +380,7 @@ export function extractPositionsFromMermaidSvg(
           arrowType: e.arrowType,
           label: e.label,
           svgPath: edgePaths.get(e.id),
+          labelPosition: edgeLabels.get(e.id),
         })),
         subgraphs,
       };
@@ -408,6 +545,29 @@ export async function calculateMermaidLayout(
       if (svgString) {
         const nativeLayout = extractPositionsFromMermaidSvg(svgString, ast);
         if (nativeLayout) {
+          // If any edge lacks an SVG path from the native DOM extraction, supplement from Dagre layout
+          const hasMissingEdgePath = nativeLayout.edges.some((e) => !e.svgPath);
+          if (hasMissingEdgePath) {
+            const dagreFallback = calculateDagreLayout(ast);
+            const dagreEdgeMap = new Map(dagreFallback.edges.map((e) => [e.id, e]));
+
+            const enrichedEdges = nativeLayout.edges.map((e) => {
+              if (e.svgPath) return e;
+              const fallbackEdge = dagreEdgeMap.get(e.id);
+              return {
+                ...e,
+                svgPath: fallbackEdge?.svgPath,
+                labelPosition: e.labelPosition || fallbackEdge?.labelPosition,
+                points: fallbackEdge?.points,
+              };
+            });
+
+            return {
+              ...nativeLayout,
+              edges: enrichedEdges,
+            };
+          }
+
           return nativeLayout;
         }
       }

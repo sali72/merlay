@@ -123,6 +123,42 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     parseMermaidFlowchart(code)
   );
 
+  const handleNodesChange = useCallback(
+    (changes: any) => {
+      onNodesChange(changes);
+
+      // When dragging nodes in free-roam mode, smoothly adapt connected edges
+      const draggedNodeIds = new Set<string>();
+      for (const change of changes) {
+        if (change.type === 'position' && change.dragging && change.id) {
+          draggedNodeIds.add(change.id);
+        }
+      }
+
+      if (draggedNodeIds.size > 0) {
+        setEdges((eds) =>
+          eds.map((e) => {
+            if (
+              (draggedNodeIds.has(e.source) || draggedNodeIds.has(e.target)) &&
+              (e.data as any)?.svgPath
+            ) {
+              return {
+                ...e,
+                data: {
+                  ...e.data,
+                  svgPath: undefined,
+                  labelPosition: undefined,
+                },
+              };
+            }
+            return e;
+          })
+        );
+      }
+    },
+    [onNodesChange, setEdges]
+  );
+
   const { pushSnapshot, undo, redo, canUndo, canRedo } = useUndoRedo(code);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasPaneRef = useRef<HTMLDivElement>(null);
@@ -191,6 +227,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             label: e.label,
             svgPath: e.svgPath,
             labelPosition: e.labelPosition,
+            direction: targetAst.direction,
           },
         }));
 
@@ -266,6 +303,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               label: e.label,
               svgPath: e.svgPath,
               labelPosition: e.labelPosition,
+              direction: parsedAst.direction,
             },
           }));
 
@@ -324,7 +362,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               id: newEdgeDef.id,
               type: 'customEdge',
               ...getEdgeMarkers('arrow'),
-              data: { arrowType: 'arrow' },
+              data: { arrowType: 'arrow', direction: ast.direction },
             },
             eds
           )
@@ -388,7 +426,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               targetHandle: defaultHandles.targetHandle,
               type: 'customEdge',
               ...getEdgeMarkers('arrow'),
-              data: { arrowType: 'arrow' },
+              data: { arrowType: 'arrow', direction: ast.direction },
             },
             {
               id: edge2Def.id,
@@ -398,7 +436,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               targetHandle: defaultHandles.targetHandle,
               type: 'customEdge',
               ...getEdgeMarkers('arrow'),
-              data: { arrowType: 'arrow' },
+              data: { arrowType: 'arrow', direction: ast.direction },
             },
           ])
       );
@@ -491,7 +529,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
           targetHandle: defaultHandles.targetHandle,
           type: 'customEdge',
           ...getEdgeMarkers('arrow'),
-          data: { arrowType: 'arrow' },
+          data: { arrowType: 'arrow', direction: ast.direction },
         };
 
         const newNode: Node = {
@@ -655,13 +693,18 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       if (!edge) return;
 
       edge.label = newLabel;
-      updateCodeFromAST({ ...ast });
+      const updatedAst = { ...ast };
+      updateCodeFromAST(updatedAst);
 
-      setEdges((eds) =>
-        eds.map((e) => e.id === edgeId ? { ...e, data: { ...e.data, label: newLabel } } : e)
-      );
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst);
+      } else {
+        setEdges((eds) =>
+          eds.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data, label: newLabel } } : e))
+        );
+      }
     },
-    [ast, updateCodeFromAST, setEdges]
+    [ast, isAutoLayout, runAutoLayout, updateCodeFromAST, setEdges]
   );
 
   const handleReverseEdge = useCallback(
@@ -1096,6 +1139,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       ...edge,
       data: {
         ...edge.data,
+        direction: (edge.data as any)?.direction || ast.direction,
         onArrowTypeChange: handleEdgeArrowTypeChange,
         onLabelChange: handleEdgeLabelChange,
         onReverse: handleReverseEdge,
@@ -1104,6 +1148,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     }));
   }, [
     edges,
+    ast.direction,
     handleEdgeArrowTypeChange,
     handleEdgeLabelChange,
     handleReverseEdge,
@@ -1182,7 +1227,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               <marker
                 id="mermaid-marker-arrow"
                 viewBox="0 0 10 10"
-                refX="8"
+                refX="9"
                 refY="5"
                 markerUnits="userSpaceOnUse"
                 markerWidth="8"
@@ -1194,7 +1239,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               <marker
                 id="mermaid-marker-arrow-selected"
                 viewBox="0 0 10 10"
-                refX="8"
+                refX="9"
                 refY="5"
                 markerUnits="userSpaceOnUse"
                 markerWidth="8"
@@ -1206,7 +1251,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               <marker
                 id="mermaid-marker-arrow-start"
                 viewBox="0 0 10 10"
-                refX="2"
+                refX="1"
                 refY="5"
                 markerUnits="userSpaceOnUse"
                 markerWidth="8"
@@ -1218,7 +1263,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               <marker
                 id="mermaid-marker-arrow-start-selected"
                 viewBox="0 0 10 10"
-                refX="2"
+                refX="1"
                 refY="5"
                 markerUnits="userSpaceOnUse"
                 markerWidth="8"
@@ -1230,7 +1275,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               <marker
                 id="mermaid-marker-thick"
                 viewBox="0 0 10 10"
-                refX="8"
+                refX="10"
                 refY="5"
                 markerUnits="userSpaceOnUse"
                 markerWidth="11"
@@ -1242,7 +1287,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               <marker
                 id="mermaid-marker-thick-selected"
                 viewBox="0 0 10 10"
-                refX="8"
+                refX="10"
                 refY="5"
                 markerUnits="userSpaceOnUse"
                 markerWidth="11"
@@ -1257,11 +1302,23 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
                 refX="5"
                 refY="5"
                 markerUnits="userSpaceOnUse"
-                markerWidth="7"
-                markerHeight="7"
+                markerWidth="10"
+                markerHeight="10"
                 orient="auto"
               >
-                <circle cx="5" cy="5" r="3.5" fill="var(--mermaid-text-muted, #888888)" />
+                <circle cx="5" cy="5" r="4" fill="var(--mermaid-text-muted, #888888)" stroke="var(--mermaid-text-muted, #888888)" strokeWidth="1" />
+              </marker>
+              <marker
+                id="mermaid-marker-circle-selected"
+                viewBox="0 0 10 10"
+                refX="5"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="10"
+                markerHeight="10"
+                orient="auto"
+              >
+                <circle cx="5" cy="5" r="4" fill="var(--mermaid-accent, #7c3aed)" stroke="var(--mermaid-accent, #7c3aed)" strokeWidth="1" />
               </marker>
               <marker
                 id="mermaid-marker-cross"
@@ -1269,11 +1326,23 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
                 refX="5"
                 refY="5"
                 markerUnits="userSpaceOnUse"
-                markerWidth="8"
-                markerHeight="8"
+                markerWidth="9"
+                markerHeight="9"
                 orient="auto"
               >
                 <path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="var(--mermaid-text-muted, #888888)" strokeWidth="2" strokeLinecap="round" />
+              </marker>
+              <marker
+                id="mermaid-marker-cross-selected"
+                viewBox="0 0 10 10"
+                refX="5"
+                refY="5"
+                markerUnits="userSpaceOnUse"
+                markerWidth="9"
+                markerHeight="9"
+                orient="auto"
+              >
+                <path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="var(--mermaid-accent, #7c3aed)" strokeWidth="2" strokeLinecap="round" />
               </marker>
             </defs>
           </svg>
@@ -1282,7 +1351,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             nodes={augmentedNodes}
             edges={augmentedEdges}
             nodesDraggable={!isAutoLayout}
-            onNodesChange={onNodesChange}
+            onNodesChange={handleNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onConnectStart={onConnectStart}

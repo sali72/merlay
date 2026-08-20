@@ -16,18 +16,36 @@ const d3CurveGenerator = line<{ x: number; y: number }>()
   .y((d) => d.y)
   .curve(curveBasis);
 
-function calculateMermaidCurve(
-  sourceX: number,
-  sourceY: number,
-  sourcePosition: Position,
-  targetX: number,
-  targetY: number,
-  targetPosition: Position
+/**
+ * Calculates a continuous, smooth Mermaid-style B-spline curve between two nodes.
+ * Uses exact ray-box perimeter intersection so arrowheads ALWAYS touch the node boundaries.
+ */
+function calculateSmoothAdaptiveCurve(
+  sourceNode: any,
+  targetNode: any,
+  defaultSx: number,
+  defaultSy: number,
+  defaultTx: number,
+  defaultTy: number
 ): [string, number, number] {
+  const adaptiveParams = getAdaptiveEdgeParams(sourceNode, targetNode);
+
+  if (!adaptiveParams) {
+    return [
+      `M${defaultSx},${defaultSy}L${defaultTx},${defaultTy}`,
+      (defaultSx + defaultTx) / 2,
+      (defaultSy + defaultTy) / 2,
+    ];
+  }
+
+  const { sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition } = adaptiveParams;
+
   const dx = targetX - sourceX;
   const dy = targetY - sourceY;
-  const dist = Math.hypot(dx, dy);
-  const factor = Math.min(0.45, Math.max(0.2, 40 / Math.max(1, dist)));
+
+  // Tangent extension distances scaled smoothly based on delta
+  const offsetX = Math.max(16, Math.min(90, Math.abs(dx) * 0.45));
+  const offsetY = Math.max(16, Math.min(90, Math.abs(dy) * 0.45));
 
   const p0 = { x: sourceX, y: sourceY };
   let p1: { x: number; y: number };
@@ -36,37 +54,37 @@ function calculateMermaidCurve(
 
   switch (sourcePosition) {
     case Position.Left:
-      p1 = { x: sourceX - Math.abs(dx) * factor - 10, y: sourceY };
+      p1 = { x: sourceX - offsetX, y: sourceY };
       break;
     case Position.Right:
-      p1 = { x: sourceX + Math.abs(dx) * factor + 10, y: sourceY };
+      p1 = { x: sourceX + offsetX, y: sourceY };
       break;
     case Position.Top:
-      p1 = { x: sourceX, y: sourceY - Math.abs(dy) * factor - 10 };
+      p1 = { x: sourceX, y: sourceY - offsetY };
       break;
     case Position.Bottom:
     default:
-      p1 = { x: sourceX, y: sourceY + Math.abs(dy) * factor + 10 };
+      p1 = { x: sourceX, y: sourceY + offsetY };
       break;
   }
 
   switch (targetPosition) {
     case Position.Left:
-      p2 = { x: targetX - Math.abs(dx) * factor - 10, y: targetY };
+      p2 = { x: targetX - offsetX, y: targetY };
       break;
     case Position.Right:
-      p2 = { x: targetX + Math.abs(dx) * factor + 10, y: targetY };
+      p2 = { x: targetX + offsetX, y: targetY };
       break;
     case Position.Top:
-      p2 = { x: targetX, y: targetY - Math.abs(dy) * factor - 10 };
+      p2 = { x: targetX, y: targetY - offsetY };
       break;
     case Position.Bottom:
     default:
-      p2 = { x: targetX, y: targetY + Math.abs(dy) * factor + 10 };
+      p2 = { x: targetX, y: targetY + offsetY };
       break;
   }
 
-  const path = d3CurveGenerator([p0, p1, p2, p3]) || '';
+  const path = d3CurveGenerator([p0, p1, p2, p3]) || `M${sourceX},${sourceY}L${targetX},${targetY}`;
   const labelX = (sourceX + targetX) / 2;
   const labelY = (sourceY + targetY) / 2;
   return [path, labelX, labelY];
@@ -77,6 +95,7 @@ export interface CustomEdgeData {
   label?: string;
   svgPath?: string;
   labelPosition?: { x: number; y: number };
+  direction?: string;
   onArrowTypeChange?: (edgeId: string, newType: ArrowType) => void;
   onLabelChange?: (edgeId: string, label: string) => void;
   onReverse?: (edgeId: string) => void;
@@ -102,38 +121,29 @@ export const CustomEdge: React.FC<EdgeProps> = ({
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
-  const adaptiveParams = getAdaptiveEdgeParams(sourceNode, targetNode);
-
-  const sourceX = adaptiveParams ? adaptiveParams.sourceX : defaultSourceX;
-  const sourceY = adaptiveParams ? adaptiveParams.sourceY : defaultSourceY;
-  const targetX = adaptiveParams ? adaptiveParams.targetX : defaultTargetX;
-  const targetY = adaptiveParams ? adaptiveParams.targetY : defaultTargetY;
-  const sourcePosition = adaptiveParams ? adaptiveParams.sourcePosition : defaultSourcePosition;
-  const targetPosition = adaptiveParams ? adaptiveParams.targetPosition : defaultTargetPosition;
-
   let edgePath: string;
   let labelX: number;
   let labelY: number;
 
   if (edgeData?.svgPath) {
-    // 1. Exact Native Mermaid B-spline Path from layout engine
+    // 1. Exact 1:1 Native Mermaid B-spline Path from layout engine
     edgePath = edgeData.svgPath;
     if (edgeData.labelPosition) {
       labelX = edgeData.labelPosition.x;
       labelY = edgeData.labelPosition.y;
     } else {
-      labelX = (sourceX + targetX) / 2;
-      labelY = (sourceY + targetY) / 2;
+      labelX = (defaultSourceX + defaultTargetX) / 2;
+      labelY = (defaultSourceY + defaultTargetY) / 2;
     }
   } else {
-    // 2. Smooth D3 B-Spline Basis Curve matching Mermaid style
-    const [curvePath, cx, cy] = calculateMermaidCurve(
-      sourceX,
-      sourceY,
-      sourcePosition,
-      targetX,
-      targetY,
-      targetPosition
+    // 2. Continuous smooth B-Spline curve locked to exact node perimeters
+    const [curvePath, cx, cy] = calculateSmoothAdaptiveCurve(
+      sourceNode,
+      targetNode,
+      defaultSourceX,
+      defaultSourceY,
+      defaultTargetX,
+      defaultTargetY
     );
     edgePath = curvePath;
     labelX = cx;
@@ -160,9 +170,13 @@ export const CustomEdge: React.FC<EdgeProps> = ({
 
   if (!isOpen) {
     if (isCross) {
-      markerEndUrl = 'url(#mermaid-marker-cross)';
+      markerEndUrl = selected
+        ? 'url(#mermaid-marker-cross-selected)'
+        : 'url(#mermaid-marker-cross)';
     } else if (isCircle) {
-      markerEndUrl = 'url(#mermaid-marker-circle)';
+      markerEndUrl = selected
+        ? 'url(#mermaid-marker-circle-selected)'
+        : 'url(#mermaid-marker-circle)';
     } else if (isThick) {
       markerEndUrl = selected
         ? 'url(#mermaid-marker-thick-selected)'
