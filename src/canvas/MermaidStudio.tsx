@@ -753,7 +753,10 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       setIsResizing(true);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
 
       const startX = e.clientX;
       const startWidth = codePanelWidth;
@@ -769,6 +772,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
       const handleMouseUp = () => {
         setIsResizing(false);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
         localStorage.setItem(

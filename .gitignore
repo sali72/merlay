@@ -21,3 +21,4 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+data.json
