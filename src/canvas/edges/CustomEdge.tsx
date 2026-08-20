@@ -49,6 +49,9 @@ export const CustomEdge: React.FC<EdgeProps> = ({
   const sourcePosition = adaptiveParams ? adaptiveParams.sourcePosition : defaultSourcePosition;
   const targetPosition = adaptiveParams ? adaptiveParams.targetPosition : defaultTargetPosition;
 
+  const dist = Math.hypot(targetX - sourceX, targetY - sourceY);
+  const curvature = Math.max(0.08, Math.min(0.35, dist / 500));
+
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -56,14 +59,15 @@ export const CustomEdge: React.FC<EdgeProps> = ({
     targetX,
     targetY,
     targetPosition,
+    curvature,
   });
 
   const arrowType = edgeData?.arrowType || 'arrow';
   const isDotted = arrowType === 'dotted' || arrowType === 'dotted_open';
   const isThick = arrowType === 'thick' || arrowType === 'thick_open';
 
-  const strokeWidth = isThick ? 3 : 1.75;
-  const strokeDasharray = isDotted ? '5,5' : undefined;
+  const strokeWidth = isThick ? 2.5 : 1.6;
+  const strokeDasharray = isDotted ? '4,4' : undefined;
   const strokeColor = selected
     ? 'var(--mermaid-accent, #7c3aed)'
     : 'var(--mermaid-text-muted, #888888)';
@@ -80,6 +84,8 @@ export const CustomEdge: React.FC<EdgeProps> = ({
           strokeWidth,
           strokeDasharray,
           stroke: strokeColor,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
         }}
       />
 

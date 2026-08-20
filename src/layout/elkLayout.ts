@@ -13,6 +13,28 @@ import {
 
 const elk = new ELK();
 
+function getNodeDimensions(label: string, shape: string = 'rectangle') {
+  const textLen = label.length;
+
+  if (shape === 'circle') {
+    const diameter = Math.max(76, Math.min(160, Math.max(textLen * 9 + 28, 76)));
+    return { width: diameter, height: diameter };
+  } else if (shape === 'diamond') {
+    const w = Math.max(140, textLen * 10.5 + 44);
+    const h = Math.max(72, Math.round(w * 0.58));
+    return { width: w, height: h };
+  } else if (shape === 'hexagon') {
+    const w = Math.max(130, textLen * 9.5 + 50);
+    return { width: w, height: 48 };
+  } else if (shape === 'cylinder') {
+    const w = Math.max(120, textLen * 8.5 + 36);
+    return { width: w, height: 56 };
+  } else {
+    const w = Math.max(110, textLen * 8.5 + 32);
+    return { width: w, height: 48 };
+  }
+}
+
 export async function calculateElkLayout(
   ast: MermaidFlowchartAST
 ): Promise<PositionedGraph> {
@@ -29,8 +51,10 @@ export async function calculateElkLayout(
   // Build node elements
   for (const [nodeId, nodeDef] of ast.nodes.entries()) {
     const label = nodeDef.label || nodeId;
-    const estWidth = Math.max(120, label.length * 10 + 30);
-    const estHeight = 48;
+    const { width: estWidth, height: estHeight } = getNodeDimensions(
+      label,
+      nodeDef.shape
+    );
 
     const elkChild: ElkNode = {
       id: nodeId,

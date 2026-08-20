@@ -44,8 +44,8 @@ function getEdgeMarkers(arrowType: ArrowType, isSelected = false) {
     arrowType === 'thick_open';
 
   const markerColor = isSelected
-    ? 'var(--interactive-accent, #7c3aed)'
-    : 'var(--text-muted, #888888)';
+    ? 'var(--mermaid-accent, #7c3aed)'
+    : 'var(--mermaid-text-muted, #888888)';
 
   return {
     markerEnd: isOpen
@@ -53,15 +53,15 @@ function getEdgeMarkers(arrowType: ArrowType, isSelected = false) {
       : {
           type: MarkerType.ArrowClosed,
           color: markerColor,
-          width: 16,
-          height: 16,
+          width: 12,
+          height: 12,
         },
     markerStart: isBidirectional
       ? {
           type: MarkerType.ArrowClosed,
           color: markerColor,
-          width: 16,
-          height: 16,
+          width: 12,
+          height: 12,
         }
       : undefined,
   };
@@ -110,6 +110,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
   });
   const [isResizing, setIsResizing] = useState<boolean>(false);
 
+  const [isAutoLayout, setIsAutoLayout] = useState<boolean>(true);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
@@ -141,6 +142,69 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
     []
   );
 
+  // Deterministic Live Auto-Layout Engine (matches official Mermaid renderer)
+  const runAutoLayout = useCallback(
+    async (targetAst: MermaidFlowchartAST, selectNodeId?: string) => {
+      try {
+        const layout = await calculateElkLayout(targetAst);
+        const defaultHandles = getDefaultHandles(targetAst.direction);
+
+        const flowNodes: Node[] = [];
+
+        for (const sub of layout.subgraphs) {
+          flowNodes.push({
+            id: sub.id,
+            type: 'subgraphNode',
+            position: { x: sub.x, y: sub.y },
+            style: { width: sub.width, height: sub.height },
+            data: { id: sub.id, label: sub.label },
+            draggable: false,
+          });
+        }
+
+        for (const node of layout.nodes) {
+          flowNodes.push({
+            id: node.id,
+            type: 'shapeNode',
+            position: { x: node.x, y: node.y },
+            data: {
+              id: node.id,
+              label: node.label,
+              shape: node.shape,
+              style: node.style,
+            },
+            draggable: false,
+            selected: selectNodeId === node.id,
+          });
+        }
+
+        const flowEdges: Edge[] = layout.edges.map((e) => ({
+          id: e.id,
+          source: e.from,
+          target: e.to,
+          sourceHandle: defaultHandles.sourceHandle,
+          targetHandle: defaultHandles.targetHandle,
+          type: 'customEdge',
+          ...getEdgeMarkers(e.arrowType),
+          data: {
+            arrowType: e.arrowType,
+            label: e.label,
+          },
+        }));
+
+        setNodes(flowNodes);
+        setEdges(flowEdges);
+        if (selectNodeId) {
+          setSelectedNodeId(selectNodeId);
+          setSelectedNodeIds([selectNodeId]);
+        }
+      } catch (err) {
+        console.error('Auto layout failed:', err);
+      }
+    },
+    [setNodes, setEdges]
+  );
+
   // Sync AST and Canvas layout from Code
   const loadFromCode = useCallback(
     async (
@@ -167,7 +231,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
               position: pos,
               style: { width: sub.width, height: sub.height },
               data: { id: sub.id, label: sub.label },
-              draggable: true,
+              draggable: !isAutoLayout,
             });
           }
 
@@ -183,6 +247,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
                 shape: node.shape,
                 style: node.style,
               },
+              draggable: !isAutoLayout,
             });
           }
 
@@ -207,7 +272,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         setSyntaxError(e.message || 'Syntax error parsing Mermaid code');
       }
     },
-    [setNodes, setEdges]
+    [isAutoLayout, setNodes, setEdges]
   );
 
   useEffect(() => {
@@ -243,22 +308,26 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         edges: updatedEdges,
       };
 
-      setEdges((eds) =>
-        addEdge(
-          {
-            ...params,
-            id: newEdgeDef.id,
-            type: 'customEdge',
-            ...getEdgeMarkers('arrow'),
-            data: { arrowType: 'arrow' },
-          },
-          eds
-        )
-      );
-
       updateCodeFromAST(updatedAst);
+
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst);
+      } else {
+        setEdges((eds) =>
+          addEdge(
+            {
+              ...params,
+              id: newEdgeDef.id,
+              type: 'customEdge',
+              ...getEdgeMarkers('arrow'),
+              data: { arrowType: 'arrow' },
+            },
+            eds
+          )
+        );
+      }
     },
-    [ast, setEdges, updateCodeFromAST]
+    [ast, isAutoLayout, runAutoLayout, setEdges, updateCodeFromAST]
   );
 
   const onNodeDragStop = useCallback(
@@ -373,12 +442,6 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
       if (!rfInstance) return;
 
-      const clientX = 'clientX' in event ? event.clientX : (event as TouchEvent).touches?.[0]?.clientX ?? 0;
-      const clientY = 'clientY' in event ? event.clientY : (event as TouchEvent).touches?.[0]?.clientY ?? 0;
-
-      const flowPos = rfInstance.screenToFlowPosition({ x: clientX, y: clientY });
-      if (!flowPos) return;
-
       const newId = `node_${Date.now().toString().slice(-4)}`;
       const newNodeDef: MermaidNodeDef = {
         type: 'node',
@@ -404,37 +467,48 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
         edges: [...ast.edges, newEdgeDef],
       };
 
-      const defaultHandles = getDefaultHandles(ast.direction);
-      const newEdge: Edge = {
-        id: newEdgeDef.id,
-        source: sourceInfo.nodeId,
-        target: newId,
-        sourceHandle: sourceInfo.handleId || defaultHandles.sourceHandle,
-        targetHandle: defaultHandles.targetHandle,
-        type: 'customEdge',
-        ...getEdgeMarkers('arrow'),
-        data: { arrowType: 'arrow' },
-      };
-
-      const newNode: Node = {
-        id: newId,
-        type: 'shapeNode',
-        position: { x: flowPos.x - 65, y: flowPos.y - 24 },
-        data: {
-          id: newId,
-          label: 'New Step',
-          shape: 'rectangle',
-        },
-      };
-
-      setNodes((nds) => [...nds, newNode]);
-      setEdges((eds) => [...eds, newEdge]);
-      setSelectedNodeId(newId);
-      setSelectedNodeIds([newId]);
-
       updateCodeFromAST(updatedAst);
+
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst, newId);
+      } else if (rfInstance) {
+        const clientX = 'clientX' in event ? event.clientX : (event as TouchEvent).touches?.[0]?.clientX ?? 0;
+        const clientY = 'clientY' in event ? event.clientY : (event as TouchEvent).touches?.[0]?.clientY ?? 0;
+
+        const flowPos = rfInstance.screenToFlowPosition({ x: clientX, y: clientY });
+        if (!flowPos) return;
+
+        const defaultHandles = getDefaultHandles(ast.direction);
+        const newEdge: Edge = {
+          id: newEdgeDef.id,
+          source: sourceInfo.nodeId,
+          target: newId,
+          sourceHandle: sourceInfo.handleId || defaultHandles.sourceHandle,
+          targetHandle: defaultHandles.targetHandle,
+          type: 'customEdge',
+          ...getEdgeMarkers('arrow'),
+          data: { arrowType: 'arrow' },
+        };
+
+        const newNode: Node = {
+          id: newId,
+          type: 'shapeNode',
+          position: { x: flowPos.x - 65, y: flowPos.y - 24 },
+          data: {
+            id: newId,
+            label: 'New Step',
+            shape: 'rectangle',
+          },
+          selected: true,
+        };
+
+        setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), newNode]);
+        setEdges((eds) => [...eds, newEdge]);
+        setSelectedNodeId(newId);
+        setSelectedNodeIds([newId]);
+      }
     },
-    [ast, rfInstance, updateCodeFromAST, setNodes, setEdges]
+    [ast, isAutoLayout, rfInstance, runAutoLayout, updateCodeFromAST, setNodes, setEdges]
   );
 
   const handleLabelChange = useCallback(
@@ -446,61 +520,86 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       const updatedAst = { ...ast };
       updateCodeFromAST(updatedAst);
 
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === nodeId ? { ...n, data: { ...n.data, label: newLabel } } : n
-        )
-      );
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst, nodeId);
+      } else {
+        setNodes((nds) =>
+          nds.map((n) =>
+            n.id === nodeId ? { ...n, data: { ...n.data, label: newLabel } } : n
+          )
+        );
+      }
     },
-    [ast, updateCodeFromAST, setNodes]
+    [ast, isAutoLayout, runAutoLayout, updateCodeFromAST, setNodes]
   );
 
   const handleSubgraphLabelChange = useCallback(
-    (subId: string, newLabel: string) => {
-      const sub = ast.subgraphs.get(subId);
+    (subgraphId: string, newLabel: string) => {
+      const sub = ast.subgraphs.get(subgraphId);
       if (!sub) return;
 
       sub.label = newLabel;
       const updatedAst = { ...ast };
       updateCodeFromAST(updatedAst);
 
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === subId ? { ...n, data: { ...n.data, label: newLabel } } : n
-        )
-      );
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst);
+      } else {
+        setNodes((nds) =>
+          nds.map((n) =>
+            n.id === subgraphId ? { ...n, data: { ...n.data, label: newLabel } } : n
+          )
+        );
+      }
     },
-    [ast, updateCodeFromAST, setNodes]
+    [ast, isAutoLayout, runAutoLayout, updateCodeFromAST, setNodes]
   );
 
   const handleUngroupSubgraph = useCallback(
-    (subId: string) => {
-      const sub = ast.subgraphs.get(subId);
+    (subgraphId: string) => {
+      const sub = ast.subgraphs.get(subgraphId);
       if (!sub) return;
 
+      const updatedSubs = new Map(ast.subgraphs);
+      updatedSubs.delete(subgraphId);
+
+      const updatedNodes = new Map(ast.nodes);
       for (const nid of sub.nodeIds) {
-        const node = ast.nodes.get(nid);
-        if (node && node.subgraphId === subId) {
-          delete node.subgraphId;
+        const node = updatedNodes.get(nid);
+        if (node && node.subgraphId === subgraphId) {
+          node.subgraphId = undefined;
         }
       }
 
-      ast.subgraphs.delete(subId);
-      const updatedAst = { ...ast };
+      const updatedAst: MermaidFlowchartAST = {
+        ...ast,
+        nodes: updatedNodes,
+        subgraphs: updatedSubs,
+      };
+
       updateCodeFromAST(updatedAst);
-      loadFromCode(serializeMermaidFlowchart(updatedAst), true);
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst);
+      } else {
+        setNodes((nds) => nds.filter((n) => n.id !== subgraphId));
+      }
     },
-    [ast, updateCodeFromAST, loadFromCode]
+    [ast, isAutoLayout, runAutoLayout, updateCodeFromAST, setNodes]
   );
 
   const handleDeleteSubgraph = useCallback(
-    (subId: string) => {
-      const sub = ast.subgraphs.get(subId);
+    (subgraphId: string) => {
+      const sub = ast.subgraphs.get(subgraphId);
       if (!sub) return;
 
+      const updatedSubs = new Map(ast.subgraphs);
+      updatedSubs.delete(subgraphId);
+
       const nodesToDelete = new Set(sub.nodeIds);
-      nodesToDelete.forEach((nid) => ast.nodes.delete(nid));
-      ast.subgraphs.delete(subId);
+      const updatedNodes = new Map(ast.nodes);
+      for (const nid of nodesToDelete) {
+        updatedNodes.delete(nid);
+      }
 
       const updatedEdges = ast.edges.filter(
         (e) => !nodesToDelete.has(e.from) && !nodesToDelete.has(e.to)
@@ -508,13 +607,19 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
       const updatedAst = {
         ...ast,
+        nodes: updatedNodes,
         edges: updatedEdges,
+        subgraphs: updatedSubs,
       };
 
       updateCodeFromAST(updatedAst);
-      loadFromCode(serializeMermaidFlowchart(updatedAst), true);
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst);
+      } else {
+        loadFromCode(serializeMermaidFlowchart(updatedAst), true);
+      }
     },
-    [ast, updateCodeFromAST, loadFromCode]
+    [ast, isAutoLayout, runAutoLayout, updateCodeFromAST, loadFromCode]
   );
 
   const handleEdgeArrowTypeChange = useCallback(
@@ -549,9 +654,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       updateCodeFromAST({ ...ast });
 
       setEdges((eds) =>
-        eds.map((e) =>
-          e.id === edgeId ? { ...e, data: { ...e.data, label: newLabel } } : e
-        )
+        eds.map((e) => e.id === edgeId ? { ...e, data: { ...e.data, label: newLabel } } : e)
       );
     },
     [ast, updateCodeFromAST, setEdges]
@@ -572,19 +675,23 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       const updatedAst = { ...ast };
       updateCodeFromAST(updatedAst);
 
-      setEdges((eds) =>
-        eds.map((e) =>
-          e.id === targetId
-            ? {
-                ...e,
-                source: edge.from,
-                target: edge.to,
-              }
-            : e
-        )
-      );
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst);
+      } else {
+        setEdges((eds) =>
+          eds.map((e) =>
+            e.id === targetId
+              ? {
+                  ...e,
+                  source: edge.from,
+                  target: edge.to,
+                }
+              : e
+          )
+        );
+      }
     },
-    [selectedEdgeId, ast, updateCodeFromAST, setEdges]
+    [selectedEdgeId, ast, isAutoLayout, runAutoLayout, updateCodeFromAST, setEdges]
   );
 
   const handleDeleteEdge = useCallback(
@@ -599,10 +706,14 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       };
 
       updateCodeFromAST(updatedAst);
-      setEdges((eds) => eds.filter((e) => e.id !== targetId));
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst);
+      } else {
+        setEdges((eds) => eds.filter((e) => e.id !== targetId));
+      }
       if (selectedEdgeId === targetId) setSelectedEdgeId(null);
     },
-    [selectedEdgeId, ast, updateCodeFromAST, setEdges]
+    [selectedEdgeId, ast, isAutoLayout, runAutoLayout, updateCodeFromAST, setEdges]
   );
 
   const handleDeleteNode = useCallback(
@@ -625,13 +736,17 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
 
       updateCodeFromAST(updatedAst);
 
-      setNodes((nds) => nds.filter((n) => n.id !== targetId));
-      setEdges((eds) =>
-        eds.filter((e) => e.source !== targetId && e.target !== targetId)
-      );
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst);
+      } else {
+        setNodes((nds) => nds.filter((n) => n.id !== targetId));
+        setEdges((eds) =>
+          eds.filter((e) => e.source !== targetId && e.target !== targetId)
+        );
+      }
       if (selectedNodeId === targetId) setSelectedNodeId(null);
     },
-    [selectedNodeId, ast, updateCodeFromAST, setNodes, setEdges]
+    [selectedNodeId, ast, isAutoLayout, runAutoLayout, updateCodeFromAST, setNodes, setEdges]
   );
 
   const handleAddNode = useCallback(
@@ -639,14 +754,19 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       if (selectedNodeId && ast.nodes.has(selectedNodeId)) {
         const node = ast.nodes.get(selectedNodeId)!;
         node.shape = shape;
-        updateCodeFromAST({ ...ast });
-        setNodes((nds) =>
-          nds.map((n) =>
-            n.id === selectedNodeId
-              ? { ...n, data: { ...n.data, shape } }
-              : n
-          )
-        );
+        const updatedAst = { ...ast };
+        updateCodeFromAST(updatedAst);
+        if (isAutoLayout) {
+          runAutoLayout(updatedAst, selectedNodeId);
+        } else {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === selectedNodeId
+                ? { ...n, data: { ...n.data, shape } }
+                : n
+            )
+          );
+        }
         return;
       }
 
@@ -664,24 +784,31 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       const updatedAst = { ...ast, nodes: updatedNodes };
       updateCodeFromAST(updatedAst);
 
-      setNodes((nds) => [
-        ...nds,
-        {
-          id: newId,
-          type: 'shapeNode',
-          position: {
-            x: 100 + Math.random() * 50,
-            y: 100 + Math.random() * 50,
-          },
-          data: {
+      if (isAutoLayout) {
+        runAutoLayout(updatedAst, newId);
+      } else {
+        setNodes((nds) => [
+          ...nds,
+          {
             id: newId,
-            label: 'New Node',
-            shape,
+            type: 'shapeNode',
+            position: {
+              x: 100 + Math.random() * 50,
+              y: 100 + Math.random() * 50,
+            },
+            data: {
+              id: newId,
+              label: 'New Node',
+              shape,
+            },
+            selected: true,
           },
-        },
-      ]);
+        ]);
+        setSelectedNodeId(newId);
+        setSelectedNodeIds([newId]);
+      }
     },
-    [selectedNodeId, ast, updateCodeFromAST, setNodes]
+    [selectedNodeId, ast, isAutoLayout, runAutoLayout, updateCodeFromAST, setNodes]
   );
 
   const handleAddSubgraph = useCallback(() => {
@@ -713,33 +840,33 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       subgraphs: updatedSubs,
     };
     updateCodeFromAST(updatedAst);
-    loadFromCode(serializeMermaidFlowchart(updatedAst), true);
-  }, [selectedNodeIds, ast, updateCodeFromAST, loadFromCode]);
+    if (isAutoLayout) {
+      runAutoLayout(updatedAst);
+    } else {
+      loadFromCode(serializeMermaidFlowchart(updatedAst), true);
+    }
+  }, [selectedNodeIds, ast, isAutoLayout, runAutoLayout, updateCodeFromAST, loadFromCode]);
 
   const handleDirectionChange = useCallback(
     async (dir: FlowchartDirection) => {
       const updatedAst = { ...ast, direction: dir };
       updateCodeFromAST(updatedAst);
-      const layout = await calculateElkLayout(updatedAst);
-      const defaultHandles = getDefaultHandles(dir);
-
-      setNodes((nds) =>
-        nds.map((n) => {
-          const found = layout.nodes.find((ln) => ln.id === n.id);
-          return found ? { ...n, position: { x: found.x, y: found.y } } : n;
-        })
-      );
-
-      setEdges((eds) =>
-        eds.map((e) => ({
-          ...e,
-          sourceHandle: defaultHandles.sourceHandle,
-          targetHandle: defaultHandles.targetHandle,
-        }))
-      );
+      runAutoLayout(updatedAst);
     },
-    [ast, updateCodeFromAST, setNodes, setEdges]
+    [ast, updateCodeFromAST, runAutoLayout]
   );
+
+  const handleToggleAutoLayout = useCallback(() => {
+    setIsAutoLayout((prev) => {
+      const next = !prev;
+      if (next) {
+        runAutoLayout(ast);
+      } else {
+        setNodes((nds) => nds.map((n) => ({ ...n, draggable: true })));
+      }
+      return next;
+    });
+  }, [ast, runAutoLayout, setNodes]);
 
   const handleUndo = useCallback(() => {
     const snap = undo();
@@ -886,14 +1013,19 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             const targetNode = ast.nodes.get(nodeId);
             if (!targetNode) return;
             targetNode.shape = newShape;
-            updateCodeFromAST({ ...ast });
-            setNodes((nds) =>
-              nds.map((n) =>
-                n.id === nodeId
-                  ? { ...n, data: { ...n.data, shape: newShape } }
-                  : n
-              )
-            );
+            const updatedAst = { ...ast };
+            updateCodeFromAST(updatedAst);
+            if (isAutoLayout) {
+              runAutoLayout(updatedAst, nodeId);
+            } else {
+              setNodes((nds) =>
+                nds.map((n) =>
+                  n.id === nodeId
+                    ? { ...n, data: { ...n.data, shape: newShape } }
+                    : n
+                )
+              );
+            }
           },
           onColorChange: (nodeId: string, color: string) => {
             const textColor = color === '#e0ac00' ? '#111111' : '#ffffff';
@@ -923,13 +1055,17 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
             }
             const updatedAst = { ...ast, styles: updatedStyles };
             updateCodeFromAST(updatedAst);
-            setNodes((nds) =>
-              nds.map((n) =>
-                n.id === nodeId
-                  ? { ...n, data: { ...n.data, style: styleObj } }
-                  : n
-              )
-            );
+            if (isAutoLayout) {
+              runAutoLayout(updatedAst, nodeId);
+            } else {
+              setNodes((nds) =>
+                nds.map((n) =>
+                  n.id === nodeId
+                    ? { ...n, data: { ...n.data, style: styleObj } }
+                    : n
+                )
+              );
+            }
           },
           onDelete: (nodeId: string) => {
             handleDeleteNode(nodeId);
@@ -940,6 +1076,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
   }, [
     nodes,
     ast,
+    isAutoLayout,
+    runAutoLayout,
     handleLabelChange,
     handleSubgraphLabelChange,
     handleUngroupSubgraph,
@@ -1005,7 +1143,8 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
       <TopToolbar
         direction={ast.direction}
         onDirectionChange={handleDirectionChange}
-        onAutoTidy={() => loadFromCode(code, true)}
+        isAutoLayout={isAutoLayout}
+        onToggleAutoLayout={handleToggleAutoLayout}
         onFitView={handleFitView}
         onAddNode={handleAddNode}
         onAddSubgraph={handleAddSubgraph}
@@ -1036,6 +1175,7 @@ export const MermaidStudio: React.FC<MermaidStudioProps> = ({
           <ReactFlow
             nodes={augmentedNodes}
             edges={augmentedEdges}
+            nodesDraggable={!isAutoLayout}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}

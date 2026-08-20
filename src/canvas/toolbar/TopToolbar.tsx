@@ -19,7 +19,8 @@ import {
 export interface TopToolbarProps {
   direction: FlowchartDirection;
   onDirectionChange: (dir: FlowchartDirection) => void;
-  onAutoTidy: () => void;
+  isAutoLayout: boolean;
+  onToggleAutoLayout: () => void;
   onAddNode: (shape?: MermaidShapeType) => void;
   onAddSubgraph: () => void;
   onUndo: () => void;
@@ -66,7 +67,8 @@ const DIRECTION_OPTIONS: Array<{
 export const TopToolbar: React.FC<TopToolbarProps> = ({
   direction,
   onDirectionChange,
-  onAutoTidy,
+  isAutoLayout,
+  onToggleAutoLayout,
   onAddNode,
   onAddSubgraph,
   onUndo,
@@ -170,7 +172,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
 
       <div className="mermaid-dock-divider" />
 
-      {/* Direction & Auto-Layout */}
+      {/* Direction & Auto-Layout Mode Toggle */}
       <div className="mermaid-dock-group">
         <div className="mermaid-dock-menu-wrapper" ref={dirMenuRef}>
           <button
@@ -212,11 +214,16 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
 
         <button
           type="button"
-          className="mermaid-dock-btn"
-          onClick={onAutoTidy}
-          title="Auto-Layout Clean Alignment (Elk.js)"
+          className={`mermaid-dock-btn mod-auto-layout ${isAutoLayout ? 'is-active' : ''}`}
+          onClick={onToggleAutoLayout}
+          title={
+            isAutoLayout
+              ? 'Auto-Layout Mode (Strict Mermaid Layout): ON — Click for Free-Roam Spatial Canvas'
+              : 'Auto-Layout Mode: OFF (Free-Roam Spatial Canvas) — Click to enable Strict Mermaid Auto-Layout'
+          }
         >
           <WandIcon size={14} />
+          <span className="mermaid-auto-layout-text">Auto-Layout</span>
         </button>
       </div>
 

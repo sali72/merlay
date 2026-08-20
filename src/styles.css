@@ -176,6 +176,20 @@
   border-color: var(--mermaid-accent);
 }
 
+.mermaid-dock-btn.mod-auto-layout {
+  width: auto;
+  padding: 0 8px;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.mermaid-auto-layout-text {
+  font-family: var(--font-interface);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
 .mermaid-dock-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
