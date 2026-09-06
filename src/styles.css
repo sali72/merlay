@@ -24,7 +24,7 @@ pre.language-mermaid {
 .mermaid-studio-edit-btn {
   position: absolute;
   top: 6px;
-  right: 52px; /* Positioned to the left of Obsidian's 'Edit this block' button */
+  right: 140px; /* Positioned safely to the left of Obsidian's 'Edit this block' button */
   display: inline-flex !important;
   align-items: center;
   gap: 5px;

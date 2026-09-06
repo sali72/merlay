@@ -104,17 +104,20 @@ export class MermaidBlockModal extends Modal {
         const rawInitial = this.initialCode.trim();
         const matchIndex = data.indexOf(rawInitial);
         if (matchIndex !== -1) {
-          return (
+          const result = (
             data.substring(0, matchIndex) +
             this.latestCode.trim() +
             data.substring(matchIndex + rawInitial.length)
           );
+          this.initialCode = this.latestCode.trim();
+          return result;
         }
 
         // Last fallback using index boundaries
         const before = lines.slice(0, startLine + 1);
         const after = lines.slice(endLine);
         const codeLines = this.latestCode.trim().split('\n');
+        this.initialCode = this.latestCode.trim();
         return [...before, ...codeLines, ...after].join('\n');
       });
     } catch (e: any) {
