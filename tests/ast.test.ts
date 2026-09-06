@@ -5,6 +5,17 @@ import { tokenize } from '../src/ast/lexer.ts';
 import { parseMermaidFlowchart } from '../src/ast/parser.ts';
 import { serializeMermaidFlowchart } from '../src/ast/serializer.ts';
 
+import {
+  addNode,
+  addChildNode,
+  connectNodes,
+  deleteNode,
+  deleteEdge,
+  updateNodeLabel,
+  updateEdgeLabel,
+  setDiagramDirection,
+} from '../src/ast/mutations.ts';
+
 test('Lexer tokenizes basic flowchart', () => {
   const code = 'flowchart LR\n    A[Start] --> B(End)';
   const tokens = tokenize(code);
@@ -143,5 +154,57 @@ test('Parser and Serializer handle multiline and special characters cleanly', ()
   const serialized = serializeMermaidFlowchart(ast);
   assert.ok(serialized.includes('Line 1\\nLine 2'));
   assert.ok(serialized.includes('Card with (parens) and [brackets]'));
+});
+
+test('AST Mutations: addNode, addChildNode, connectNodes, deleteNode, deleteEdge, updateLabels', () => {
+  const code = 'flowchart LR\n    A[Step 1] --> B[Step 2]';
+  const ast = parseMermaidFlowchart(code);
+
+  // 1. addNode
+  const standaloneId = addNode(ast, 'Standalone Step');
+  assert.ok(ast.nodes.has(standaloneId));
+  assert.equal(ast.nodes.get(standaloneId)?.label, 'Standalone Step');
+
+  // 2. addChildNode (relational sprout)
+  const { nodeId: childId, edgeId } = addChildNode(ast, 'B', 'Next Step');
+  assert.ok(ast.nodes.has(childId));
+  assert.equal(ast.nodes.get(childId)?.label, 'Next Step');
+  const sproutEdge = ast.edges.find((e) => e.id === edgeId);
+  assert.ok(sproutEdge);
+  assert.equal(sproutEdge.from, 'B');
+  assert.equal(sproutEdge.to, childId);
+
+  // 3. connectNodes
+  const newEdgeId = connectNodes(ast, standaloneId, 'A', 'arrow', 'Prereq');
+  assert.ok(newEdgeId);
+  const connEdge = ast.edges.find((e) => e.id === newEdgeId);
+  assert.ok(connEdge);
+  assert.equal(connEdge.from, standaloneId);
+  assert.equal(connEdge.to, 'A');
+  assert.equal(connEdge.label, 'Prereq');
+
+  // 4. updateNodeLabel & updateEdgeLabel
+  updateNodeLabel(ast, standaloneId, 'Initial Start');
+  assert.equal(ast.nodes.get(standaloneId)?.label, 'Initial Start');
+  updateEdgeLabel(ast, newEdgeId, 'Requires');
+  assert.equal(connEdge.label, 'Requires');
+
+  // 5. deleteEdge
+  deleteEdge(ast, newEdgeId);
+  assert.ok(!ast.edges.some((e) => e.id === newEdgeId));
+
+  // 6. deleteNode (cascades to edges)
+  deleteNode(ast, 'B');
+  assert.ok(!ast.nodes.has('B'));
+  assert.ok(!ast.edges.some((e) => e.from === 'B' || e.to === 'B'));
+
+  // 7. setDiagramDirection
+  setDiagramDirection(ast, 'TD');
+  assert.equal(ast.direction, 'TD');
+
+  const serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.startsWith('flowchart TD'));
+  assert.ok(serialized.includes('Initial Start'));
+  assert.ok(serialized.includes('Next Step'));
 });
 

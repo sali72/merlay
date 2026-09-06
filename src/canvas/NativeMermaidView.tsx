@@ -1,91 +1,184 @@
 /**
- * Native Mermaid View with Interactive Overlay Layer
- * Renders Obsidian's native Mermaid SVG with full interactive editing, node/edge selection,
- * inline text editing, and drag-to-connect gestures.
+ * Native Mermaid View with Direct Structural Manipulation Overlay
+ * Renders Obsidian's exact native Mermaid SVG (100% parity, zero layout simulation)
+ * with direct-manipulation node sprouting, drag-to-connect, inline label editing, and camera stabilization.
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { App, MarkdownRenderer, Component } from 'obsidian';
 import {
-  ArrowType,
-  MermaidEdgeDef,
   MermaidFlowchartAST,
-  MermaidNodeDef,
-  MermaidShapeType,
+  FlowchartDirection,
 } from '../ast/types';
-import { FloatingNodeToolbar } from './toolbar/FloatingNodeToolbar';
-import { FloatingEdgeToolbar } from './toolbar/FloatingEdgeToolbar';
+import { parseMermaidFlowchart } from '../ast/parser';
 import { serializeMermaidFlowchart } from '../ast/serializer';
+import {
+  addChildNode,
+  addNode,
+  connectNodes,
+  deleteEdge,
+  deleteNode,
+  setDiagramDirection,
+  updateEdgeLabel,
+  updateNodeLabel,
+} from '../ast/mutations';
+import {
+  CloseIcon,
+  CodeIcon,
+  FitViewIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+} from './icons/Icons';
 
 export interface NativeMermaidViewProps {
-  app?: App;
-  code: string;
-  ast: MermaidFlowchartAST;
+  app: App;
+  initialCode: string;
   onCodeChange: (newCode: string) => void;
-  onASTChange: (newAst: MermaidFlowchartAST) => void;
-  selectedNodeId: string | null;
-  selectedEdgeId: string | null;
-  onSelectNode: (nodeId: string | null) => void;
-  onSelectEdge: (edgeId: string | null) => void;
-  onDeleteNode: (nodeId: string) => void;
-  onDeleteEdge: (edgeId: string) => void;
-  onShapeChange: (nodeId: string, shape: MermaidShapeType) => void;
-  onColorChange: (nodeId: string, color: string) => void;
-  onLabelChange: (nodeId: string, label: string) => void;
-  onEdgeArrowTypeChange: (edgeId: string, arrowType: ArrowType) => void;
-  onEdgeLabelChange: (edgeId: string, label: string) => void;
-  onReverseEdge: (edgeId: string) => void;
-  onConnectNodes: (sourceId: string, targetId: string) => void;
-  onCreateConnectedNode: (sourceId: string, flowPos: { x: number; y: number }) => void;
+  onClose?: () => void;
 }
 
 export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   app,
-  code,
-  ast,
-  selectedNodeId,
-  selectedEdgeId,
-  onSelectNode,
-  onSelectEdge,
-  onDeleteNode,
-  onDeleteEdge,
-  onShapeChange,
-  onColorChange,
-  onLabelChange,
-  onEdgeArrowTypeChange,
-  onEdgeLabelChange,
-  onReverseEdge,
-  onConnectNodes,
-  onCreateConnectedNode,
+  initialCode,
+  onCodeChange,
+  onClose,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const svgMountRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const [code, setCode] = useState<string>(
+    initialCode || 'flowchart LR\n    A["Start"] --> B["Process"]\n    B --> C["End"]'
+  );
+  const [ast, setAst] = useState<MermaidFlowchartAST>(() =>
+    parseMermaidFlowchart(code)
+  );
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
-  // Pan & Zoom state
+  // Zoom & Pan state
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Inline editing state
+  // Node editing state
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editLabelValue, setEditLabelValue] = useState<string>('');
-  const [editingPos, setEditingPos] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [editNodeLabel, setEditNodeLabel] = useState<string>('');
+  const [editingPos, setEditingPos] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   // Drag-to-connect state
   const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
-  const [dragLine, setDragLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [dragLine, setDragLine] = useState<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  } | null>(null);
 
-  // Selected element overlay positions (for toolbars)
-  const [selectedNodePos, setSelectedNodePos] = useState<{ x: number; y: number; width: number } | null>(null);
-  const [selectedEdgePos, setSelectedEdgePos] = useState<{ x: number; y: number } | null>(null);
+  // Selected element overlay coordinates (relative to worldRef)
+  const [selectedNodeRect, setSelectedNodeRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [selectedEdgePos, setSelectedEdgePos] = useState<{
+    x: number;
+    y: number;
+    label?: string;
+  } | null>(null);
 
-  // Hovered node state (for connection handles)
+  // Hovered node state for connection handle
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [hoveredNodeRect, setHoveredNodeRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [hoveredNodeRect, setHoveredNodeRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
-  // 1. Render Native Obsidian Mermaid SVG
+  // Drawer & feedback state
+  const [showCodeDrawer, setShowCodeDrawer] = useState<boolean>(false);
+  const [syntaxError, setSyntaxError] = useState<string | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
+  const svgMountRef = useRef<HTMLDivElement>(null);
+  const pendingCameraPinRef = useRef<{
+    nodeId: string;
+    screenX: number;
+    screenY: number;
+  } | null>(null);
+
+  // Exact 1:1 screen-to-world coordinate calculation
+  const getLocalRect = useCallback(
+    (el: Element): { x: number; y: number; width: number; height: number } | null => {
+      if (!worldRef.current) return null;
+      const worldRect = worldRef.current.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      return {
+        x: (elRect.left - worldRect.left) / zoom,
+        y: (elRect.top - worldRect.top) / zoom,
+        width: elRect.width / zoom,
+        height: elRect.height / zoom,
+      };
+    },
+    [zoom]
+  );
+
+  // Mutate AST and serialize to code
+  const applyAstMutation = useCallback(
+    (mutator: (currentAst: MermaidFlowchartAST) => void, keepNodeId?: string) => {
+      try {
+        // Record screen position of active node to stabilize camera across re-render
+        if (keepNodeId && svgMountRef.current) {
+          const activeEl = svgMountRef.current.querySelector(
+            `[data-mermaid-node-id="${keepNodeId}"]`
+          );
+          if (activeEl) {
+            const b = activeEl.getBoundingClientRect();
+            pendingCameraPinRef.current = {
+              nodeId: keepNodeId,
+              screenX: b.left + b.width / 2,
+              screenY: b.top + b.height / 2,
+            };
+          }
+        }
+
+        const newAst = { ...ast };
+        mutator(newAst);
+        const serialized = serializeMermaidFlowchart(newAst);
+        setCode(serialized);
+        setAst(newAst);
+        setSyntaxError(null);
+        onCodeChange(serialized);
+      } catch (err: any) {
+        console.error('AST Mutation Error:', err);
+      }
+    },
+    [ast, onCodeChange]
+  );
+
+  // Update selected node overlay box
+  const updateSelectedNodeRect = useCallback(() => {
+    if (!selectedNodeId || !svgMountRef.current) {
+      setSelectedNodeRect(null);
+      return;
+    }
+
+    const nodeEl = svgMountRef.current.querySelector(
+      `[data-mermaid-node-id="${selectedNodeId}"]`
+    );
+    if (nodeEl) {
+      const rect = getLocalRect(nodeEl);
+      if (rect) setSelectedNodeRect(rect);
+    }
+  }, [selectedNodeId, getLocalRect]);
+
+  // 1. Render Obsidian's native Mermaid SVG
   useEffect(() => {
     let isCancelled = false;
     const mountEl = svgMountRef.current;
@@ -97,23 +190,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
     const markdown = `\`\`\`mermaid\n${code}\n\`\`\``;
 
-    if (app) {
-      MarkdownRenderer.render(app, markdown, mountEl, '', renderComponent).then(() => {
+    MarkdownRenderer.render(app, markdown, mountEl, '', renderComponent)
+      .then(() => {
         if (isCancelled) return;
         setupSvgInteractivity();
+        stabilizeCamera();
+        updateSelectedNodeRect();
+      })
+      .catch((err) => {
+        console.error('Error rendering native Mermaid SVG:', err);
       });
-    } else {
-      // Fallback if app context not provided
-      const mermaidGlobal = (typeof window !== 'undefined' && (window as any).mermaid) as any;
-      if (mermaidGlobal && typeof mermaidGlobal.render === 'function') {
-        const id = `native_svg_${Date.now()}`;
-        mermaidGlobal.render(id, code).then((res: any) => {
-          if (isCancelled) return;
-          mountEl.innerHTML = typeof res === 'string' ? res : res.svg;
-          setupSvgInteractivity();
-        });
-      }
-    }
 
     return () => {
       isCancelled = true;
@@ -121,15 +207,40 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     };
   }, [code, app]);
 
-  // 2. Setup DOM event listeners directly on the native SVG elements
+  // Camera stabilization: keep active node anchored at same screen position
+  const stabilizeCamera = useCallback(() => {
+    const pin = pendingCameraPinRef.current;
+    if (!pin || !svgMountRef.current) return;
+    pendingCameraPinRef.current = null;
+
+    const el = svgMountRef.current.querySelector(
+      `[data-mermaid-node-id="${pin.nodeId}"]`
+    );
+    if (!el) return;
+
+    const b = el.getBoundingClientRect();
+    const currentScreenX = b.left + b.width / 2;
+    const currentScreenY = b.top + b.height / 2;
+
+    const deltaX = pin.screenX - currentScreenX;
+    const deltaY = pin.screenY - currentScreenY;
+
+    if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+      setPan((p) => ({ x: p.x + deltaX, y: p.y + deltaY }));
+    }
+  }, []);
+
+  // Update selected node rect whenever selection, zoom, or pan changes
+  useEffect(() => {
+    updateSelectedNodeRect();
+  }, [selectedNodeId, zoom, pan, updateSelectedNodeRect]);
+
+  // 2. Attach interactive listeners to SVG elements
   const setupSvgInteractivity = useCallback(() => {
     const mountEl = svgMountRef.current;
     if (!mountEl) return;
 
-    const svg = mountEl.querySelector('svg');
-    if (!svg) return;
-
-    // A. Setup Nodes
+    // A. Setup Node Listeners
     const nodeElements = mountEl.querySelectorAll('.node, [class*="node "]');
     nodeElements.forEach((el) => {
       const htmlEl = el as SVGGraphicsElement;
@@ -167,72 +278,60 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       // Node Click -> Selection
       htmlEl.onclick = (e) => {
         e.stopPropagation();
-        onSelectNode(targetNodeId);
-        onSelectEdge(null);
+        setSelectedNodeId(targetNodeId);
+        setSelectedEdgeId(null);
+        const rect = getLocalRect(htmlEl);
+        if (rect) setSelectedNodeRect(rect);
       };
 
       // Node Double Click -> Inline Editing
       htmlEl.ondblclick = (e) => {
         e.stopPropagation();
-        const bbox = htmlEl.getBBox();
-        const ctm = htmlEl.getCTM();
-        if (ctm) {
-          const pt = svg.createSVGPoint();
-          pt.x = bbox.x;
-          pt.y = bbox.y;
-          const screenPt = pt.matrixTransform(ctm);
-          const svgRect = svg.getBoundingClientRect();
-
-          setEditingPos({
-            x: screenPt.x - svgRect.left,
-            y: screenPt.y - svgRect.top,
-            width: Math.max(90, bbox.width),
-            height: Math.max(32, bbox.height),
-          });
-        }
-        const ndef = ast.nodes.get(targetNodeId);
-        setEditLabelValue(ndef?.label || targetNodeId);
-        setEditingNodeId(targetNodeId);
+        startEditingNode(targetNodeId, htmlEl);
       };
 
-      // Node Hover -> Show Connection Dots
+      // Node Hover -> Connection Handle
       htmlEl.onmouseenter = () => {
         setHoveredNodeId(targetNodeId);
-        try {
-          const bbox = htmlEl.getBBox();
-          const ctm = htmlEl.getCTM();
-          if (ctm) {
-            const pt = svg.createSVGPoint();
-            pt.x = bbox.x;
-            pt.y = bbox.y;
-            const screenPt = pt.matrixTransform(ctm);
-            const svgRect = svg.getBoundingClientRect();
+        const rect = getLocalRect(htmlEl);
+        if (rect) setHoveredNodeRect(rect);
+      };
 
-            setHoveredNodeRect({
-              x: screenPt.x - svgRect.left,
-              y: screenPt.y - svgRect.top,
-              width: bbox.width,
-              height: bbox.height,
-            });
-          }
-        } catch (err) {}
+      htmlEl.onmouseleave = () => {
+        setHoveredNodeId(null);
+        setHoveredNodeRect(null);
       };
     });
 
-    // B. Setup Edges
-    const edgeElements = mountEl.querySelectorAll('.flowchart-link, [class*="flowchart-link"], .edgePath');
+    // B. Setup Edge Listeners
+    const edgeElements = mountEl.querySelectorAll(
+      '.flowchart-link, [class*="flowchart-link"], .edgePath path'
+    );
     edgeElements.forEach((el) => {
       const htmlEl = el as SVGGraphicsElement;
       htmlEl.style.cursor = 'pointer';
 
-      const idAttr = htmlEl.getAttribute('id') || htmlEl.parentElement?.getAttribute('id') || '';
-      const classAttr = htmlEl.getAttribute('class') || htmlEl.parentElement?.getAttribute('class') || '';
+      const classAttr =
+        (htmlEl.getAttribute('class') || '') +
+        ' ' +
+        (htmlEl.parentElement?.getAttribute('class') || '');
+      const idAttr =
+        (htmlEl.getAttribute('id') || '') +
+        ' ' +
+        (htmlEl.parentElement?.getAttribute('id') || '');
 
       let matchedEdgeId: string | null = null;
       for (const edge of ast.edges) {
+        const hasSource =
+          classAttr.includes(`LS-${edge.from}`) || idAttr.includes(`LS-${edge.from}`);
+        const hasTarget =
+          classAttr.includes(`LE-${edge.to}`) || idAttr.includes(`LE-${edge.to}`);
+        if (hasSource && hasTarget) {
+          matchedEdgeId = edge.id;
+          break;
+        }
         if (
           idAttr.includes(`L-${edge.from}-${edge.to}`) ||
-          classAttr.includes(`L-${edge.from}-${edge.to}`) ||
           idAttr.includes(`${edge.from}-${edge.to}`) ||
           classAttr.includes(`${edge.from}-${edge.to}`)
         ) {
@@ -246,71 +345,139 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
       htmlEl.onclick = (e) => {
         e.stopPropagation();
-        onSelectEdge(targetEdgeId);
-        onSelectNode(null);
+        setSelectedEdgeId(targetEdgeId);
+        setSelectedNodeId(null);
 
-        try {
-          const bbox = htmlEl.getBBox();
-          const ctm = htmlEl.getCTM();
-          if (ctm) {
-            const pt = svg.createSVGPoint();
-            pt.x = bbox.x + bbox.width / 2;
-            pt.y = bbox.y + bbox.height / 2;
-            const screenPt = pt.matrixTransform(ctm);
-            const svgRect = svg.getBoundingClientRect();
-            setSelectedEdgePos({
-              x: screenPt.x - svgRect.left,
-              y: screenPt.y - svgRect.top,
-            });
-          }
-        } catch (err) {}
+        const rect = getLocalRect(htmlEl);
+        const edgeDef = ast.edges.find((ed) => ed.id === targetEdgeId);
+        if (rect) {
+          setSelectedEdgePos({
+            x: rect.x + rect.width / 2,
+            y: rect.y + rect.height / 2,
+            label: edgeDef?.label,
+          });
+        }
       };
     });
-  }, [ast, onSelectNode, onSelectEdge]);
+  }, [ast, getLocalRect]);
 
-  // Update selected node toolbar position
-  useEffect(() => {
-    if (!selectedNodeId) {
-      setSelectedNodePos(null);
-      return;
+  const startEditingNode = (nodeId: string, nodeEl: Element) => {
+    const rect = getLocalRect(nodeEl);
+    if (rect) {
+      setEditingPos({
+        x: rect.x,
+        y: rect.y,
+        width: Math.max(90, rect.width),
+        height: Math.max(34, rect.height),
+      });
     }
+    const ndef = ast.nodes.get(nodeId);
+    setEditNodeLabel(ndef?.label || nodeId);
+    setEditingNodeId(nodeId);
+  };
 
-    const mountEl = svgMountRef.current;
-    if (!mountEl) return;
-    const svg = mountEl.querySelector('svg');
-    if (!svg) return;
+  const handleFinishEditingNode = () => {
+    if (editingNodeId) {
+      applyAstMutation((a) => {
+        updateNodeLabel(a, editingNodeId, editNodeLabel);
+      }, editingNodeId);
+      setEditingNodeId(null);
+      setEditingPos(null);
+    }
+  };
 
-    const nodeEl = mountEl.querySelector(`[data-mermaid-node-id="${selectedNodeId}"]`) as SVGGraphicsElement | null;
-    if (!nodeEl) return;
+  // Node Actions
+  const handleSproutNextStep = (parentId: string) => {
+    let createdChildId: string | null = null;
+    applyAstMutation((a) => {
+      const res = addChildNode(a, parentId, 'Next Step');
+      createdChildId = res.nodeId;
+    }, parentId);
 
-    try {
-      const bbox = nodeEl.getBBox();
-      const ctm = nodeEl.getCTM();
-      if (ctm) {
-        const pt = svg.createSVGPoint();
-        pt.x = bbox.x + bbox.width / 2;
-        pt.y = bbox.y;
-        const screenPt = pt.matrixTransform(ctm);
-        const svgRect = svg.getBoundingClientRect();
+    if (createdChildId) {
+      setSelectedNodeId(createdChildId);
+      setSelectedEdgeId(null);
+    }
+  };
 
-        setSelectedNodePos({
-          x: screenPt.x - svgRect.left,
-          y: screenPt.y - svgRect.top,
-          width: bbox.width,
-        });
-      }
-    } catch (err) {}
-  }, [selectedNodeId, code, zoom, pan]);
+  const handleDeleteSelectedNode = () => {
+    if (!selectedNodeId) return;
+    const targetId = selectedNodeId;
+    setSelectedNodeId(null);
+    setSelectedNodeRect(null);
+    applyAstMutation((a) => {
+      deleteNode(a, targetId);
+    });
+  };
 
-  // Mouse pan & zoom handlers
+  const handleAddStandaloneStep = () => {
+    let newId: string | null = null;
+    applyAstMutation((a) => {
+      newId = addNode(a, 'New Step');
+    });
+    if (newId) {
+      setSelectedNodeId(newId);
+    }
+  };
+
+  const handleToggleDirection = () => {
+    const nextDir: FlowchartDirection =
+      ast.direction === 'LR' ? 'TD' : 'LR';
+    applyAstMutation((a) => {
+      setDiagramDirection(a, nextDir);
+    }, selectedNodeId || undefined);
+  };
+
+  // Edge Actions
+  const handleDeleteSelectedEdge = () => {
+    if (!selectedEdgeId) return;
+    const targetEdgeId = selectedEdgeId;
+    setSelectedEdgeId(null);
+    setSelectedEdgePos(null);
+    applyAstMutation((a) => {
+      deleteEdge(a, targetEdgeId);
+    });
+  };
+
+  const handleUpdateEdgeLabel = (newLabel: string) => {
+    if (!selectedEdgeId) return;
+    applyAstMutation((a) => {
+      updateEdgeLabel(a, selectedEdgeId, newLabel);
+    });
+  };
+
+  // Drag-to-Connect
+  const handleStartConnect = (
+    e: React.MouseEvent,
+    startX: number,
+    startY: number
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!hoveredNodeId) return;
+
+    setConnectingSourceId(hoveredNodeId);
+    setDragLine({
+      x1: startX,
+      y1: startY,
+      x2: startX,
+      y2: startY,
+    });
+  };
+
+  // Mouse Pan & Zoom
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom((z) => Math.min(2.5, Math.max(0.35, z + delta)));
+    setZoom((z) => Math.min(3.0, Math.max(0.25, z + delta)));
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.nodrag') || (e.target as HTMLElement).closest('.mermaid-handle')) {
+    if (
+      (e.target as HTMLElement).closest('.nodrag') ||
+      (e.target as HTMLElement).closest('.mermaid-action-hud') ||
+      (e.target as HTMLElement).closest('.mermaid-connection-handle')
+    ) {
       return;
     }
     setIsPanning(true);
@@ -325,14 +492,14 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       });
     }
 
-    if (connectingSourceId && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
+    if (connectingSourceId && worldRef.current) {
+      const worldRect = worldRef.current.getBoundingClientRect();
       setDragLine((prev) =>
         prev
           ? {
               ...prev,
-              x2: (e.clientX - rect.left - pan.x) / zoom,
-              y2: (e.clientY - rect.top - pan.y) / zoom,
+              x2: (e.clientX - worldRect.left) / zoom,
+              y2: (e.clientY - worldRect.top) / zoom,
             }
           : null
       );
@@ -343,16 +510,15 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     setIsPanning(false);
 
     if (connectingSourceId) {
-      const targetEl = (e.target as HTMLElement).closest('[data-mermaid-node-id]') as HTMLElement | null;
+      const targetEl = (e.target as HTMLElement).closest(
+        '[data-mermaid-node-id]'
+      ) as HTMLElement | null;
       const targetNodeId = targetEl?.getAttribute('data-mermaid-node-id');
 
       if (targetNodeId && targetNodeId !== connectingSourceId) {
-        onConnectNodes(connectingSourceId, targetNodeId);
-      } else if (!targetEl && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const flowX = (e.clientX - rect.left - pan.x) / zoom;
-        const flowY = (e.clientY - rect.top - pan.y) / zoom;
-        onCreateConnectedNode(connectingSourceId, { x: flowX, y: flowY });
+        applyAstMutation((a) => {
+          connectNodes(a, connectingSourceId, targetNodeId);
+        }, connectingSourceId);
       }
 
       setConnectingSourceId(null);
@@ -360,59 +526,111 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     }
   };
 
-  const handleStartConnect = (e: React.MouseEvent, startX: number, startY: number) => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (!hoveredNodeId) return;
-
-    setConnectingSourceId(hoveredNodeId);
-    setDragLine({
-      x1: startX,
-      y1: startY,
-      x2: startX,
-      y2: startY,
-    });
+  const handleFitView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
   };
 
-  const handleFinishEdit = () => {
-    if (editingNodeId) {
-      onLabelChange(editingNodeId, editLabelValue.trim());
-      setEditingNodeId(null);
-      setEditingPos(null);
-    }
-  };
-
-  const selectedNode = selectedNodeId ? ast.nodes.get(selectedNodeId) : null;
-  const selectedEdge = selectedEdgeId ? ast.edges.find((e) => e.id === selectedEdgeId) : null;
+  // Downstream Sprout Button Position based on diagram direction
+  const isLR = ast.direction === 'LR' || ast.direction === 'RL';
+  const sproutX = selectedNodeRect
+    ? isLR
+      ? selectedNodeRect.x + selectedNodeRect.width + 12
+      : selectedNodeRect.x + selectedNodeRect.width / 2
+    : 0;
+  const sproutY = selectedNodeRect
+    ? isLR
+      ? selectedNodeRect.y + selectedNodeRect.height / 2
+      : selectedNodeRect.y + selectedNodeRect.height + 12
+    : 0;
 
   return (
     <div
-      className="mermaid-native-view-container"
+      className="mermaid-native-editor-root"
       ref={containerRef}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onClick={() => {
-        onSelectNode(null);
-        onSelectEdge(null);
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
         setEditingNodeId(null);
       }}
     >
-      {/* Zoom / Pan World Layer */}
+      {/* Top Controls Bar */}
+      <div className="mermaid-native-top-bar nodrag">
+        <div className="mermaid-top-bar-left">
+          <button
+            type="button"
+            className="mermaid-tool-btn mod-cta"
+            onClick={handleAddStandaloneStep}
+            title="Add new step"
+          >
+            <PlusIcon size={14} />
+            <span>Add Step</span>
+          </button>
+
+          <button
+            type="button"
+            className="mermaid-tool-btn"
+            onClick={handleToggleDirection}
+            title={`Toggle Flow Direction (Current: ${ast.direction})`}
+          >
+            <span>Flow: {ast.direction}</span>
+          </button>
+
+          <div className="mermaid-bar-divider" />
+
+          <button
+            type="button"
+            className="mermaid-tool-btn"
+            onClick={handleFitView}
+            title="Reset Zoom & Center (Fit View)"
+          >
+            <FitViewIcon size={14} />
+          </button>
+        </div>
+
+        <div className="mermaid-top-bar-right">
+          <button
+            type="button"
+            className={`mermaid-tool-btn ${showCodeDrawer ? 'is-active' : ''}`}
+            onClick={() => setShowCodeDrawer(!showCodeDrawer)}
+            title="Toggle Mermaid Syntax Drawer"
+          >
+            <CodeIcon size={14} />
+            <span>Syntax</span>
+          </button>
+
+          {onClose && (
+            <button
+              type="button"
+              className="mermaid-tool-btn close-btn"
+              onClick={onClose}
+              title="Close Visual Mode"
+            >
+              <CloseIcon size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Interactive World Canvas */}
       <div
         className="mermaid-native-world"
+        ref={worldRef}
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: '0 0',
         }}
       >
-        {/* Rendered Native Mermaid SVG Output */}
+        {/* Native Mermaid SVG Output */}
         <div className="mermaid-native-svg-mount" ref={svgMountRef} />
 
         {/* Interactive Overlay Layer */}
-        <div className="mermaid-native-overlay" ref={overlayRef}>
-          {/* Connection Drag Line */}
+        <div className="mermaid-native-overlay">
+          {/* Connection Dragging SVG Line */}
           {dragLine && (
             <svg
               className="mermaid-drag-svg"
@@ -433,158 +651,208 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 x2={dragLine.x2}
                 y2={dragLine.y2}
                 stroke="var(--mermaid-accent, #7c3aed)"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 strokeDasharray="4 4"
               />
             </svg>
           )}
 
-          {/* Hovered Node Obsidian Canvas Connection Dots */}
+          {/* Hovered Node Connection Handle (Downstream only) */}
           {hoveredNodeRect && hoveredNodeId && (
             <div
-              className="mermaid-node-hover-handles"
+              className="mermaid-connection-handle nodrag"
               style={{
                 position: 'absolute',
-                left: hoveredNodeRect.x,
-                top: hoveredNodeRect.y,
-                width: hoveredNodeRect.width,
-                height: hoveredNodeRect.height,
-                pointerEvents: 'none',
+                left: isLR
+                  ? hoveredNodeRect.x + hoveredNodeRect.width
+                  : hoveredNodeRect.x + hoveredNodeRect.width / 2,
+                top: isLR
+                  ? hoveredNodeRect.y + hoveredNodeRect.height / 2
+                  : hoveredNodeRect.y + hoveredNodeRect.height,
+                transform: 'translate(-50%, -50%)',
+                zIndex: 100,
               }}
-            >
-              {/* Top Handle */}
-              <div
-                className="mermaid-handle is-hovered"
-                style={{ position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'all' }}
-                onMouseDown={(e) => handleStartConnect(e, hoveredNodeRect.x + hoveredNodeRect.width / 2, hoveredNodeRect.y)}
-              />
-              {/* Bottom Handle */}
-              <div
-                className="mermaid-handle is-hovered"
-                style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translate(-50%, 50%)', pointerEvents: 'all' }}
-                onMouseDown={(e) => handleStartConnect(e, hoveredNodeRect.x + hoveredNodeRect.width / 2, hoveredNodeRect.y + hoveredNodeRect.height)}
-              />
-              {/* Left Handle */}
-              <div
-                className="mermaid-handle is-hovered"
-                style={{ position: 'absolute', top: '50%', left: 0, transform: 'translate(-50%, -50%)', pointerEvents: 'all' }}
-                onMouseDown={(e) => handleStartConnect(e, hoveredNodeRect.x, hoveredNodeRect.y + hoveredNodeRect.height / 2)}
-              />
-              {/* Right Handle */}
-              <div
-                className="mermaid-handle is-hovered"
-                style={{ position: 'absolute', top: '50%', right: 0, transform: 'translate(50%, -50%)', pointerEvents: 'all' }}
-                onMouseDown={(e) => handleStartConnect(e, hoveredNodeRect.x + hoveredNodeRect.width, hoveredNodeRect.y + hoveredNodeRect.height / 2)}
-              />
-            </div>
+              onMouseDown={(e) =>
+                handleStartConnect(
+                  e,
+                  isLR
+                    ? hoveredNodeRect.x + hoveredNodeRect.width
+                    : hoveredNodeRect.x + hoveredNodeRect.width / 2,
+                  isLR
+                    ? hoveredNodeRect.y + hoveredNodeRect.height / 2
+                    : hoveredNodeRect.y + hoveredNodeRect.height
+                )
+              }
+              title="Drag to connect with another step"
+            />
           )}
 
-          {/* Selected Node Floating Toolbar */}
-          {selectedNode && selectedNodePos && (
-            <div
-              className="nodrag nopan"
-              style={{
-                position: 'absolute',
-                left: selectedNodePos.x,
-                top: selectedNodePos.y - 12,
-                transform: 'translate(-50%, -100%)',
-                zIndex: 1000,
-                pointerEvents: 'all',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <FloatingNodeToolbar
-                currentShape={selectedNode.shape}
-                currentColor={selectedNode.style?.fill || ''}
-                onShapeChange={(shape) => onShapeChange(selectedNode.id, shape)}
-                onColorChange={(color) => onColorChange(selectedNode.id, color)}
-                onDelete={() => onDeleteNode(selectedNode.id)}
+          {/* Selected Node Halo & Relational Sprout HUD */}
+          {selectedNodeRect && selectedNodeId && (
+            <>
+              {/* Selection Halo Ring */}
+              <div
+                className="mermaid-node-selection-ring"
+                style={{
+                  position: 'absolute',
+                  left: selectedNodeRect.x - 3,
+                  top: selectedNodeRect.y - 3,
+                  width: selectedNodeRect.width + 6,
+                  height: selectedNodeRect.height + 6,
+                  pointerEvents: 'none',
+                  zIndex: 90,
+                }}
               />
-            </div>
+
+              {/* Action HUD anchored directly downstream */}
+              <div
+                className="mermaid-action-hud nodrag"
+                style={{
+                  position: 'absolute',
+                  left: sproutX,
+                  top: sproutY,
+                  transform: isLR ? 'translate(0, -50%)' : 'translate(-50%, 0)',
+                  zIndex: 150,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="mermaid-hud-btn sprout-btn"
+                  onClick={() => handleSproutNextStep(selectedNodeId)}
+                  title="Sprout Next Step (creates connected child)"
+                >
+                  <PlusIcon size={13} />
+                  <span>Next Step</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="mermaid-hud-btn icon-only"
+                  onClick={() => {
+                    const el = svgMountRef.current?.querySelector(
+                      `[data-mermaid-node-id="${selectedNodeId}"]`
+                    );
+                    if (el) startEditingNode(selectedNodeId, el);
+                  }}
+                  title="Rename Step"
+                >
+                  <PencilIcon size={13} />
+                </button>
+
+                <button
+                  type="button"
+                  className="mermaid-hud-btn delete-btn icon-only"
+                  onClick={handleDeleteSelectedNode}
+                  title="Delete Step (and connections)"
+                >
+                  <TrashIcon size={13} />
+                </button>
+              </div>
+            </>
           )}
 
-          {/* Selected Edge Floating Toolbar */}
-          {selectedEdge && selectedEdgePos && (
+          {/* Selected Edge HUD */}
+          {selectedEdgePos && selectedEdgeId && (
             <div
-              className="nodrag nopan"
+              className="mermaid-edge-hud nodrag"
               style={{
                 position: 'absolute',
                 left: selectedEdgePos.x,
-                top: selectedEdgePos.y - 12,
+                top: selectedEdgePos.y - 10,
                 transform: 'translate(-50%, -100%)',
-                zIndex: 1000,
-                pointerEvents: 'all',
+                zIndex: 150,
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <FloatingEdgeToolbar
-                currentArrowType={selectedEdge.arrowType}
-                currentLabel={selectedEdge.label || ''}
-                onArrowTypeChange={(newType) => onEdgeArrowTypeChange(selectedEdge.id, newType)}
-                onLabelChange={(newLabel) => onEdgeLabelChange(selectedEdge.id, newLabel)}
-                onReverse={() => onReverseEdge(selectedEdge.id)}
-                onDelete={() => onDeleteEdge(selectedEdge.id)}
+              <input
+                type="text"
+                className="mermaid-edge-input"
+                placeholder="Condition (e.g. Yes/No)..."
+                defaultValue={selectedEdgePos.label || ''}
+                onBlur={(e) => handleUpdateEdgeLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleUpdateEdgeLabel((e.target as HTMLInputElement).value);
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
               />
+              <button
+                type="button"
+                className="mermaid-hud-btn delete-btn icon-only"
+                onClick={handleDeleteSelectedEdge}
+                title="Delete connection"
+              >
+                <TrashIcon size={13} />
+              </button>
             </div>
           )}
 
-          {/* Inline Label Editing Input */}
+          {/* Inline Node Label Editor Overlay */}
           {editingNodeId && editingPos && (
             <input
               autoFocus
-              className="mermaid-inline-input nodrag nopan"
+              className="mermaid-inline-node-input nodrag"
               style={{
                 position: 'absolute',
                 left: editingPos.x,
                 top: editingPos.y,
                 width: editingPos.width,
                 height: editingPos.height,
-                zIndex: 1001,
-                pointerEvents: 'all',
+                zIndex: 200,
               }}
-              value={editLabelValue}
-              onChange={(e) => setEditLabelValue(e.target.value)}
+              value={editNodeLabel}
+              onChange={(e) => setEditNodeLabel(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleFinishEdit();
+                if (e.key === 'Enter') handleFinishEditingNode();
                 if (e.key === 'Escape') {
                   setEditingNodeId(null);
                   setEditingPos(null);
                 }
               }}
-              onBlur={handleFinishEdit}
+              onBlur={handleFinishEditingNode}
               onClick={(e) => e.stopPropagation()}
             />
           )}
         </div>
       </div>
 
-      {/* Floating Canvas Controls */}
-      <div className="mermaid-view-controls nodrag">
-        <button
-          className="mermaid-control-btn"
-          title="Zoom In"
-          onClick={() => setZoom((z) => Math.min(2.5, z + 0.15))}
-        >
-          +
-        </button>
-        <button
-          className="mermaid-control-btn"
-          title="Zoom Out"
-          onClick={() => setZoom((z) => Math.max(0.35, z - 0.15))}
-        >
-          −
-        </button>
-        <button
-          className="mermaid-control-btn"
-          title="Reset View"
-          onClick={() => {
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-          }}
-        >
-          ⟲
-        </button>
-      </div>
+      {/* Slide-out Mermaid Code Syntax Drawer */}
+      {showCodeDrawer && (
+        <div className="mermaid-side-code-drawer nodrag">
+          <div className="mermaid-code-drawer-header">
+            <span>Mermaid Syntax</span>
+            <button
+              type="button"
+              className="mermaid-code-close-btn"
+              onClick={() => setShowCodeDrawer(false)}
+            >
+              <CloseIcon size={14} />
+            </button>
+          </div>
+          {syntaxError && (
+            <div className="mermaid-code-error-badge">{syntaxError}</div>
+          )}
+          <textarea
+            className="mermaid-code-drawer-textarea"
+            value={code}
+            onChange={(e) => {
+              const newCode = e.target.value;
+              setCode(newCode);
+              onCodeChange(newCode);
+              try {
+                const parsed = parseMermaidFlowchart(newCode);
+                setAst(parsed);
+                setSyntaxError(null);
+              } catch (err: any) {
+                setSyntaxError(err.message || 'Syntax Error');
+              }
+            }}
+            spellCheck={false}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import { Modal, App, Notice, TFile } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { MermaidStudio } from '../canvas/MermaidStudio';
+import { NativeMermaidView } from '../canvas/NativeMermaidView';
 import type VisualMermaidPlugin from '../main';
 
 export interface SectionInfo {
@@ -43,17 +43,14 @@ export class MermaidBlockModal extends Modal {
     this.root = createRoot(contentEl);
     this.root.render(
       <React.StrictMode>
-        <MermaidStudio
+        <NativeMermaidView
+          app={this.app}
           initialCode={this.initialCode}
-          showMinimap={this.plugin.settings.showMinimap}
-          defaultCodePanelWidth={this.plugin.settings.codePanelWidth}
           onCodeChange={(newCode) => {
             this.latestCode = newCode;
             this.scheduleSave();
           }}
-          onCopyNotice={() => {
-            new Notice('Copied Mermaid syntax to clipboard!');
-          }}
+          onClose={() => this.close()}
         />
       </React.StrictMode>
     );
@@ -92,10 +89,32 @@ export class MermaidBlockModal extends Modal {
         const startLine = this.sectionInfo.lineStart;
         const endLine = this.sectionInfo.lineEnd;
 
+        // Verify delimiter at startLine and endLine
+        if (
+          lines[startLine]?.trim().startsWith('```mermaid') &&
+          lines[endLine]?.trim().startsWith('```')
+        ) {
+          const before = lines.slice(0, startLine + 1);
+          const after = lines.slice(endLine);
+          const codeLines = this.latestCode.trim().split('\n');
+          return [...before, ...codeLines, ...after].join('\n');
+        }
+
+        // Fallback: search for exact initial code block substring
+        const rawInitial = this.initialCode.trim();
+        const matchIndex = data.indexOf(rawInitial);
+        if (matchIndex !== -1) {
+          return (
+            data.substring(0, matchIndex) +
+            this.latestCode.trim() +
+            data.substring(matchIndex + rawInitial.length)
+          );
+        }
+
+        // Last fallback using index boundaries
         const before = lines.slice(0, startLine + 1);
         const after = lines.slice(endLine);
-        const codeLines = this.latestCode.split('\n');
-
+        const codeLines = this.latestCode.trim().split('\n');
         return [...before, ...codeLines, ...after].join('\n');
       });
     } catch (e: any) {

@@ -30,11 +30,36 @@ export default class VisualMermaidPlugin extends Plugin {
     );
     this.registerExtensions(['mmd', 'mermaid'], VIEW_TYPE_MERMAID_FILE);
 
-    // 2. Register Markdown Post-Processor for in-note ```mermaid blocks
+    // 2. Register Markdown Post-Processor for in-note ```mermaid blocks (Reading View & Live Preview)
     this.registerMarkdownPostProcessor((element, context) => {
-      const mermaidBlocks = element.querySelectorAll(
-        '.block-language-mermaid, pre.language-mermaid'
-      );
+      const selector =
+        '.block-language-mermaid, pre.language-mermaid, .mermaid, [class*="language-mermaid"]';
+
+      const mermaidBlocks: HTMLElement[] = [];
+
+      // Check if element itself matches
+      if (element.matches?.(selector)) {
+        mermaidBlocks.push(element);
+      }
+
+      // Check child descendants
+      element.querySelectorAll(selector).forEach((el) => {
+        mermaidBlocks.push(el as HTMLElement);
+      });
+
+      // Fallback for Live Preview CM6 embeds rendering SVG directly
+      if (mermaidBlocks.length === 0) {
+        const mermaidSvg = element.querySelector(
+          'svg[id*="mermaid"], svg .node, svg .flowchart-link'
+        );
+        if (mermaidSvg) {
+          const container =
+            mermaidSvg.closest('.cm-embed-block') ||
+            mermaidSvg.parentElement ||
+            element;
+          mermaidBlocks.push(container as HTMLElement);
+        }
+      }
 
       mermaidBlocks.forEach((block) => {
         if (block.querySelector('.mermaid-studio-edit-btn')) return;
@@ -46,31 +71,73 @@ export default class VisualMermaidPlugin extends Plugin {
         });
         const iconSpan = editBtn.createSpan({ cls: 'mermaid-edit-btn-icon' });
         setIcon(iconSpan, 'git-pull-request');
-        editBtn.createSpan({ text: 'Edit Diagram' });
+        editBtn.createSpan({ text: 'Visual Mode' });
 
         editBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          const sectionInfo = context.getSectionInfo(block as HTMLElement);
-          if (!sectionInfo) {
-            new Notice('Could not determine code block location in file.');
-            return;
+
+          let sectionInfo = context.getSectionInfo(block as HTMLElement);
+          if (!sectionInfo && element) {
+            sectionInfo = context.getSectionInfo(element);
           }
 
           const file = this.app.vault.getAbstractFileByPath(context.sourcePath);
           if (file instanceof TFile) {
             const content = await this.app.vault.read(file);
-            const lines = content.split('\n');
-            const codeLines = lines.slice(
-              sectionInfo.lineStart + 1,
-              sectionInfo.lineEnd
-            );
-            const rawCode = codeLines.join('\n');
+            let rawCode = '';
+
+            if (sectionInfo) {
+              const lines = content.split('\n');
+              const codeLines = lines.slice(
+                sectionInfo.lineStart + 1,
+                sectionInfo.lineEnd
+              );
+              rawCode = codeLines.join('\n');
+            } else {
+              // Live Preview CM6 fallback: extract first matching mermaid block
+              const match = content.match(/```(?:mermaid)\n([\s\S]*?)```/);
+              if (match) {
+                rawCode = match[1];
+                const linesBefore = content
+                  .substring(0, match.index || 0)
+                  .split('\n');
+                const matchLines = match[0].split('\n');
+                sectionInfo = {
+                  lineStart: linesBefore.length - 1,
+                  lineEnd: linesBefore.length - 1 + matchLines.length - 1,
+                  text: content,
+                };
+              }
+            }
+
+            if (!rawCode) {
+              new Notice('Could not locate Mermaid block in note.');
+              return;
+            }
+
+            // Scope Check: Only allow flowcharts in MVP
+            const firstContentLine =
+              rawCode
+                .split('\n')
+                .find((l) => l.trim().length > 0 && !l.trim().startsWith('%%'))
+                ?.trim()
+                .toLowerCase() || '';
+
+            if (
+              !firstContentLine.startsWith('flowchart') &&
+              !firstContentLine.startsWith('graph')
+            ) {
+              new Notice(
+                'Visual Mode currently supports Flowcharts (flowchart / graph).'
+              );
+              return;
+            }
 
             new MermaidBlockModal(
               this.app,
               this,
               context.sourcePath,
-              sectionInfo,
+              sectionInfo || { lineStart: 0, lineEnd: 0 },
               rawCode
             ).open();
           }

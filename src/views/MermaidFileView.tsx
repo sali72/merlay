@@ -1,7 +1,7 @@
-import { TextFileView, WorkspaceLeaf, Notice } from 'obsidian';
+import { TextFileView, WorkspaceLeaf } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { MermaidStudio } from '../canvas/MermaidStudio';
+import { NativeMermaidView } from '../canvas/NativeMermaidView';
 import type VisualMermaidPlugin from '../main';
 
 export const VIEW_TYPE_MERMAID_FILE = 'mermaid-visual-file-view';
@@ -33,7 +33,8 @@ export class MermaidFileView extends TextFileView {
   }
 
   setViewData(data: string, clear: boolean): void {
-    this.currentData = data || 'flowchart LR\n    A["Start"] --> B["Process"]\n    B --> C["End"]';
+    this.currentData =
+      data || 'flowchart LR\n    A["Start"] --> B["Process"]\n    B --> C["End"]';
 
     if (clear && this.root) {
       this.root.unmount();
@@ -49,16 +50,12 @@ export class MermaidFileView extends TextFileView {
 
     this.root.render(
       <React.StrictMode>
-        <MermaidStudio
+        <NativeMermaidView
+          app={this.app}
           initialCode={this.currentData}
-          showMinimap={this.plugin.settings.showMinimap}
-          defaultCodePanelWidth={this.plugin.settings.codePanelWidth}
           onCodeChange={(newCode) => {
             this.currentData = newCode;
             this.requestSave();
-          }}
-          onCopyNotice={() => {
-            new Notice('Copied Mermaid syntax to clipboard!');
           }}
         />
       </React.StrictMode>
