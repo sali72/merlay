@@ -58,6 +58,15 @@ pre.language-mermaid {
   color: var(--mermaid-accent);
 }
 
+/* Fail-safe: NEVER render inline edit button inside modals or editor views */
+.mod-mermaid-block-modal .mermaid-studio-edit-btn,
+.mermaid-native-container .mermaid-studio-edit-btn,
+.mermaid-file-view-root .mermaid-studio-edit-btn,
+.mermaid-block-modal-root .mermaid-studio-edit-btn {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 /* 2. Modal Window & Root Container */
 .mod-mermaid-block-modal {
   width: 92vw !important;

@@ -58,26 +58,9 @@ export default class VisualMermaidPlugin extends Plugin {
       context.addChild(new MermaidObserverChild(element, observer));
     });
 
-    // 3. Workspace events to auto-attach in Live Preview CodeMirror 6 views
-    this.registerEvent(
-      this.app.workspace.on('layout-change', () => {
-        this.scanActiveView();
-      })
-    );
-    this.registerEvent(
-      this.app.workspace.on('active-leaf-change', () => {
-        this.scanActiveView();
-      })
-    );
-    this.registerEvent(
-      this.app.workspace.on('editor-change', () => {
-        this.scanActiveView();
-      })
-    );
-
-    // Initial scan after workspace is ready
+    // 3. Global workspace DOM observer for Live Preview & Reading View
     this.app.workspace.onLayoutReady(() => {
-      this.scanActiveView();
+      this.setupGlobalWorkspaceObserver();
     });
 
     // 4. Ribbon Icon
@@ -113,6 +96,59 @@ export default class VisualMermaidPlugin extends Plugin {
     this.addSettingTab(new VisualMermaidSettingTab(this.app, this));
   }
 
+  setupGlobalWorkspaceObserver() {
+    let scanTimer: number | null = null;
+    const scheduleScan = (delay = 100) => {
+      if (scanTimer !== null) window.clearTimeout(scanTimer);
+      scanTimer = window.setTimeout(() => {
+        scanTimer = null;
+        this.scanActiveWorkspace();
+      }, delay);
+    };
+
+    const target = this.app.workspace.containerEl || document.body;
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.addedNodes.length > 0) {
+          scheduleScan(120);
+          return;
+        }
+      }
+    });
+
+    observer.observe(target, {
+      childList: true,
+      subtree: true,
+    });
+
+    this.register(() => {
+      observer.disconnect();
+      if (scanTimer !== null) window.clearTimeout(scanTimer);
+    });
+
+    // Initial staggered scans to catch asynchronously rendered diagrams
+    scheduleScan(50);
+    scheduleScan(250);
+    scheduleScan(600);
+    scheduleScan(1200);
+
+    // Also re-scan on workspace layout and leaf changes
+    this.registerEvent(
+      this.app.workspace.on('layout-change', () => scheduleScan(100))
+    );
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', () => scheduleScan(100))
+    );
+    this.registerEvent(
+      this.app.workspace.on('editor-change', () => scheduleScan(150))
+    );
+  }
+
+  scanActiveWorkspace() {
+    const root = this.app.workspace.containerEl || document.body;
+    this.scanAndAttachToElement(root);
+  }
+
   scanActiveView() {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) return;
@@ -124,6 +160,17 @@ export default class VisualMermaidPlugin extends Plugin {
     sourcePath?: string,
     context?: MarkdownPostProcessorContext
   ) {
+    // Never scan inside our own editor modal or standalone view
+    if (
+      container.closest('.mod-mermaid-block-modal') ||
+      container.closest('.mermaid-block-modal-root') ||
+      container.closest('.mermaid-file-view-root') ||
+      container.closest('.mermaid-native-container') ||
+      container.closest('.mermaid-native-view')
+    ) {
+      return;
+    }
+
     const mermaidSelectors = [
       '.block-language-mermaid',
       '.mermaid',
@@ -153,12 +200,23 @@ export default class VisualMermaidPlugin extends Plugin {
   }
 
   findMermaidContainer(el: HTMLElement): HTMLElement | null {
-    // In Live Preview (CodeMirror 6), find the embed container
+    // 1. STRICT: Never attach button inside Visual Mermaid modals or editor views
+    if (
+      el.closest('.mod-mermaid-block-modal') ||
+      el.closest('.mermaid-block-modal-root') ||
+      el.closest('.mermaid-file-view-root') ||
+      el.closest('.mermaid-native-container') ||
+      el.closest('.mermaid-native-view')
+    ) {
+      return null;
+    }
+
+    // 2. In Live Preview (CodeMirror 6), find the embed container
     const cmBlock =
       el.closest('.cm-preview-code-block') || el.closest('.cm-embed-block');
     if (cmBlock) return cmBlock as HTMLElement;
 
-    // In Reading View, find .block-language-mermaid
+    // 3. In Reading View, find .block-language-mermaid
     const blockLang = el.classList?.contains('block-language-mermaid')
       ? el
       : el.closest('.block-language-mermaid');
@@ -177,7 +235,17 @@ export default class VisualMermaidPlugin extends Plugin {
     sourcePath?: string,
     context?: MarkdownPostProcessorContext
   ) {
-    if (!parent) return;
+    if (
+      !parent ||
+      parent.closest('.mod-mermaid-block-modal') ||
+      parent.closest('.mermaid-block-modal-root') ||
+      parent.closest('.mermaid-file-view-root') ||
+      parent.closest('.mermaid-native-container') ||
+      parent.closest('.mermaid-native-view')
+    ) {
+      return;
+    }
+
     if (parent.querySelector(':scope > .mermaid-studio-edit-btn')) return;
 
     parent.style.position = 'relative';
@@ -208,8 +276,16 @@ export default class VisualMermaidPlugin extends Plugin {
           editBtn.style.left = 'auto';
           return;
         }
+        if (editBlockBtn.textContent?.trim()) {
+          editBtn.style.right = '140px';
+          editBtn.style.left = 'auto';
+          return;
+        } else {
+          editBtn.style.right = '44px';
+          editBtn.style.left = 'auto';
+          return;
+        }
       }
-      // Fallback: 140px accommodates Obsidian's "Edit this block" button with text
       editBtn.style.right = '140px';
       editBtn.style.left = 'auto';
     };
@@ -221,8 +297,25 @@ export default class VisualMermaidPlugin extends Plugin {
       e.stopPropagation();
       e.preventDefault();
 
-      const filePath =
-        sourcePath || this.app.workspace.getActiveFile()?.path;
+      // Resolve file path: check sourcePath, then enclosing leaf, then active view
+      let filePath = sourcePath;
+      if (!filePath) {
+        const leaves = this.app.workspace.getLeavesOfType('markdown');
+        for (const leaf of leaves) {
+          if (
+            leaf.view instanceof MarkdownView &&
+            leaf.view.containerEl.contains(parent)
+          ) {
+            filePath = leaf.view.file?.path;
+            break;
+          }
+        }
+      }
+      if (!filePath) {
+        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        filePath = activeView?.file?.path || this.app.workspace.getActiveFile()?.path;
+      }
+
       if (!filePath) {
         new Notice('Could not determine note file path.');
         return;
