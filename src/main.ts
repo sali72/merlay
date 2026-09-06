@@ -259,6 +259,38 @@ export default class VisualMermaidPlugin extends Plugin {
 
     // Dynamic positioning: place cleanly to the left of Obsidian's "Edit this block"
     const adjustPosition = () => {
+      const editBlockBtn = parent.querySelector(
+        '.edit-block-button'
+      ) as HTMLElement;
+
+      if (editBlockBtn) {
+        const parentRect = parent.getBoundingClientRect();
+        const ebRect = editBlockBtn.getBoundingClientRect();
+
+        if (ebRect.width > 0 && parentRect.width > 0) {
+          const offsetRight = Math.max(
+            8,
+            Math.round(parentRect.right - ebRect.left + 6)
+          );
+          editBtn.style.right = `${offsetRight}px`;
+          editBtn.style.left = 'auto';
+
+          const topDiff = Math.round(ebRect.top - parentRect.top);
+          if (topDiff >= 0) {
+            editBtn.style.top = `${topDiff}px`;
+          }
+          return;
+        }
+
+        if (editBlockBtn.textContent?.trim()) {
+          editBtn.style.right = '136px';
+        } else {
+          editBtn.style.right = '40px';
+        }
+        editBtn.style.left = 'auto';
+        return;
+      }
+
       const parentWidth = parent.offsetWidth || 0;
       if (parentWidth > 0 && parentWidth < 340) {
         editBtn.style.left = '8px';
@@ -266,32 +298,13 @@ export default class VisualMermaidPlugin extends Plugin {
         return;
       }
 
-      const editBlockBtn = parent.querySelector(
-        '.edit-block-button'
-      ) as HTMLElement;
-      if (editBlockBtn) {
-        const ebWidth = editBlockBtn.offsetWidth;
-        if (ebWidth > 0) {
-          editBtn.style.right = `${ebWidth + 14}px`;
-          editBtn.style.left = 'auto';
-          return;
-        }
-        if (editBlockBtn.textContent?.trim()) {
-          editBtn.style.right = '140px';
-          editBtn.style.left = 'auto';
-          return;
-        } else {
-          editBtn.style.right = '44px';
-          editBtn.style.left = 'auto';
-          return;
-        }
-      }
-      editBtn.style.right = '140px';
+      editBtn.style.right = '136px';
       editBtn.style.left = 'auto';
     };
 
     adjustPosition();
     parent.addEventListener('mouseenter', adjustPosition);
+    editBtn.addEventListener('mouseenter', adjustPosition);
 
     editBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
