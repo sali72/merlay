@@ -251,13 +251,14 @@ export default class VisualMermaidPlugin extends Plugin {
     parent.style.position = 'relative';
 
     const editBtn = createEl('button', {
-      cls: 'mermaid-studio-edit-btn',
+      cls: 'mermaid-studio-edit-btn clickable-icon',
+      attr: {
+        'aria-label': 'Edit in visual mode',
+      },
     });
-    const iconSpan = editBtn.createSpan({ cls: 'mermaid-edit-btn-icon' });
-    setIcon(iconSpan, 'git-pull-request');
-    editBtn.createSpan({ text: 'Visual Mode' });
+    setIcon(editBtn, 'git-pull-request');
 
-    // Dynamic positioning: place cleanly to the left of Obsidian's "Edit this block"
+    // Dynamic positioning: match dimensions and place cleanly to the left of Obsidian's "Edit this block"
     const adjustPosition = () => {
       const editBlockBtn = parent.querySelector(
         '.edit-block-button'
@@ -268,37 +269,32 @@ export default class VisualMermaidPlugin extends Plugin {
         const ebRect = editBlockBtn.getBoundingClientRect();
 
         if (ebRect.width > 0 && parentRect.width > 0) {
+          // Exactly match Obsidian's button dimensions
+          editBtn.style.width = `${Math.round(ebRect.width)}px`;
+          editBtn.style.height = `${Math.round(ebRect.height)}px`;
+
+          // Position immediately to the left with 4px gap
           const offsetRight = Math.max(
-            8,
-            Math.round(parentRect.right - ebRect.left + 6)
+            4,
+            Math.round(parentRect.right - ebRect.left + 4)
           );
           editBtn.style.right = `${offsetRight}px`;
           editBtn.style.left = 'auto';
 
+          // Match exact vertical top offset
           const topDiff = Math.round(ebRect.top - parentRect.top);
           if (topDiff >= 0) {
             editBtn.style.top = `${topDiff}px`;
           }
           return;
         }
-
-        if (editBlockBtn.textContent?.trim()) {
-          editBtn.style.right = '136px';
-        } else {
-          editBtn.style.right = '40px';
-        }
-        editBtn.style.left = 'auto';
-        return;
       }
 
-      const parentWidth = parent.offsetWidth || 0;
-      if (parentWidth > 0 && parentWidth < 340) {
-        editBtn.style.left = '8px';
-        editBtn.style.right = 'auto';
-        return;
-      }
-
-      editBtn.style.right = '136px';
+      // Default fallback
+      editBtn.style.width = '28px';
+      editBtn.style.height = '28px';
+      editBtn.style.right = '36px';
+      editBtn.style.top = 'var(--size-2-2, 8px)';
       editBtn.style.left = 'auto';
     };
 

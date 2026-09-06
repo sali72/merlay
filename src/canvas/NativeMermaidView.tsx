@@ -602,17 +602,6 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
             <CodeIcon size={14} />
             <span>Syntax</span>
           </button>
-
-          {onClose && (
-            <button
-              type="button"
-              className="mermaid-tool-btn close-btn"
-              onClick={onClose}
-              title="Close Visual Mode"
-            >
-              <CloseIcon size={14} />
-            </button>
-          )}
         </div>
       </div>
 

@@ -37,7 +37,6 @@ export class MermaidBlockModal extends Modal {
   onOpen(): void {
     const { contentEl, modalEl } = this;
     modalEl.addClass('mod-mermaid-block-modal');
-    modalEl.querySelectorAll('.modal-close-button').forEach((b) => b.remove());
     contentEl.empty();
     contentEl.addClass('mermaid-block-modal-root');
 
