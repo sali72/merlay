@@ -1,7 +1,7 @@
 {
   "name": "obsidian-visual-mermaid",
   "version": "0.1.0",
-  "description": "Bidirectional drag-and-drop visual editor for Mermaid diagrams with zero code lock-in and seamless AI round-trip support in Obsidian.",
+  "description": "Native structural visual editor for Mermaid diagrams with 1:1 Obsidian rendering and zero code lock-in.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",

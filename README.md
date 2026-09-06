@@ -1,24 +1,43 @@
 # Visual Mermaid Studio (`obsidian-visual-mermaid`)
 
-A native, bidirectional drag-and-drop visual diagramming plugin for [Obsidian](https://obsidian.md).
+A native, structural visual diagramming plugin for [Obsidian](https://obsidian.md).
 
-Build and modify **Mermaid flowcharts visually** with zero coding friction, while generating **100% clean, standard, portable Mermaid syntax** that AI assistants and humans can collaborate on seamlessly.
+Edit and construct **Mermaid flowcharts visually** directly on top of Obsidian's native Mermaid rendering engine. No spatial fighting, no layout drift, and zero code lock-in—just **100% clean, standard, portable Mermaid syntax** that AI assistants and humans can collaborate on seamlessly.
+
+---
+
+## 💡 The Philosophy: Structural, Not Spatial
+
+Mermaid was designed as a code-first, declarative diagramming tool without arbitrary coordinate positioning. Traditional visual editors attempt to fight this by imposing foreign coordinate systems (e.g. React Flow, Elk), leading to broken round-trips and layout mismatches.
+
+**Visual Mermaid Studio** embraces Mermaid's design principles:
+- **1:1 Native Obsidian Parity:** Overlays direct-manipulation controls directly on Obsidian's exact Mermaid SVG output.
+- **Topological Operations:** Add steps, sprout downstream connections, link nodes, and adjust labels without manual pixel alignment.
+- **Ultra-Lean Footprint:** Zero heavy canvas dependencies (no Elk, Dagre, or React Flow). Bundled at just ~170 KB.
 
 ---
 
 ## ✨ Features
 
-- 🎨 **Visual Drag & Drop Canvas**: Interactive, hardware-accelerated canvas with smooth zooming, panning, and minimap powered by React Flow.
-- ⚡ **Quick-Sprout Creation**: Hover directional handles (`+`) or press `Tab` / `Enter` to sprout and connect nodes instantly with zero menu hunting.
-- 🔀 **Drag-to-Splice Connections**: Drop a new node directly onto an existing arrow (`A --> B`) to automatically splice it in (`A --> NewNode --> B`).
-- 🔷 **All 9 Mermaid Flowchart Shapes**: Rectangles `[]`, Rounded `()`, Stadium `([])`, Subroutines `[[]]`, Database Cylinders `[()]`, Circles `(())`, Diamonds `{}`, Hexagons `{{}}`, and Parallelograms `[/ /]`.
-- ✏️ **Floating Action Menus**: In-place shape morphing, color palette pickers, and line style selectors (`-->`, `-.->`, `==>`, `<-->`).
-- 🤖 **Zero Lock-In & AI Co-Pilot Ready**: Generates pure, standard Mermaid code with **no comment metadata hacks** (`%% mv: ... %%`). AI-generated diagrams parse and render with zero layout breakage.
-- 🪄 **Deterministic Auto-Tidy**: Powered by **Elk.js** graph layout engine for clean, collision-free architecture diagrams.
-- 📝 **Dual-Mode Integration**:
-  - **Standalone Files**: Open `.mmd` and `.mermaid` files directly from your Obsidian file explorer.
-  - **Inline Note Editing**: Click the floating **"✏️ Edit"** button above any ````mermaid```` block in your notes to edit visually in a synchronized split pane.
-- ⏪ **Snapshot Undo / Redo**: Full `Ctrl+Z` / `Ctrl+Shift+Z` history.
+- 🎯 **Inline "Visual Mode" Integration:**
+  - Appears seamlessly on hover adjacent to Obsidian's native `Edit this block` button on any ````mermaid```` block in Reading View or Live Preview.
+  - Matches Obsidian's native theme styling (light & dark mode compatible).
+  - Launches a focused, full-screen interactive modal with zero note distraction.
+- ⚡ **Relational Sprouting (`+ Next Step`):**
+  - Select any node to reveal the directional sprout button, automatically oriented with diagram flow (`LR` or `TD`). Spawns a downstream connected step in one click.
+- 🔗 **Drag-to-Connect Handles:**
+  - Hover any node to expose an interactive anchor handle; drag and drop onto any other step to create a new connection.
+- ✏️ **Inline Label Editing:**
+  - Double-click any node to edit its text inline.
+  - Click any arrow to open the floating Edge HUD for editing edge condition labels or deleting connections.
+- 📷 **Camera Stabilization (No Jump-Scare):**
+  - Automatically tracks and pins the active node on screen when the diagram re-renders, preventing jarring jumps during structural edits.
+- 💻 **Live Syntax Drawer:**
+  - Slide-out side drawer displaying the live Mermaid text in real-time.
+- 📂 **Standalone File Editor:**
+  - Open and edit standalone `.mmd` and `.mermaid` files directly from the Obsidian file explorer.
+- 🤖 **Zero Lock-In & AI Co-Pilot Ready:**
+  - Generates pure, pristine Mermaid syntax without comment hacks (`%% mv: ... %%`). Full bidirectional compatibility with LLMs and git.
 
 ---
 
@@ -27,35 +46,46 @@ Build and modify **Mermaid flowcharts visually** with zero coding friction, whil
 ### Via BRAT (Beta Testing)
 1. Install the [Obsidian BRAT](https://github.com/TfTHacker/obsidian42-brat) community plugin.
 2. Open BRAT settings → click **"Add Beta plugin"**.
-3. Enter this GitHub repository URL and click **"Add Plugin"**.
+3. Enter this GitHub repository URL: `https://github.com/sali72/obsidian-visual-mermaid`
+4. Click **"Add Plugin"**.
 
 ### Manual Installation
 1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com/sali72/obsidian-visual-mermaid/releases).
 2. Copy them into your vault under `.obsidian/plugins/obsidian-visual-mermaid/`.
-3. In Obsidian, go to **Settings → Community plugins** and enable **Visual Mermaid Studio**.
+3. In Obsidian, open **Settings → Community plugins** and enable **Visual Mermaid Studio**.
 
 ---
 
 ## 📖 Usage
 
-### 1. Creating a Standalone Diagram
-- Run the command: `Visual Mermaid Studio: Create New Diagram`.
-- Or create a new file named `diagram.mmd` or `architecture.mermaid` in your vault and open it.
+### 1. In-Note Diagram Editing
+1. Hover over any ````mermaid```` flowchart block in your notes (Live Preview or Reading View).
+2. Click the **"Visual Mode"** button beside "Edit this block".
+3. Add nodes, sprout next steps, connect edges, or edit labels.
+4. Changes are debounced and saved automatically into your note.
 
-### 2. Editing In-Note Diagrams
-- Hover over any rendered Mermaid block in Reading View or Live Preview.
-- Click the **"✏️ Edit"** button in the top-right corner to open the Visual Studio split pane.
+### 2. Standalone `.mmd` Files
+- Run the command: `Visual Mermaid Studio: Create New Mermaid Diagram`.
+- Or create/open any `.mmd` or `.mermaid` file in your vault.
 
-### 3. Keyboard Shortcuts
+### 3. Command Palette
+- Press `Ctrl + P` (or `Cmd + P` on macOS) and run:
+  `Visual Mermaid Studio: Open Visual Mode for Current Diagram`
 
-| Shortcut | Action |
+---
+
+## ⌨️ Interaction Guide
+
+| Interaction | Action |
 | :--- | :--- |
-| `Tab` | Sprout connected child node from selection |
-| `Enter` | Create new unconnected node |
-| `Double Click Node` | Edit label inline |
-| `Ctrl + Z` / `Cmd + Z` | Undo |
-| `Ctrl + Shift + Z` / `Cmd + Shift + Z` | Redo |
+| `Click Node` | Select node and reveal `+ Next Step` sprout HUD |
+| `Click "+ Next Step"` | Sprout a connected child step downstream |
+| `Drag from Node Handle` | Connect to another node |
+| `Double Click Node` | Edit node label inline |
+| `Click Edge` | Open Edge HUD (edit label or delete) |
 | `Delete` / `Backspace` | Delete selected node or edge |
+| `Mouse Drag Canvas` | Pan diagram |
+| `Mouse Wheel / Trackpad` | Zoom in / out |
 
 ---
 
@@ -65,10 +95,7 @@ Build and modify **Mermaid flowcharts visually** with zero coding friction, whil
 # Install dependencies
 npm install
 
-# Start development build with watch mode
-npm run dev
-
-# Production build
+# Build production bundle
 npm run build
 
 # Run unit tests
