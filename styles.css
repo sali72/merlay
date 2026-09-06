@@ -26,33 +26,31 @@ pre.language-mermaid {
 .mermaid-studio-edit-btn {
   position: absolute;
   top: 6px;
-  right: 48px; /* Positioned to the left of Obsidian's 'Edit this block' button */
-  display: inline-flex;
+  right: 52px; /* Positioned to the left of Obsidian's 'Edit this block' button */
+  display: inline-flex !important;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 3px 9px;
-  background-color: var(--background-secondary);
-  border: 1px solid var(--mermaid-border);
-  border-radius: var(--mermaid-radius);
-  color: var(--text-normal);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  opacity: 0.85;
-  transition: all 0.15s ease;
-  z-index: 25;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  background-color: var(--background-secondary, #252525) !important;
+  border: 1px solid var(--mermaid-border, rgba(255, 255, 255, 0.2)) !important;
+  border-radius: var(--mermaid-radius, 6px) !important;
+  color: var(--text-normal, #dddddd) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  opacity: 0.9 !important;
+  transition: all 0.15s ease !important;
+  z-index: 50 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+  pointer-events: all !important;
 }
 
-.block-language-mermaid:hover .mermaid-studio-edit-btn,
-.cm-embed-block:hover .mermaid-studio-edit-btn,
-.mermaid:hover .mermaid-studio-edit-btn,
-pre.language-mermaid:hover .mermaid-studio-edit-btn,
 .mermaid-studio-edit-btn:hover {
   opacity: 1 !important;
-  color: var(--text-normal);
-  background-color: var(--background-modifier-hover);
-  border-color: var(--mermaid-accent);
+  color: #ffffff !important;
+  background-color: var(--background-modifier-hover, #3a3a3a) !important;
+  border-color: var(--mermaid-accent, #7c3aed) !important;
+  transform: translateY(-1px);
 }
 
 .mermaid-edit-btn-icon {
