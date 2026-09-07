@@ -13,6 +13,10 @@ import {
   deleteEdge,
   updateNodeLabel,
   updateEdgeLabel,
+  updateEdgeType,
+  reverseEdgeDirection,
+  insertNodeOnEdge,
+  insertNodeBetween,
   setDiagramDirection,
 } from '../src/ast/mutations.ts';
 
@@ -206,5 +210,52 @@ test('AST Mutations: addNode, addChildNode, connectNodes, deleteNode, deleteEdge
   assert.ok(serialized.startsWith('flowchart TD'));
   assert.ok(serialized.includes('Initial Start'));
   assert.ok(serialized.includes('Next Step'));
+});
+
+test('AST Mutations: updateEdgeType, reverseEdgeDirection, and insertNodeOnEdge', () => {
+  const code = 'flowchart LR\n    A[Step 1] -->|condition| B[Step 2]';
+  const ast = parseMermaidFlowchart(code);
+  assert.equal(ast.edges.length, 1);
+  const edge = ast.edges[0];
+
+  // 1. updateEdgeType
+  updateEdgeType(ast, edge.id, 'dotted');
+  assert.equal(edge.arrowType, 'dotted');
+  let serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('A -.->|condition| B'));
+
+  updateEdgeType(ast, edge.id, 'thick');
+  assert.equal(edge.arrowType, 'thick');
+  serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('A ==>'));
+
+  // 2. reverseEdgeDirection
+  const newEdgeId = reverseEdgeDirection(ast, edge.id);
+  assert.ok(newEdgeId);
+  const reversedEdge = ast.edges.find((e) => e.id === newEdgeId);
+  assert.ok(reversedEdge);
+  assert.equal(reversedEdge.from, 'B');
+  assert.equal(reversedEdge.to, 'A');
+  assert.equal(reversedEdge.arrowType, 'thick');
+  assert.equal(reversedEdge.label, 'condition');
+
+  // 3. insertNodeOnEdge (inserts node between B and A)
+  const insertRes = insertNodeOnEdge(ast, newEdgeId, 'Intermediate Step');
+  assert.ok(insertRes);
+  assert.ok(ast.nodes.has(insertRes.nodeId));
+  assert.equal(ast.nodes.get(insertRes.nodeId)?.label, 'Intermediate Step');
+  assert.equal(ast.edges.length, 2);
+
+  const edge1 = ast.edges.find((e) => e.id === insertRes.edge1Id);
+  const edge2 = ast.edges.find((e) => e.id === insertRes.edge2Id);
+  assert.ok(edge1);
+  assert.ok(edge2);
+  assert.equal(edge1.from, 'B');
+  assert.equal(edge1.to, insertRes.nodeId);
+  assert.equal(edge2.from, insertRes.nodeId);
+  assert.equal(edge2.to, 'A');
+
+  serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('Intermediate Step'));
 });
 

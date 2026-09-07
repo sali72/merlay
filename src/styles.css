@@ -233,6 +233,15 @@ pre.language-mermaid {
   stroke-width: 2.5px !important;
 }
 
+.mermaid-native-svg-mount .edgeLabel {
+  cursor: pointer;
+  user-select: none;
+}
+
+.mermaid-native-svg-mount .edgeLabel:hover {
+  filter: drop-shadow(0 0 4px var(--mermaid-accent));
+}
+
 /* 5. Overlay Layer & Relational Action HUD */
 .mermaid-native-overlay {
   position: absolute;
@@ -282,7 +291,7 @@ pre.language-mermaid {
   font-size: 11px;
   font-weight: 500;
   border-radius: 14px;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--mermaid-text);
   cursor: pointer;
@@ -294,12 +303,20 @@ pre.language-mermaid {
   color: var(--text-normal);
 }
 
-.mermaid-hud-btn.sprout-btn {
+.mermaid-hud-btn.is-active {
+  background: var(--mermaid-accent-subtle);
+  color: var(--mermaid-accent);
+  border-color: var(--mermaid-accent);
+}
+
+.mermaid-hud-btn.sprout-btn,
+.mermaid-hud-btn.insert-step-btn {
   background: var(--mermaid-accent);
   color: #ffffff;
 }
 
-.mermaid-hud-btn.sprout-btn:hover {
+.mermaid-hud-btn.sprout-btn:hover,
+.mermaid-hud-btn.insert-step-btn:hover {
   background: var(--mermaid-accent-hover);
 }
 
@@ -310,6 +327,13 @@ pre.language-mermaid {
 .mermaid-hud-btn.delete-btn:hover {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
+}
+
+.mermaid-hud-divider {
+  width: 1px;
+  height: 14px;
+  background-color: var(--mermaid-border);
+  margin: 0 2px;
 }
 
 /* Connection Handle (Anchor Dot) */
@@ -337,9 +361,10 @@ pre.language-mermaid {
   padding: 4px 6px;
   background: var(--mermaid-bg-secondary);
   border: 1px solid var(--mermaid-border);
-  border-radius: 16px;
+  border-radius: 20px;
   box-shadow: var(--mermaid-shadow);
   pointer-events: all;
+  white-space: nowrap;
 }
 
 .mermaid-edge-input {
@@ -358,17 +383,18 @@ pre.language-mermaid {
   outline: none;
 }
 
-/* Inline Node Label Editor Input */
-.mermaid-inline-node-input {
+/* Inline Node & Edge Label Editor Inputs */
+.mermaid-inline-node-input,
+.mermaid-inline-edge-input {
   border: 2px solid var(--mermaid-accent);
   background: var(--mermaid-bg);
   color: var(--text-normal);
-  font-size: 13px;
+  font-size: 12px;
   text-align: center;
   border-radius: 6px;
   box-shadow: var(--mermaid-shadow);
   pointer-events: all;
-  padding: 4px 8px;
+  padding: 3px 8px;
   outline: none;
 }
 

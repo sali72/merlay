@@ -7,6 +7,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { App, MarkdownRenderer, Component, loadMermaid } from 'obsidian';
 import {
+  ArrowType,
+  MermaidEdgeDef,
   MermaidFlowchartAST,
   FlowchartDirection,
 } from '../ast/types';
@@ -18,16 +20,27 @@ import {
   connectNodes,
   deleteEdge,
   deleteNode,
+  insertNodeBetween,
+  insertNodeOnEdge,
+  reverseEdgeDirection,
   setDiagramDirection,
   updateEdgeLabel,
+  updateEdgeType,
   updateNodeLabel,
 } from '../ast/mutations';
 import {
+  ArrowBidirectionalIcon,
+  ArrowDottedIcon,
+  ArrowOpenIcon,
+  ArrowSolidIcon,
+  ArrowThickIcon,
   CloseIcon,
   CodeIcon,
   FitViewIcon,
+  InsertStepIcon,
   PencilIcon,
   PlusIcon,
+  ReverseIcon,
   TrashIcon,
 } from './icons/Icons';
 
@@ -147,6 +160,19 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     x: number;
     y: number;
     label?: string;
+    from: string;
+    to: string;
+    arrowType: ArrowType;
+  } | null>(null);
+
+  // Inline edge caption editing state
+  const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
+  const [editEdgeLabel, setEditEdgeLabel] = useState<string>('');
+  const [editingEdgePos, setEditingEdgePos] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
   } | null>(null);
 
   // Hovered node state for connection handle
@@ -238,6 +264,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   }, [selectedNodeId, getLocalRect]);
 
   const startEditingNode = (nodeId: string, nodeEl: Element) => {
+    setSelectedEdgeId(null);
+    setSelectedEdgePos(null);
+    setEditingEdgeId(null);
     const rect = getLocalRect(nodeEl);
     if (rect) {
       setEditingPos({
@@ -259,6 +288,35 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       }, editingNodeId);
       setEditingNodeId(null);
       setEditingPos(null);
+    }
+  };
+
+  const startEditingEdge = (edgeId: string, anchorEl: Element) => {
+    setSelectedNodeId(null);
+    setSelectedNodeRect(null);
+    setEditingNodeId(null);
+    const rect = getLocalRect(anchorEl);
+    if (rect) {
+      setEditingEdgePos({
+        x: rect.x + rect.width / 2 - 70,
+        y: rect.y + rect.height / 2 - 16,
+        width: Math.max(140, rect.width + 24),
+        height: Math.max(32, rect.height + 8),
+      });
+    }
+    const edgeDef = ast.edges.find((e) => e.id === edgeId);
+    setEditEdgeLabel(edgeDef?.label || '');
+    setEditingEdgeId(edgeId);
+    setSelectedEdgeId(edgeId);
+  };
+
+  const handleFinishEditingEdge = () => {
+    if (editingEdgeId) {
+      applyAstMutation((a) => {
+        updateEdgeLabel(a, editingEdgeId, editEdgeLabel);
+      });
+      setEditingEdgeId(null);
+      setEditingEdgePos(null);
     }
   };
 
@@ -332,7 +390,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
     // B. Setup Edge Listeners
     const edgeElements = mountEl.querySelectorAll(
-      '.flowchart-link, [class*="flowchart-link"], .edgePath path'
+      '.flowchart-link, [class*="flowchart-link"], .edgePath, .edgePath path, .edgeLabel, [class*="edgeLabel"]'
     );
     edgeElements.forEach((el) => {
       const htmlEl = el as SVGGraphicsElement;
@@ -341,20 +399,24 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       const classAttr =
         (htmlEl.getAttribute('class') || '') +
         ' ' +
-        (htmlEl.parentElement?.getAttribute('class') || '');
+        (htmlEl.parentElement?.getAttribute('class') || '') +
+        ' ' +
+        (htmlEl.closest('g.edgePath, g.edgeLabel')?.getAttribute('class') || '');
       const idAttr =
         (htmlEl.getAttribute('id') || '') +
         ' ' +
-        (htmlEl.parentElement?.getAttribute('id') || '');
+        (htmlEl.parentElement?.getAttribute('id') || '') +
+        ' ' +
+        (htmlEl.closest('g.edgePath, g.edgeLabel')?.getAttribute('id') || '');
 
-      let matchedEdgeId: string | null = null;
+      let matchedEdge: MermaidEdgeDef | null = null;
       for (const edge of ast.edges) {
         const hasSource =
           classAttr.includes(`LS-${edge.from}`) || idAttr.includes(`LS-${edge.from}`);
         const hasTarget =
           classAttr.includes(`LE-${edge.to}`) || idAttr.includes(`LE-${edge.to}`);
         if (hasSource && hasTarget) {
-          matchedEdgeId = edge.id;
+          matchedEdge = edge;
           break;
         }
         if (
@@ -362,28 +424,45 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           idAttr.includes(`${edge.from}-${edge.to}`) ||
           classAttr.includes(`${edge.from}-${edge.to}`)
         ) {
-          matchedEdgeId = edge.id;
+          matchedEdge = edge;
           break;
         }
       }
 
-      if (!matchedEdgeId) return;
-      const targetEdgeId = matchedEdgeId;
+      if (!matchedEdge) {
+        const labelText = htmlEl.textContent?.trim();
+        if (labelText) {
+          matchedEdge = ast.edges.find((ed) => ed.label === labelText) || null;
+        }
+      }
+
+      if (!matchedEdge) return;
+      const targetEdge = matchedEdge;
+      const targetEdgeId = targetEdge.id;
+      htmlEl.setAttribute('data-mermaid-edge-id', targetEdgeId);
 
       htmlEl.onclick = (e) => {
         e.stopPropagation();
         setSelectedEdgeId(targetEdgeId);
         setSelectedNodeId(null);
+        setEditingNodeId(null);
 
         const rect = getLocalRect(htmlEl);
-        const edgeDef = ast.edges.find((ed) => ed.id === targetEdgeId);
         if (rect) {
           setSelectedEdgePos({
             x: rect.x + rect.width / 2,
             y: rect.y + rect.height / 2,
-            label: edgeDef?.label,
+            label: targetEdge.label,
+            from: targetEdge.from,
+            to: targetEdge.to,
+            arrowType: targetEdge.arrowType,
           });
         }
+      };
+
+      htmlEl.ondblclick = (e) => {
+        e.stopPropagation();
+        startEditingEdge(targetEdgeId, htmlEl);
       };
     });
   }, [ast, getLocalRect]);
@@ -486,6 +565,47 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   };
 
   // Edge Actions
+  const handleChangeEdgeType = (newType: ArrowType) => {
+    if (!selectedEdgeId) return;
+    applyAstMutation((a) => {
+      updateEdgeType(a, selectedEdgeId, newType);
+    });
+    setSelectedEdgePos((prev) => (prev ? { ...prev, arrowType: newType } : null));
+  };
+
+  const handleReverseEdge = () => {
+    if (!selectedEdgeId) return;
+    let newEdgeId: string | null = null;
+    applyAstMutation((a) => {
+      newEdgeId = reverseEdgeDirection(a, selectedEdgeId);
+    });
+    if (newEdgeId) {
+      setSelectedEdgeId(newEdgeId);
+      setSelectedEdgePos((prev) =>
+        prev
+          ? {
+              ...prev,
+              from: prev.to,
+              to: prev.from,
+            }
+          : null
+      );
+    }
+  };
+
+  const handleInsertNodeOnEdge = (edgeId: string) => {
+    let createdNodeId: string | null = null;
+    applyAstMutation((a) => {
+      const res = insertNodeOnEdge(a, edgeId, 'New Step');
+      if (res) createdNodeId = res.nodeId;
+    });
+    setSelectedEdgeId(null);
+    setSelectedEdgePos(null);
+    if (createdNodeId) {
+      setSelectedNodeId(createdNodeId);
+    }
+  };
+
   const handleDeleteSelectedEdge = () => {
     if (!selectedEdgeId) return;
     const targetEdgeId = selectedEdgeId;
@@ -501,6 +621,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     applyAstMutation((a) => {
       updateEdgeLabel(a, selectedEdgeId, newLabel);
     });
+    setSelectedEdgePos((prev) => (prev ? { ...prev, label: newLabel } : null));
   };
 
   // Drag-to-Connect
@@ -572,10 +693,36 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       ) as HTMLElement | null;
       const targetNodeId = targetEl?.getAttribute('data-mermaid-node-id');
 
+      const targetEdgeEl = (e.target as HTMLElement).closest(
+        '[data-mermaid-edge-id]'
+      ) as HTMLElement | null;
+      const targetEdgeId = targetEdgeEl?.getAttribute('data-mermaid-edge-id');
+
       if (targetNodeId && targetNodeId !== connectingSourceId) {
+        // If already connected, dragging again between them inserts an intermediate node
+        const alreadyConnected = ast.edges.some(
+          (ed) => ed.from === connectingSourceId && ed.to === targetNodeId
+        );
+        if (alreadyConnected) {
+          let createdNodeId: string | null = null;
+          applyAstMutation((a) => {
+            const res = insertNodeBetween(a, connectingSourceId, targetNodeId, 'New Step');
+            if (res) createdNodeId = res.nodeId;
+          }, connectingSourceId);
+          if (createdNodeId) setSelectedNodeId(createdNodeId);
+        } else {
+          applyAstMutation((a) => {
+            connectNodes(a, connectingSourceId, targetNodeId);
+          }, connectingSourceId);
+        }
+      } else if (targetEdgeId) {
+        // Dropped directly on an existing arrow -> split arrow and insert node in between
+        let createdNodeId: string | null = null;
         applyAstMutation((a) => {
-          connectNodes(a, connectingSourceId, targetNodeId);
-        }, connectingSourceId);
+          const res = insertNodeOnEdge(a, targetEdgeId, 'New Step');
+          if (res) createdNodeId = res.nodeId;
+        });
+        if (createdNodeId) setSelectedNodeId(createdNodeId);
       }
 
       setConnectingSourceId(null);
@@ -612,7 +759,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       onClick={() => {
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
+        setSelectedEdgePos(null);
         setEditingNodeId(null);
+        setEditingEdgeId(null);
       }}
     >
       {/* Top Controls Bar */}
@@ -805,17 +954,100 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
               style={{
                 position: 'absolute',
                 left: selectedEdgePos.x,
-                top: selectedEdgePos.y - 10,
+                top: selectedEdgePos.y - 12,
                 transform: 'translate(-50%, -100%)',
                 zIndex: 150,
               }}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Arrow Shape Pickers */}
+              <button
+                type="button"
+                className={`mermaid-hud-btn icon-only ${
+                  selectedEdgePos.arrowType === 'arrow' ? 'is-active' : ''
+                }`}
+                onClick={() => handleChangeEdgeType('arrow')}
+                title="Solid Arrow (-->)"
+              >
+                <ArrowSolidIcon size={14} />
+              </button>
+
+              <button
+                type="button"
+                className={`mermaid-hud-btn icon-only ${
+                  selectedEdgePos.arrowType === 'dotted' ? 'is-active' : ''
+                }`}
+                onClick={() => handleChangeEdgeType('dotted')}
+                title="Dotted Arrow (-.->)"
+              >
+                <ArrowDottedIcon size={14} />
+              </button>
+
+              <button
+                type="button"
+                className={`mermaid-hud-btn icon-only ${
+                  selectedEdgePos.arrowType === 'thick' ? 'is-active' : ''
+                }`}
+                onClick={() => handleChangeEdgeType('thick')}
+                title="Thick Arrow (==>)"
+              >
+                <ArrowThickIcon size={14} />
+              </button>
+
+              <button
+                type="button"
+                className={`mermaid-hud-btn icon-only ${
+                  selectedEdgePos.arrowType === 'open' ? 'is-active' : ''
+                }`}
+                onClick={() => handleChangeEdgeType('open')}
+                title="Open Line (---)"
+              >
+                <ArrowOpenIcon size={14} />
+              </button>
+
+              <button
+                type="button"
+                className={`mermaid-hud-btn icon-only ${
+                  selectedEdgePos.arrowType === 'bidirectional' ? 'is-active' : ''
+                }`}
+                onClick={() => handleChangeEdgeType('bidirectional')}
+                title="Bidirectional Arrow (<-->)"
+              >
+                <ArrowBidirectionalIcon size={14} />
+              </button>
+
+              <div className="mermaid-hud-divider" />
+
+              {/* Reverse Direction */}
+              <button
+                type="button"
+                className="mermaid-hud-btn icon-only"
+                onClick={handleReverseEdge}
+                title="Reverse Direction (swap endpoints ⇄)"
+              >
+                <ReverseIcon size={14} />
+              </button>
+
+              {/* Insert Step Between */}
+              <button
+                type="button"
+                className="mermaid-hud-btn insert-step-btn"
+                onClick={() => handleInsertNodeOnEdge(selectedEdgeId)}
+                title="Insert Step Between (splits connection)"
+              >
+                <InsertStepIcon size={13} />
+                <span>Insert Step</span>
+              </button>
+
+              <div className="mermaid-hud-divider" />
+
+              {/* Caption Input */}
               <input
                 type="text"
                 className="mermaid-edge-input"
-                placeholder="Condition (e.g. Yes/No)..."
+                placeholder="Caption (e.g. Yes/No)..."
                 defaultValue={selectedEdgePos.label || ''}
+                key={selectedEdgeId + (selectedEdgePos.label || '')}
                 onBlur={(e) => handleUpdateEdgeLabel(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -824,6 +1056,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                   }
                 }}
               />
+
+              {/* Delete Edge */}
               <button
                 type="button"
                 className="mermaid-hud-btn delete-btn icon-only"
@@ -833,6 +1067,34 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 <TrashIcon size={13} />
               </button>
             </div>
+          )}
+
+          {/* Inline Edge Caption Editor Overlay (Double-Click) */}
+          {editingEdgeId && editingEdgePos && (
+            <input
+              autoFocus
+              className="mermaid-inline-edge-input nodrag"
+              style={{
+                position: 'absolute',
+                left: editingEdgePos.x,
+                top: editingEdgePos.y,
+                width: editingEdgePos.width,
+                height: editingEdgePos.height,
+                zIndex: 200,
+              }}
+              value={editEdgeLabel}
+              placeholder="Caption..."
+              onChange={(e) => setEditEdgeLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleFinishEditingEdge();
+                if (e.key === 'Escape') {
+                  setEditingEdgeId(null);
+                  setEditingEdgePos(null);
+                }
+              }}
+              onBlur={handleFinishEditingEdge}
+              onClick={(e) => e.stopPropagation()}
+            />
           )}
 
           {/* Inline Node Label Editor Overlay */}
