@@ -5,6 +5,7 @@ import {
   PlusIcon,
   PencilIcon,
   PaletteIcon,
+  FolderIcon,
   TrashIcon,
   ShapeIcons,
 } from '../icons/Icons';
@@ -19,7 +20,7 @@ export interface NodeActionHudProps {
   activeNodePopover: ActiveNodePopover;
   onSproutNextStep: () => void;
   onRename: () => void;
-  onTogglePopover: (popover: 'shape' | 'style') => void;
+  onTogglePopover: (popover: 'shape' | 'style' | 'subgraph') => void;
   onDelete: () => void;
 }
 
@@ -99,6 +100,18 @@ export const NodeActionHud: React.FC<NodeActionHudProps> = ({
             style={{ backgroundColor: currentStyle.fill }}
           />
         )}
+      </button>
+
+      {/* Subgraph / Group Assignment Button */}
+      <button
+        type="button"
+        className={`mermaid-hud-btn icon-only ${
+          activeNodePopover === 'subgraph' ? 'is-active' : ''
+        }`}
+        onClick={() => onTogglePopover('subgraph')}
+        title={currentNode?.subgraphId ? `Group: ${currentNode.subgraphId} (Click to change)` : 'Assign to Group / Subgraph'}
+      >
+        <FolderIcon size={14} />
       </button>
 
       <div className="mermaid-hud-divider" />

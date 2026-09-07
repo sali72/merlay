@@ -6,6 +6,8 @@ import {
   PaletteIcon,
   TrashIcon,
   ArrowSolidIcon,
+  FolderIcon,
+  UngroupIcon,
 } from '../icons/Icons';
 
 export interface MultiSelectHudProps {
@@ -16,6 +18,9 @@ export interface MultiSelectHudProps {
   activePopover: ActiveMultiPopover;
   onTogglePopover: (popover: 'shape' | 'style' | 'edgeType') => void;
   onBatchDelete: () => void;
+  onGroupSelected?: () => void;
+  onUngroupSelected?: () => void;
+  canUngroup?: boolean;
 }
 
 export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
@@ -26,6 +31,9 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
   activePopover,
   onTogglePopover,
   onBatchDelete,
+  onGroupSelected,
+  onUngroupSelected,
+  canUngroup,
 }) => {
   const totalCount = selectedNodeCount + selectedEdgeCount;
 
@@ -97,6 +105,30 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
       >
         <PaletteIcon size={14} />
       </button>
+
+      {/* Group selected nodes into new subgraph */}
+      {selectedNodeCount > 0 && onGroupSelected && (
+        <button
+          type="button"
+          className="mermaid-hud-btn icon-only"
+          onClick={onGroupSelected}
+          title="Group Selected Nodes into New Subgraph"
+        >
+          <FolderIcon size={14} />
+        </button>
+      )}
+
+      {/* Ungroup selected nodes from their current subgraphs */}
+      {selectedNodeCount > 0 && canUngroup && onUngroupSelected && (
+        <button
+          type="button"
+          className="mermaid-hud-btn icon-only"
+          onClick={onUngroupSelected}
+          title="Ungroup Selected Nodes"
+        >
+          <UngroupIcon size={14} />
+        </button>
+      )}
 
       <div className="mermaid-hud-divider" />
 

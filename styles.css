@@ -835,3 +835,152 @@ pre.language-mermaid {
   box-sizing: border-box;
   margin-left: 2px;
 }
+
+/* Tool button disabled state */
+.mermaid-tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Subgraph Action HUD */
+.mermaid-subgraph-hud {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--mermaid-bg-secondary);
+  border: 1px solid var(--mermaid-border);
+  border-radius: 20px;
+  box-shadow: var(--mermaid-shadow);
+  pointer-events: all;
+  white-space: nowrap;
+  animation: fadeInHud 0.15s ease-out;
+}
+
+.mermaid-subgraph-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: var(--mermaid-accent-subtle);
+  border: 1px solid var(--mermaid-accent);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mermaid-accent);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Subgraph Popover */
+.mermaid-subgraph-popover {
+  position: absolute;
+  width: 210px;
+  background: var(--mermaid-bg-secondary);
+  border: 1px solid var(--mermaid-border);
+  border-radius: 10px;
+  box-shadow: var(--mermaid-shadow);
+  padding: 8px;
+  z-index: 250;
+  pointer-events: all;
+  animation: mermaidFadeIn 0.15s ease-out;
+}
+
+.mermaid-popover-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mermaid-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+.mermaid-subgraph-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.mermaid-subgraph-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-normal);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.mermaid-subgraph-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.mermaid-subgraph-item.is-selected {
+  background: var(--mermaid-accent-subtle);
+  color: var(--mermaid-accent);
+  border-color: var(--mermaid-accent);
+  font-weight: 600;
+}
+
+.mermaid-subgraph-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mermaid-check-mark {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mermaid-accent);
+}
+
+.mermaid-popover-divider {
+  height: 1px;
+  background: var(--mermaid-border);
+  margin: 6px 0;
+}
+
+.mermaid-subgraph-create-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px dashed var(--mermaid-border);
+  background: transparent;
+  color: var(--mermaid-accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mermaid-subgraph-create-btn:hover {
+  background: var(--mermaid-accent-subtle);
+  border-color: var(--mermaid-accent);
+}
+
+/* Subgraph SVG Selection Highlight */
+.mermaid-cluster-selected rect {
+  stroke: var(--mermaid-accent, #7c3aed) !important;
+  stroke-width: 2.5px !important;
+  stroke-dasharray: 6 3 !important;
+  filter: drop-shadow(0 0 6px var(--mermaid-accent, #7c3aed)) !important;
+}

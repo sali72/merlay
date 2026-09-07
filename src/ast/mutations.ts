@@ -9,6 +9,7 @@ import {
   MermaidFlowchartAST,
   MermaidNodeDef,
   MermaidShapeType,
+  MermaidSubgraphDef,
 } from './types';
 
 export function generateUniqueNodeId(
@@ -613,5 +614,223 @@ export function deleteEdges(
   const initialLen = ast.edges.length;
   ast.edges = ast.edges.filter((e) => !idsSet.has(e.id));
   return initialLen - ast.edges.length;
+}
+
+/**
+ * Generate a unique subgraph ID that doesn't collide with existing subgraphs.
+ */
+export function generateUniqueSubgraphId(
+  ast: MermaidFlowchartAST,
+  base = 'sub'
+): string {
+  let counter = ast.subgraphs.size + 1;
+  let candidate = `${base}_${counter}`;
+  while (ast.subgraphs.has(candidate)) {
+    counter++;
+    candidate = `${base}_${counter}`;
+  }
+  return candidate;
+}
+
+/**
+ * Create a new subgraph in the AST, optionally grouping initial node IDs.
+ */
+export function createSubgraph(
+  ast: MermaidFlowchartAST,
+  label = 'New Group',
+  nodeIds?: Iterable<string>
+): string {
+  const subId = generateUniqueSubgraphId(ast, 'sub');
+  const validNodeIds: string[] = [];
+
+  if (nodeIds) {
+    for (const nid of nodeIds) {
+      if (ast.nodes.has(nid)) {
+        // Remove from any prior subgraph
+        const node = ast.nodes.get(nid)!;
+        if (node.subgraphId && ast.subgraphs.has(node.subgraphId)) {
+          const oldSub = ast.subgraphs.get(node.subgraphId)!;
+          oldSub.nodeIds = oldSub.nodeIds.filter((id) => id !== nid);
+        }
+        node.subgraphId = subId;
+        validNodeIds.push(nid);
+      }
+    }
+  }
+
+  const subDef: MermaidSubgraphDef = {
+    type: 'subgraph',
+    id: subId,
+    label: label.trim() || subId,
+    nodeIds: validNodeIds,
+    subgraphIds: [],
+  };
+
+  ast.subgraphs.set(subId, subDef);
+  return subId;
+}
+
+/**
+ * Delete a subgraph.
+ * If deleteInnerNodes is false (default), the subgraph is dissolved (nodes become ungrouped).
+ * If deleteInnerNodes is true, all inner nodes and their edges are deleted.
+ */
+export function deleteSubgraph(
+  ast: MermaidFlowchartAST,
+  subgraphId: string,
+  deleteInnerNodes: boolean = false
+): boolean {
+  if (!ast.subgraphs.has(subgraphId)) return false;
+
+  const sub = ast.subgraphs.get(subgraphId)!;
+  const innerNodeIds = [...sub.nodeIds];
+
+  if (deleteInnerNodes) {
+    deleteNodes(ast, innerNodeIds);
+  } else {
+    for (const nid of innerNodeIds) {
+      const node = ast.nodes.get(nid);
+      if (node && node.subgraphId === subgraphId) {
+        delete node.subgraphId;
+      }
+    }
+  }
+
+  // Remove from parent subgraphs if nested
+  for (const parentSub of ast.subgraphs.values()) {
+    parentSub.subgraphIds = parentSub.subgraphIds.filter((id) => id !== subgraphId);
+  }
+
+  // Remove style if any
+  ast.styles = ast.styles.filter((s) => s.targetId !== subgraphId);
+
+  // Remove subgraph definition
+  ast.subgraphs.delete(subgraphId);
+  return true;
+}
+
+/**
+ * Rename a subgraph label.
+ */
+export function renameSubgraph(
+  ast: MermaidFlowchartAST,
+  subgraphId: string,
+  newLabel: string
+): boolean {
+  const sub = ast.subgraphs.get(subgraphId);
+  if (!sub) return false;
+  sub.label = newLabel.trim() || subgraphId;
+  return true;
+}
+
+/**
+ * Move a single node to another subgraph, or unparent it if targetSubgraphId is null.
+ */
+export function moveNodeToSubgraph(
+  ast: MermaidFlowchartAST,
+  nodeId: string,
+  targetSubgraphId: string | null
+): boolean {
+  const node = ast.nodes.get(nodeId);
+  if (!node) return false;
+
+  if ((node.subgraphId || null) === (targetSubgraphId || null)) return true;
+
+  // Remove from old subgraph
+  if (node.subgraphId && ast.subgraphs.has(node.subgraphId)) {
+    const oldSub = ast.subgraphs.get(node.subgraphId)!;
+    oldSub.nodeIds = oldSub.nodeIds.filter((id) => id !== nodeId);
+  }
+
+  if (targetSubgraphId) {
+    if (!ast.subgraphs.has(targetSubgraphId)) return false;
+    const targetSub = ast.subgraphs.get(targetSubgraphId)!;
+    if (!targetSub.nodeIds.includes(nodeId)) {
+      targetSub.nodeIds.push(nodeId);
+    }
+    node.subgraphId = targetSubgraphId;
+  } else {
+    delete node.subgraphId;
+  }
+
+  return true;
+}
+
+/**
+ * Batch move multiple nodes to a subgraph or unparent them.
+ */
+export function moveNodesToSubgraph(
+  ast: MermaidFlowchartAST,
+  nodeIds: Iterable<string>,
+  targetSubgraphId: string | null
+): number {
+  let count = 0;
+  for (const nid of nodeIds) {
+    if (moveNodeToSubgraph(ast, nid, targetSubgraphId)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Duplicate nodes with unique IDs, cloning styles and internal edges.
+ */
+export function duplicateNodes(
+  ast: MermaidFlowchartAST,
+  nodeIds: Iterable<string>
+): { nodeIds: string[]; edgeIds: string[] } {
+  const originalIds = Array.from(nodeIds).filter((id) => ast.nodes.has(id));
+  if (originalIds.length === 0) return { nodeIds: [], edgeIds: [] };
+
+  const idMap = new Map<string, string>();
+  const newCreatedNodeIds: string[] = [];
+
+  for (const oldId of originalIds) {
+    const oldNode = ast.nodes.get(oldId)!;
+    const newId = generateUniqueNodeId(ast, oldId.replace(/_\d+$/, ''));
+    idMap.set(oldId, newId);
+
+    const clonedNode: MermaidNodeDef = {
+      type: 'node',
+      id: newId,
+      label: `${oldNode.label} (copy)`,
+      shape: oldNode.shape,
+      subgraphId: oldNode.subgraphId,
+      style: oldNode.style ? { ...oldNode.style } : undefined,
+      classes: oldNode.classes ? [...oldNode.classes] : undefined,
+    };
+
+    ast.nodes.set(newId, clonedNode);
+    newCreatedNodeIds.push(newId);
+
+    if (clonedNode.subgraphId && ast.subgraphs.has(clonedNode.subgraphId)) {
+      ast.subgraphs.get(clonedNode.subgraphId)!.nodeIds.push(newId);
+    }
+  }
+
+  // Duplicate internal edges connecting the duplicated nodes
+  const newCreatedEdgeIds: string[] = [];
+  const originalSet = new Set(originalIds);
+  for (const edge of ast.edges) {
+    if (originalSet.has(edge.from) && originalSet.has(edge.to)) {
+      const newFrom = idMap.get(edge.from)!;
+      const newTo = idMap.get(edge.to)!;
+      const newEdgeId = `e_${newFrom}_${newTo}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const newEdge: MermaidEdgeDef = {
+        type: 'edge',
+        id: newEdgeId,
+        from: newFrom,
+        to: newTo,
+        arrowType: edge.arrowType,
+        label: edge.label,
+        style: edge.style ? { ...edge.style } : undefined,
+      };
+      ast.edges.push(newEdge);
+      newCreatedEdgeIds.push(newEdgeId);
+    }
+  }
+
+  return { nodeIds: newCreatedNodeIds, edgeIds: newCreatedEdgeIds };
 }
 

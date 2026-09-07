@@ -5,6 +5,9 @@ import {
   SelectModeIcon,
   HandModeIcon,
   PlusIcon,
+  FolderIcon,
+  UndoIcon,
+  RedoIcon,
   FitViewIcon,
   CodeIcon,
 } from '../icons/Icons';
@@ -13,22 +16,32 @@ export interface CanvasTopBarProps {
   cursorMode: CursorMode;
   onSetCursorMode: (mode: CursorMode) => void;
   onAddStep: () => void;
+  onAddGroup: () => void;
   direction: FlowchartDirection;
   onToggleDirection: () => void;
   onFitView: () => void;
   showCodeDrawer: boolean;
   onToggleCodeDrawer: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
 export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
   cursorMode,
   onSetCursorMode,
   onAddStep,
+  onAddGroup,
   direction,
   onToggleDirection,
   onFitView,
   showCodeDrawer,
   onToggleCodeDrawer,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }) => {
   return (
     <div className="mermaid-native-top-bar nodrag">
@@ -57,6 +70,28 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
 
         <div className="mermaid-bar-divider" />
 
+        {/* Undo / Redo */}
+        <button
+          type="button"
+          className="mermaid-tool-btn icon-only"
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+        >
+          <UndoIcon size={14} />
+        </button>
+        <button
+          type="button"
+          className="mermaid-tool-btn icon-only"
+          onClick={onRedo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+        >
+          <RedoIcon size={14} />
+        </button>
+
+        <div className="mermaid-bar-divider" />
+
         <button
           type="button"
           className="mermaid-tool-btn mod-cta"
@@ -65,6 +100,16 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
         >
           <PlusIcon size={14} />
           <span>Add Step</span>
+        </button>
+
+        <button
+          type="button"
+          className="mermaid-tool-btn"
+          onClick={onAddGroup}
+          title="Add new Subgraph / Group"
+        >
+          <FolderIcon size={14} />
+          <span>Add Group</span>
         </button>
 
         <button

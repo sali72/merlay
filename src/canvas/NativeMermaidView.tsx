@@ -41,6 +41,12 @@ import {
   clearEdgeStyle,
   clearEdgesStyle,
   getEdgeStyle,
+  createSubgraph,
+  deleteSubgraph,
+  renameSubgraph,
+  moveNodeToSubgraph,
+  moveNodesToSubgraph,
+  duplicateNodes,
 } from '../ast/mutations';
 import { matchSvgEdgeToAst } from '../utils/edgeMatching';
 import { getDistanceToSvgPath } from '../utils/edgeGeometry';
@@ -61,6 +67,7 @@ import {
   applySelectedNodeHalos,
   applySelectedEdgeHalos,
 } from './renderer/selectionHalo';
+import { useHistory } from './useHistory';
 import { CanvasTopBar } from './components/CanvasTopBar';
 import { SelectionMarquee } from './components/SelectionMarquee';
 import { ConnectionLine } from './components/ConnectionLine';
@@ -68,6 +75,8 @@ import { ConnectionHandle } from './components/ConnectionHandle';
 import { NodeActionHud } from './components/NodeActionHud';
 import { MultiSelectHud } from './components/MultiSelectHud';
 import { EdgeActionHud } from './components/EdgeActionHud';
+import { SubgraphActionHud } from './components/SubgraphActionHud';
+import { SubgraphPopover } from './components/SubgraphPopover';
 import { ShapePopover } from './components/ShapePopover';
 import { EdgeTypePopover } from './components/EdgeTypePopover';
 import { NodeStylePopover } from './components/NodeStylePopover';
@@ -87,6 +96,19 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   const [ast, setAst] = useState<MermaidFlowchartAST>(() =>
     parseMermaidFlowchart(code)
   );
+
+  // Undo/Redo History Stack
+  const history = useHistory(code);
+
+  // Clipboard for Copy / Paste
+  const clipboardNodesRef = useRef<string[]>([]);
+
+  // Subgraph Selection & Editing State
+  const [selectedSubgraphId, setSelectedSubgraphId] = useState<string | null>(null);
+  const [selectedSubgraphRect, setSelectedSubgraphRect] = useState<Rect | null>(null);
+  const [editingSubgraphId, setEditingSubgraphId] = useState<string | null>(null);
+  const [editSubgraphLabel, setEditSubgraphLabel] = useState<string>('');
+  const [editingSubgraphPos, setEditingSubgraphPos] = useState<Rect | null>(null);
 
   // Mode & Multi-Selection state
   const [cursorMode, setCursorMode] = useState<CursorMode>('select');
@@ -210,6 +232,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         const newAst = { ...ast };
         mutator(newAst);
         const serialized = serializeMermaidFlowchart(newAst);
+        history.pushState(serialized);
         setCode(serialized);
         setAst(newAst);
         setSyntaxError(null);
@@ -218,7 +241,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         console.error('AST Mutation Error:', err);
       }
     },
-    [ast, onCodeChange]
+    [ast, history, onCodeChange]
   );
 
   // Update selected node overlay box (for single selected node)
@@ -314,6 +337,44 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     }
   };
 
+  const startEditingSubgraph = (subId: string, subEl: Element) => {
+    setSelectedNodeIds(new Set());
+    setSelectedEdgeIds(new Set());
+    setSelectedNodeRect(null);
+    setSelectedEdgePos(null);
+    setEditingNodeId(null);
+    setEditingEdgeId(null);
+    updateSelectedNodeHalo(new Set());
+    updateSelectedEdgeHalo(new Set());
+
+    const rect = getLocalRect(subEl);
+    if (rect) {
+      setEditingSubgraphPos({
+        x: rect.x + rect.width / 2 - 80,
+        y: rect.y + 10,
+        width: Math.max(160, Math.min(240, rect.width - 20)),
+        height: 30,
+      });
+    }
+    const subDef = ast.subgraphs.get(subId);
+    setEditSubgraphLabel(subDef?.label || subId);
+    setEditingSubgraphId(subId);
+    setSelectedSubgraphId(subId);
+  };
+
+  const handleFinishEditingSubgraph = () => {
+    if (editingSubgraphId) {
+      const label = editSubgraphLabel.trim();
+      if (label) {
+        applyAstMutation((a) => {
+          renameSubgraph(a, editingSubgraphId, label);
+        });
+      }
+      setEditingSubgraphId(null);
+      setEditingSubgraphPos(null);
+    }
+  };
+
   // 2. Attach interactive listeners to SVG elements
   const setupSvgInteractivity = useCallback(() => {
     const mountEl = svgMountRef.current;
@@ -359,6 +420,12 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         e.stopPropagation();
 
         const isMulti = e.shiftKey || e.metaKey || e.ctrlKey;
+        setSelectedSubgraphId(null);
+        setSelectedSubgraphRect(null);
+        mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
+          c.classList.remove('mermaid-cluster-selected')
+        );
+
         if (isMulti) {
           setSelectedNodeIds((prev) => {
             const next = new Set(prev);
@@ -494,6 +561,12 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
         const edgeId = resolvedEdge.id;
         const isMulti = e.shiftKey || e.metaKey || e.ctrlKey;
+        setSelectedSubgraphId(null);
+        setSelectedSubgraphRect(null);
+        mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
+          c.classList.remove('mermaid-cluster-selected')
+        );
+
         if (isMulti) {
           setSelectedEdgeIds((prev) => {
             const next = new Set(prev);
@@ -513,57 +586,62 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           updateSelectedNodeHalo(new Set());
           updateSelectedEdgeHalo(new Set([edgeId]));
 
-          if (worldRef.current && e.clientX && e.clientY) {
-            const worldRect = worldRef.current.getBoundingClientRect();
+          const rect = getLocalRect(resolvedPath);
+          if (rect) {
             setSelectedEdgePos({
-              x: (e.clientX - worldRect.left) / zoom,
-              y: (e.clientY - worldRect.top) / zoom,
+              x: rect.x + rect.width / 2,
+              y: rect.y + rect.height / 2,
               label: resolvedEdge.label,
               from: resolvedEdge.from,
               to: resolvedEdge.to,
               arrowType: resolvedEdge.arrowType,
             });
-          } else {
-            const rect = getLocalRect(resolvedPath);
-            if (rect) {
-              setSelectedEdgePos({
-                x: rect.x + rect.width / 2,
-                y: rect.y + rect.height / 2,
-                label: resolvedEdge.label,
-                from: resolvedEdge.from,
-                to: resolvedEdge.to,
-                arrowType: resolvedEdge.arrowType,
-              });
+          }
+        }
+      };
+
+      hitArea.onclick = (e) => {
+        onEdgeClick(e, targetEdge, hitArea);
+      };
+
+      pathEl.onclick = (e) => {
+        onEdgeClick(e, targetEdge, pathEl);
+      };
+
+      // Hover feedback on edge stroke
+      hitArea.onmouseenter = (e) => {
+        let closestPath = pathEl;
+        if (e.clientX && e.clientY && edgePaths.length > 1) {
+          let closestDist = Infinity;
+          for (const p of edgePaths) {
+            const dist = getDistanceToSvgPath(p, e.clientX, e.clientY);
+            if (dist < closestDist) {
+              closestDist = dist;
+              closestPath = p;
             }
           }
         }
+        edgePaths.forEach((p) => {
+          if (p === closestPath) {
+            p.classList.add('mermaid-edge-hovered');
+          } else {
+            p.classList.remove('mermaid-edge-hovered');
+          }
+        });
       };
 
-      const handleEdgeDblClick = (e: MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
-        startEditingEdge(targetEdgeId, pathEl);
-      };
-
-      pathEl.onclick = (e) => onEdgeClick(e, targetEdge, pathEl);
-      pathEl.ondblclick = handleEdgeDblClick;
-
-      hitArea.onclick = (e) => onEdgeClick(e, targetEdge, pathEl);
-      hitArea.ondblclick = handleEdgeDblClick;
-
-      hitArea.onmousemove = (e: MouseEvent) => {
-        if (!e.clientX || !e.clientY) return;
-        let closestPath: SVGPathElement | null = null;
-        let closestDist = 14;
-
-        for (const p of edgePaths) {
-          const dist = getDistanceToSvgPath(p, e.clientX, e.clientY);
-          if (dist < closestDist) {
-            closestDist = dist;
-            closestPath = p;
+      hitArea.onmousemove = (e) => {
+        let closestPath = pathEl;
+        if (e.clientX && e.clientY && edgePaths.length > 1) {
+          let closestDist = Infinity;
+          for (const p of edgePaths) {
+            const dist = getDistanceToSvgPath(p, e.clientX, e.clientY);
+            if (dist < closestDist) {
+              closestDist = dist;
+              closestPath = p;
+            }
           }
         }
-
         edgePaths.forEach((p) => {
           if (p === closestPath) {
             p.classList.add('mermaid-edge-hovered');
@@ -599,6 +677,12 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         const mouseEv = e as unknown as MouseEvent;
         mouseEv.stopPropagation();
         mouseEv.preventDefault();
+
+        setSelectedSubgraphId(null);
+        setSelectedSubgraphRect(null);
+        mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
+          c.classList.remove('mermaid-cluster-selected')
+        );
 
         const isMulti = mouseEv.shiftKey || mouseEv.metaKey || mouseEv.ctrlKey;
         if (isMulti) {
@@ -640,6 +724,81 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         startEditingEdge(targetEdgeId, htmlEl);
       };
     });
+
+    // D. Setup Subgraph Clusters
+    const clusterElements = mountEl.querySelectorAll('.cluster, [class*="cluster"]');
+    clusterElements.forEach((el) => {
+      const htmlEl = el as SVGGraphicsElement;
+      htmlEl.style.cursor = 'pointer';
+
+      const idAttr = htmlEl.getAttribute('id') || '';
+      let matchedSubId: string | null = null;
+
+      for (const subId of ast.subgraphs.keys()) {
+        if (
+          idAttr.includes(`flowchart-${subId}-`) ||
+          idAttr === `flowchart-${subId}` ||
+          idAttr.endsWith(`-${subId}`) ||
+          idAttr === subId
+        ) {
+          matchedSubId = subId;
+          break;
+        }
+      }
+
+      if (!matchedSubId) {
+        const labelText = htmlEl.querySelector('.label, text, .cluster-label')?.textContent?.trim();
+        for (const [subId, subDef] of ast.subgraphs.entries()) {
+          if (subDef.label === labelText || subId === labelText) {
+            matchedSubId = subId;
+            break;
+          }
+        }
+      }
+
+      if (!matchedSubId) {
+        for (const [subId, subDef] of ast.subgraphs.entries()) {
+          for (const nid of subDef.nodeIds) {
+            if (htmlEl.querySelector(`[data-mermaid-node-id="${nid}"]`)) {
+              matchedSubId = subId;
+              break;
+            }
+          }
+          if (matchedSubId) break;
+        }
+      }
+
+      if (!matchedSubId) return;
+      const targetSubId = matchedSubId;
+      htmlEl.setAttribute('data-mermaid-subgraph-id', targetSubId);
+
+      htmlEl.onclick = (e) => {
+        e.stopPropagation();
+        setSelectedSubgraphId(targetSubId);
+        setSelectedNodeIds(new Set());
+        setSelectedEdgeIds(new Set());
+        setSelectedNodeRect(null);
+        setSelectedEdgePos(null);
+        setActiveNodePopover(null);
+        setActiveEdgePopover(null);
+        setActiveMultiPopover(null);
+        updateSelectedNodeHalo(new Set());
+        updateSelectedEdgeHalo(new Set());
+
+        mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
+          c.classList.remove('mermaid-cluster-selected')
+        );
+        htmlEl.classList.add('mermaid-cluster-selected');
+
+        const rect = getLocalRect(htmlEl);
+        if (rect) setSelectedSubgraphRect(rect);
+      };
+
+      htmlEl.ondblclick = (e) => {
+        e.stopPropagation();
+        startEditingSubgraph(targetSubId, htmlEl);
+      };
+    });
   }, [
     ast,
     zoom,
@@ -648,6 +807,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     updateSelectedEdgeHalo,
     setSelectedNodeId,
     setSelectedEdgeId,
+    setSelectedSubgraphId,
+    setSelectedSubgraphRect,
+    startEditingSubgraph,
   ]);
 
   // 3. Camera Stabilization: Lock viewport around active element across re-renders
@@ -696,7 +858,155 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     updateSelectedEdgeHalo,
   ]);
 
-  // Global Keyboard Shortcuts (V for Select, H for Hand, Space for pan, Delete/Backspace, Escape)
+  // Action Handlers
+  const handleBatchDeleteSelected = useCallback(() => {
+    if (selectedSubgraphId) {
+      applyAstMutation((a) => {
+        deleteSubgraph(a, selectedSubgraphId, false);
+      });
+      setSelectedSubgraphId(null);
+      setSelectedSubgraphRect(null);
+      return;
+    }
+
+    if (selectedNodeIds.size === 0 && selectedEdgeIds.size === 0) return;
+    const nodesToDelete = Array.from(selectedNodeIds);
+    const edgesToDelete = Array.from(selectedEdgeIds);
+
+    setSelectedNodeIds(new Set());
+    setSelectedEdgeIds(new Set());
+    setSelectedNodeRect(null);
+    setSelectedEdgePos(null);
+    setActiveNodePopover(null);
+    setActiveEdgePopover(null);
+    setActiveMultiPopover(null);
+    updateSelectedNodeHalo(new Set());
+    updateSelectedEdgeHalo(new Set());
+
+    applyAstMutation((a) => {
+      if (nodesToDelete.length > 0) {
+        deleteNodes(a, nodesToDelete);
+      }
+      if (edgesToDelete.length > 0) {
+        deleteEdges(a, edgesToDelete);
+      }
+    });
+  }, [
+    selectedSubgraphId,
+    selectedNodeIds,
+    selectedEdgeIds,
+    updateSelectedNodeHalo,
+    updateSelectedEdgeHalo,
+    applyAstMutation,
+  ]);
+
+  const handleUndo = useCallback(() => {
+    const prevCode = history.undo();
+    if (prevCode !== null) {
+      try {
+        const parsed = parseMermaidFlowchart(prevCode);
+        setCode(prevCode);
+        setAst(parsed);
+        setSyntaxError(null);
+        onCodeChange(prevCode);
+        setSelectedNodeIds(new Set());
+        setSelectedEdgeIds(new Set());
+        setSelectedSubgraphId(null);
+        setSelectedNodeRect(null);
+        setSelectedEdgePos(null);
+        setSelectedSubgraphRect(null);
+        setActiveNodePopover(null);
+        setActiveEdgePopover(null);
+        setActiveMultiPopover(null);
+        setEditingNodeId(null);
+        setEditingEdgeId(null);
+        setEditingSubgraphId(null);
+      } catch (err) {
+        console.error('Failed to parse undo state:', err);
+      }
+    }
+  }, [history, onCodeChange]);
+
+  const handleRedo = useCallback(() => {
+    const nextCode = history.redo();
+    if (nextCode !== null) {
+      try {
+        const parsed = parseMermaidFlowchart(nextCode);
+        setCode(nextCode);
+        setAst(parsed);
+        setSyntaxError(null);
+        onCodeChange(nextCode);
+        setSelectedNodeIds(new Set());
+        setSelectedEdgeIds(new Set());
+        setSelectedSubgraphId(null);
+        setSelectedNodeRect(null);
+        setSelectedEdgePos(null);
+        setSelectedSubgraphRect(null);
+        setActiveNodePopover(null);
+        setActiveEdgePopover(null);
+        setActiveMultiPopover(null);
+        setEditingNodeId(null);
+        setEditingEdgeId(null);
+        setEditingSubgraphId(null);
+      } catch (err) {
+        console.error('Failed to parse redo state:', err);
+      }
+    }
+  }, [history, onCodeChange]);
+
+  const handleSelectAll = useCallback(() => {
+    const allNodeIds = new Set(ast.nodes.keys());
+    const allEdgeIds = new Set(ast.edges.map((e) => e.id));
+    setSelectedNodeIds(allNodeIds);
+    setSelectedEdgeIds(allEdgeIds);
+    setSelectedSubgraphId(null);
+    setSelectedNodeRect(null);
+    setSelectedEdgePos(null);
+    setSelectedSubgraphRect(null);
+    updateSelectedNodeHalo(allNodeIds);
+    updateSelectedEdgeHalo(allEdgeIds);
+  }, [ast, updateSelectedNodeHalo, updateSelectedEdgeHalo]);
+
+  const handleDuplicateSelected = useCallback(() => {
+    if (selectedNodeIds.size === 0) return;
+    applyAstMutation((currentAst) => {
+      const result = duplicateNodes(currentAst, selectedNodeIds);
+      if (result.nodeIds.length > 0) {
+        const newSet = new Set(result.nodeIds);
+        setSelectedNodeIds(newSet);
+        setSelectedEdgeIds(new Set(result.edgeIds));
+        updateSelectedNodeHalo(newSet);
+      }
+    });
+  }, [selectedNodeIds, applyAstMutation, updateSelectedNodeHalo]);
+
+  const handleCopySelected = useCallback(() => {
+    if (selectedNodeIds.size > 0) {
+      clipboardNodesRef.current = Array.from(selectedNodeIds);
+    }
+  }, [selectedNodeIds]);
+
+  const handlePasteSelected = useCallback(() => {
+    if (clipboardNodesRef.current.length === 0) return;
+    applyAstMutation((currentAst) => {
+      const result = duplicateNodes(currentAst, clipboardNodesRef.current);
+      if (result.nodeIds.length > 0) {
+        const newSet = new Set(result.nodeIds);
+        setSelectedNodeIds(newSet);
+        setSelectedEdgeIds(new Set(result.edgeIds));
+        updateSelectedNodeHalo(newSet);
+      }
+    });
+  }, [applyAstMutation, updateSelectedNodeHalo]);
+
+  const handleAddGroup = useCallback(() => {
+    applyAstMutation((currentAst) => {
+      const newNodeId = addNode(currentAst, 'Step 1');
+      createSubgraph(currentAst, 'New Group', [newNodeId]);
+    });
+  }, [applyAstMutation]);
+
+  // Global Keyboard Shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const isInputActive =
@@ -711,15 +1021,65 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       }
 
       // Hotkey V: Select Mode
-      if ((e.key === 'v' || e.key === 'V') && !isInputActive) {
+      if ((e.key === 'v' || e.key === 'V') && !isInputActive && !e.ctrlKey && !e.metaKey) {
         setCursorMode('select');
         return;
       }
 
       // Hotkey H: Hand Mode
-      if ((e.key === 'h' || e.key === 'H') && !isInputActive) {
+      if ((e.key === 'h' || e.key === 'H') && !isInputActive && !e.ctrlKey && !e.metaKey) {
         setCursorMode('hand');
         return;
+      }
+
+      // Hotkey Ctrl+Z (Undo)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && !isInputActive) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Hotkey Ctrl+Shift+Z or Ctrl+Y (Redo)
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        ((e.shiftKey && (e.key === 'z' || e.key === 'Z')) || e.key === 'y' || e.key === 'Y') &&
+        !isInputActive
+      ) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Hotkey Ctrl+A (Select All)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && !isInputActive) {
+        e.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      // Hotkey Ctrl+D (Duplicate Selected)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D') && !isInputActive) {
+        e.preventDefault();
+        handleDuplicateSelected();
+        return;
+      }
+
+      // Hotkey Ctrl+C (Copy Selected)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && !isInputActive) {
+        if (selectedNodeIds.size > 0) {
+          e.preventDefault();
+          handleCopySelected();
+          return;
+        }
+      }
+
+      // Hotkey Ctrl+V (Paste Selected)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V') && !isInputActive) {
+        if (clipboardNodesRef.current.length > 0) {
+          e.preventDefault();
+          handlePasteSelected();
+          return;
+        }
       }
 
       // Escape: Dismiss popovers and clear selection
@@ -728,20 +1088,27 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           setActiveNodePopover(null);
           setActiveEdgePopover(null);
           setActiveMultiPopover(null);
-        } else if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0) {
+        } else if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0 || selectedSubgraphId) {
           setSelectedNodeIds(new Set());
           setSelectedEdgeIds(new Set());
+          setSelectedSubgraphId(null);
           setSelectedNodeRect(null);
           setSelectedEdgePos(null);
+          setSelectedSubgraphRect(null);
           updateSelectedNodeHalo(new Set());
           updateSelectedEdgeHalo(new Set());
+          if (svgMountRef.current) {
+            svgMountRef.current
+              .querySelectorAll('.mermaid-cluster-selected')
+              .forEach((c) => c.classList.remove('mermaid-cluster-selected'));
+          }
         }
         return;
       }
 
       // Delete / Backspace: Delete selected elements
       if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputActive) {
-        if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0) {
+        if (selectedSubgraphId || selectedNodeIds.size > 0 || selectedEdgeIds.size > 0) {
           e.preventDefault();
           handleBatchDeleteSelected();
         }
@@ -766,8 +1133,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     activeMultiPopover,
     selectedNodeIds,
     selectedEdgeIds,
+    selectedSubgraphId,
     updateSelectedNodeHalo,
     updateSelectedEdgeHalo,
+    handleBatchDeleteSelected,
+    handleUndo,
+    handleRedo,
+    handleSelectAll,
+    handleDuplicateSelected,
+    handleCopySelected,
+    handlePasteSelected,
   ]);
 
   // 1. Render Obsidian's native Mermaid SVG with direct engine and double buffering
@@ -829,31 +1204,6 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     updateSelectedNodeHalo(new Set());
     applyAstMutation((a) => {
       deleteNode(a, targetId);
-    });
-  };
-
-  const handleBatchDeleteSelected = () => {
-    if (selectedNodeIds.size === 0 && selectedEdgeIds.size === 0) return;
-    const nodesToDelete = Array.from(selectedNodeIds);
-    const edgesToDelete = Array.from(selectedEdgeIds);
-
-    setSelectedNodeIds(new Set());
-    setSelectedEdgeIds(new Set());
-    setSelectedNodeRect(null);
-    setSelectedEdgePos(null);
-    setActiveNodePopover(null);
-    setActiveEdgePopover(null);
-    setActiveMultiPopover(null);
-    updateSelectedNodeHalo(new Set());
-    updateSelectedEdgeHalo(new Set());
-
-    applyAstMutation((a) => {
-      if (nodesToDelete.length > 0) {
-        deleteNodes(a, nodesToDelete);
-      }
-      if (edgesToDelete.length > 0) {
-        deleteEdges(a, edgesToDelete);
-      }
     });
   };
 
@@ -1469,15 +1819,23 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         if (isMarqueeActiveRef.current) return;
         setSelectedNodeIds(new Set());
         setSelectedEdgeIds(new Set());
+        setSelectedSubgraphId(null);
         setSelectedNodeRect(null);
         setSelectedEdgePos(null);
+        setSelectedSubgraphRect(null);
         setEditingNodeId(null);
         setEditingEdgeId(null);
+        setEditingSubgraphId(null);
         setActiveNodePopover(null);
         setActiveEdgePopover(null);
         setActiveMultiPopover(null);
         updateSelectedNodeHalo(new Set());
         updateSelectedEdgeHalo(new Set());
+        if (svgMountRef.current) {
+          svgMountRef.current
+            .querySelectorAll('.mermaid-cluster-selected')
+            .forEach((c) => c.classList.remove('mermaid-cluster-selected'));
+        }
       }}
     >
       {/* Top Controls Bar */}
@@ -1485,11 +1843,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         cursorMode={cursorMode}
         onSetCursorMode={setCursorMode}
         onAddStep={handleAddStandaloneStep}
+        onAddGroup={handleAddGroup}
         direction={ast.direction}
         onToggleDirection={handleToggleDirection}
         onFitView={handleFitView}
         showCodeDrawer={showCodeDrawer}
         onToggleCodeDrawer={() => setShowCodeDrawer(!showCodeDrawer)}
+        canUndo={history.canUndo}
+        canRedo={history.canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       {/* Interactive World Canvas */}
@@ -1533,6 +1896,19 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 setActiveMultiPopover((prev) => (prev === popover ? null : popover))
               }
               onBatchDelete={handleBatchDeleteSelected}
+              onGroupSelected={() => {
+                applyAstMutation((currentAst) => {
+                  createSubgraph(currentAst, 'New Group', selectedNodeIds);
+                });
+              }}
+              canUngroup={Array.from(selectedNodeIds).some(
+                (nid) => !!ast.nodes.get(nid)?.subgraphId
+              )}
+              onUngroupSelected={() => {
+                applyAstMutation((currentAst) => {
+                  moveNodesToSubgraph(currentAst, selectedNodeIds, null);
+                });
+              }}
             />
           )}
 
@@ -1675,6 +2051,95 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 }
               }}
               onBlur={handleFinishEditingEdge}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+
+          {/* Subgraph Floating Action HUD */}
+          {selectedSubgraphRect && selectedSubgraphId && ast.subgraphs.has(selectedSubgraphId) && !isMultiSelect && (
+            <SubgraphActionHud
+              subgraph={ast.subgraphs.get(selectedSubgraphId)!}
+              centerX={selectedSubgraphRect.x + selectedSubgraphRect.width / 2}
+              topY={selectedSubgraphRect.y}
+              onRename={() => {
+                const subEl = svgMountRef.current?.querySelector(
+                  `[data-mermaid-subgraph-id="${selectedSubgraphId}"]`
+                );
+                if (subEl) {
+                  startEditingSubgraph(selectedSubgraphId, subEl);
+                }
+              }}
+              onDissolve={() => {
+                applyAstMutation((currentAst) => {
+                  deleteSubgraph(currentAst, selectedSubgraphId, false);
+                });
+                setSelectedSubgraphId(null);
+                setSelectedSubgraphRect(null);
+              }}
+              onDeleteAll={() => {
+                applyAstMutation((currentAst) => {
+                  deleteSubgraph(currentAst, selectedSubgraphId, true);
+                });
+                setSelectedSubgraphId(null);
+                setSelectedSubgraphRect(null);
+              }}
+            />
+          )}
+
+          {/* Subgraph Membership Popover */}
+          {activeNodePopover === 'subgraph' && popoverPos && selectedNodeId && (
+            <div
+              style={{
+                position: 'absolute',
+                left: popoverPos.left,
+                top: popoverPos.top,
+                transform: popoverPos.transform,
+                zIndex: 200,
+              }}
+            >
+              <SubgraphPopover
+                currentSubgraphId={ast.nodes.get(selectedNodeId)?.subgraphId}
+                subgraphs={Array.from(ast.subgraphs.values())}
+                onSelectSubgraph={(subId) => {
+                  applyAstMutation((currentAst) => {
+                    moveNodeToSubgraph(currentAst, selectedNodeId, subId);
+                  }, selectedNodeId);
+                  setActiveNodePopover(null);
+                }}
+                onCreateNewGroup={() => {
+                  applyAstMutation((currentAst) => {
+                    createSubgraph(currentAst, 'New Group', [selectedNodeId]);
+                  }, selectedNodeId);
+                  setActiveNodePopover(null);
+                }}
+                onClose={() => setActiveNodePopover(null)}
+              />
+            </div>
+          )}
+
+          {/* Inline Subgraph Label Editor Overlay */}
+          {editingSubgraphId && editingSubgraphPos && (
+            <input
+              autoFocus
+              className="mermaid-inline-node-input nodrag"
+              style={{
+                position: 'absolute',
+                left: editingSubgraphPos.x,
+                top: editingSubgraphPos.y,
+                width: editingSubgraphPos.width,
+                height: editingSubgraphPos.height,
+                zIndex: 220,
+              }}
+              value={editSubgraphLabel}
+              onChange={(e) => setEditSubgraphLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleFinishEditingSubgraph();
+                if (e.key === 'Escape') {
+                  setEditingSubgraphId(null);
+                  setEditingSubgraphPos(null);
+                }
+              }}
+              onBlur={handleFinishEditingSubgraph}
               onClick={(e) => e.stopPropagation()}
             />
           )}
