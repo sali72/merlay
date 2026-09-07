@@ -178,17 +178,17 @@ export function updateNodeStyle(
   // Update on node
   node.style = cleanStyles;
 
-  // Update or insert in ast.styles
-  const existingIndex = ast.styles.findIndex((s) => s.targetId === nodeId);
-  if (existingIndex !== -1) {
-    ast.styles[existingIndex].styles = { ...cleanStyles };
-  } else {
-    ast.styles.push({
-      type: 'style',
-      targetId: nodeId,
-      styles: { ...cleanStyles },
-    });
-  }
+  // Detach any previous class bindings so the new explicit style takes full effect
+  // and is not overridden or conflicted with by external Mermaid class CSS
+  node.classes = undefined;
+
+  // Remove ALL existing entries for nodeId in ast.styles, and add the single new clean entry
+  ast.styles = ast.styles.filter((s) => s.targetId !== nodeId);
+  ast.styles.push({
+    type: 'style',
+    targetId: nodeId,
+    styles: { ...cleanStyles },
+  });
 
   return true;
 }
@@ -202,6 +202,9 @@ export function clearNodeStyle(
   const node = ast.nodes.get(nodeId)!;
   delete node.style;
 
+  // Clear class bindings so the node is completely reset to diagram default
+  node.classes = undefined;
+
   ast.styles = ast.styles.filter((s) => s.targetId !== nodeId);
   return true;
 }
@@ -211,10 +214,34 @@ export function getNodeStyle(
   nodeId: string
 ): Record<string, string> | undefined {
   const node = ast.nodes.get(nodeId);
-  if (node?.style) return node.style;
+  if (node?.style && Object.keys(node.style).length > 0) return node.style;
 
   const styleDef = ast.styles.find((s) => s.targetId === nodeId);
-  return styleDef?.styles;
+  if (styleDef?.styles && Object.keys(styleDef.styles).length > 0) {
+    return styleDef.styles;
+  }
+
+  // Fallback to styles from classes assigned to the node
+  if (node?.classes && node.classes.length > 0) {
+    const combined: Record<string, string> = {};
+    for (const cls of node.classes) {
+      const cdef = ast.classDefs.get(cls);
+      if (cdef?.styles) {
+        Object.assign(combined, cdef.styles);
+      }
+    }
+    if (Object.keys(combined).length > 0) {
+      return combined;
+    }
+  }
+
+  // Fallback to default classDef if defined
+  const defaultClass = ast.classDefs.get('default');
+  if (defaultClass?.styles && Object.keys(defaultClass.styles).length > 0) {
+    return defaultClass.styles;
+  }
+
+  return undefined;
 }
 
 export function updateEdgeLabel(

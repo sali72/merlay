@@ -868,7 +868,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
             if (value) {
               updated[property] = value;
             } else {
-              delete current[property];
+              delete updated[property];
             }
             updateEdgeStyle(a, eid, updated);
           }

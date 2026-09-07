@@ -66,14 +66,40 @@ export function serializeMermaidFlowchart(ast: MermaidFlowchartAST): string {
     }
   }
 
+  // 5b. Class assignments
+  const classToNodes = new Map<string, string[]>();
+  for (const node of ast.nodes.values()) {
+    if (node.classes && node.classes.length > 0) {
+      for (const cls of node.classes) {
+        if (!classToNodes.has(cls)) {
+          classToNodes.set(cls, []);
+        }
+        classToNodes.get(cls)!.push(node.id);
+      }
+    }
+  }
+
+  if (classToNodes.size > 0) {
+    lines.push('');
+    for (const [cls, nodeIds] of classToNodes.entries()) {
+      lines.push(`    class ${nodeIds.join(',')} ${cls}`);
+    }
+  }
+
   // 6. Style statements
   if (ast.styles.length > 0) {
-    lines.push('');
+    const mergedStyles = new Map<string, Record<string, string>>();
     for (const style of ast.styles) {
-      const stylePairs = Object.entries(style.styles)
+      const current = mergedStyles.get(style.targetId) || {};
+      mergedStyles.set(style.targetId, { ...current, ...style.styles });
+    }
+
+    lines.push('');
+    for (const [targetId, styles] of mergedStyles.entries()) {
+      const stylePairs = Object.entries(styles)
         .map(([k, v]) => `${k}:${v}`)
         .join(',');
-      lines.push(`    style ${style.targetId} ${stylePairs}`);
+      lines.push(`    style ${targetId} ${stylePairs}`);
     }
   }
 

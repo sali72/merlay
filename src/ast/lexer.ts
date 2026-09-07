@@ -16,6 +16,7 @@ export type TokenType =
   | 'LINK_STYLE'      // linkStyle
   | 'CLASS_DEF'       // classDef
   | 'CLASS'           // class
+  | 'CLASS_ASSIGN'    // :::
   | 'COMMENT'         // %%
   | 'NEWLINE'         // \n
   | 'EOF';
@@ -108,6 +109,18 @@ export function tokenize(input: string): Token[] {
         continue;
       }
 
+      // Check for class attachment shorthand :::
+      if (rawLine.startsWith(':::', pos)) {
+        tokens.push({
+          type: 'CLASS_ASSIGN',
+          value: ':::',
+          line: lineIdx + 1,
+          col: pos + 1,
+        });
+        pos += 3;
+        continue;
+      }
+
       // Check for string in quotes e.g. "My Node"
       if (char === '"') {
         const endQuote = rawLine.indexOf('"', pos + 1);
@@ -129,7 +142,8 @@ export function tokenize(input: string): Token[] {
       while (
         wordEnd < rawLine.length &&
         !/[\s\[\]\(\)\{\}\|\%\">]/.test(rawLine[wordEnd]) &&
-        !matchArrow(rawLine, wordEnd)
+        !matchArrow(rawLine, wordEnd) &&
+        !rawLine.startsWith(':::', wordEnd)
       ) {
         wordEnd++;
       }
