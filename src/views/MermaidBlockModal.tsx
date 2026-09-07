@@ -2,6 +2,7 @@ import { Modal, App, Notice, TFile } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { NativeMermaidView } from '../canvas/NativeMermaidView';
+import { replaceMermaidBlock } from '../utils/markdownBlock';
 import type VisualMermaidPlugin from '../main';
 
 export interface SectionInfo {
@@ -58,6 +59,9 @@ export class MermaidBlockModal extends Modal {
     if (this.saveTimeout !== null) {
       window.clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
+    }
+
+    if (this.latestCode !== this.initialCode) {
       this.saveToNote();
     }
 
@@ -83,40 +87,19 @@ export class MermaidBlockModal extends Modal {
 
     try {
       await this.app.vault.process(file, (data) => {
-        const lines = data.split('\n');
-        const startLine = this.sectionInfo.lineStart;
-        const endLine = this.sectionInfo.lineEnd;
+        const res = replaceMermaidBlock(
+          data,
+          this.latestCode,
+          this.sectionInfo.lineStart,
+          this.initialCode,
+          this.latestCode
+        );
 
-        // Verify delimiter at startLine and endLine
-        if (
-          lines[startLine]?.trim().startsWith('```mermaid') &&
-          lines[endLine]?.trim().startsWith('```')
-        ) {
-          const before = lines.slice(0, startLine + 1);
-          const after = lines.slice(endLine);
-          const codeLines = this.latestCode.trim().split('\n');
-          return [...before, ...codeLines, ...after].join('\n');
-        }
-
-        // Fallback: search for exact initial code block substring
-        const rawInitial = this.initialCode.trim();
-        const matchIndex = data.indexOf(rawInitial);
-        if (matchIndex !== -1) {
-          const result = (
-            data.substring(0, matchIndex) +
-            this.latestCode.trim() +
-            data.substring(matchIndex + rawInitial.length)
-          );
-          this.initialCode = this.latestCode.trim();
-          return result;
-        }
-
-        // Last fallback using index boundaries
-        const before = lines.slice(0, startLine + 1);
-        const after = lines.slice(endLine);
-        const codeLines = this.latestCode.trim().split('\n');
+        this.sectionInfo.lineStart = res.newStartLine;
+        this.sectionInfo.lineEnd = res.newEndLine;
         this.initialCode = this.latestCode.trim();
-        return [...before, ...codeLines, ...after].join('\n');
+
+        return res.updatedText;
       });
     } catch (e: any) {
       console.error('Error saving mermaid block to note:', e);
