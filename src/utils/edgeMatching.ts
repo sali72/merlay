@@ -17,6 +17,10 @@ export interface SvgElementMetadata {
  * - Direct textContent matching against edge labels
  * - Positional sequence index fallback
  */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function matchSvgEdgeToAst(
   el: SvgElementMetadata,
   edges: MermaidEdgeDef[],
@@ -32,12 +36,12 @@ export function matchSvgEdgeToAst(
     for (const edge of edges) {
       const normFrom = edge.from.replace(/[-_]/g, '_');
       const normTo = edge.to.replace(/[-_]/g, '_');
+      const pat = `(^|_)L_${escapeRegex(normFrom)}_${escapeRegex(normTo)}(_|$)`;
       if (
-        normId.includes(`L_${normFrom}_${normTo}`) ||
+        new RegExp(pat).test(normId) ||
         normId.includes(`_${normFrom}_${normTo}_`) ||
         normId.endsWith(`_${normFrom}_${normTo}`) ||
-        normId === `${normFrom}_${normTo}` ||
-        normId.includes(`${normFrom}_${normTo}`)
+        normId === `${normFrom}_${normTo}`
       ) {
         return edge;
       }
@@ -50,10 +54,9 @@ export function matchSvgEdgeToAst(
     for (const edge of edges) {
       const normFrom = edge.from.replace(/[-_]/g, '_');
       const normTo = edge.to.replace(/[-_]/g, '_');
-      if (
-        normClass.includes(`LS_${normFrom}`) &&
-        normClass.includes(`LE_${normTo}`)
-      ) {
+      const hasFrom = new RegExp(`(^|\\s)LS_${escapeRegex(normFrom)}(\\s|$)`).test(normClass);
+      const hasTo = new RegExp(`(^|\\s)LE_${escapeRegex(normTo)}(\\s|$)`).test(normClass);
+      if (hasFrom && hasTo) {
         return edge;
       }
       if (normClass.includes(`_${normFrom}_${normTo}_`)) {

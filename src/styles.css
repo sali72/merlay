@@ -290,8 +290,6 @@ pre.language-mermaid {
   transition: stroke 0.15s ease, stroke-width 0.15s ease;
 }
 
-.mermaid-native-svg-mount .flowchart-link:hover,
-.mermaid-native-svg-mount .edgePath:hover path,
 .mermaid-native-svg-mount path.mermaid-edge-hovered {
   stroke: var(--mermaid-accent) !important;
   stroke-width: 3px !important;

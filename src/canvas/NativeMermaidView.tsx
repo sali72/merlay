@@ -43,6 +43,7 @@ import {
   getEdgeStyle,
 } from '../ast/mutations';
 import { matchSvgEdgeToAst } from '../utils/edgeMatching';
+import { getDistanceToSvgPath } from '../utils/edgeGeometry';
 import {
   CursorMode,
   Rect,
@@ -399,11 +400,23 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       el: Element,
       fallbackIdx?: number
     ): MermaidEdgeDef | null => {
+      const edgeGroup = el.closest(
+        '.edgePath, .edgeLabel, [class*="edgePath"], [class*="edgeLabel"]'
+      );
+      const id = el.getAttribute('id') || edgeGroup?.getAttribute('id');
+      const className = [
+        el.getAttribute('class') || '',
+        edgeGroup?.getAttribute('class') || '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const textContent = (el.textContent || edgeGroup?.textContent || '').trim();
+
       return matchSvgEdgeToAst(
         {
-          id: el.getAttribute('id'),
-          className: el.getAttribute('class'),
-          textContent: el.textContent,
+          id,
+          className,
+          textContent,
         },
         ast.edges,
         fallbackIdx
@@ -423,7 +436,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         pathEl.tagName.toLowerCase() === 'path' &&
         pathEl.getAttribute('d') &&
         !pathEl.classList.contains('mermaid-edge-hit-area') &&
-        !pathEl.classList.contains('arrowheadPath')
+        !pathEl.classList.contains('arrowheadPath') &&
+        !edgePaths.includes(pathEl)
       ) {
         edgePaths.push(pathEl);
       }
@@ -437,14 +451,14 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       pathEl.setAttribute('data-mermaid-edge-id', targetEdgeId);
       pathEl.style.cursor = 'pointer';
 
-      // Create an invisible 18px stroke hit overlay
+      // Create an invisible 10px stroke hit overlay
       const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       hitArea.setAttribute('d', pathEl.getAttribute('d') || '');
       hitArea.setAttribute('class', 'mermaid-edge-hit-area');
       hitArea.setAttribute('data-mermaid-edge-id', targetEdgeId);
       hitArea.setAttribute('fill', 'none');
       hitArea.setAttribute('stroke', 'transparent');
-      hitArea.setAttribute('stroke-width', '18');
+      hitArea.setAttribute('stroke-width', '10');
       hitArea.setAttribute('stroke-linecap', 'round');
       hitArea.style.cursor = 'pointer';
       hitArea.style.pointerEvents = 'stroke';
@@ -459,7 +473,26 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         e.stopPropagation();
         e.preventDefault();
 
-        const edgeId = edgeDef.id;
+        // Proximity resolution: If multiple edges are near the click, pick the exact closest one
+        let resolvedEdge = edgeDef;
+        let resolvedPath = pathEl;
+        if (e.clientX && e.clientY && edgePaths.length > 1) {
+          let closestDist = Infinity;
+          for (const p of edgePaths) {
+            const dist = getDistanceToSvgPath(p, e.clientX, e.clientY);
+            if (dist < closestDist) {
+              const edgeId = p.getAttribute('data-mermaid-edge-id');
+              const found = ast.edges.find((ed) => ed.id === edgeId);
+              if (found) {
+                closestDist = dist;
+                resolvedEdge = found;
+                resolvedPath = p;
+              }
+            }
+          }
+        }
+
+        const edgeId = resolvedEdge.id;
         const isMulti = e.shiftKey || e.metaKey || e.ctrlKey;
         if (isMulti) {
           setSelectedEdgeIds((prev) => {
@@ -485,21 +518,21 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
             setSelectedEdgePos({
               x: (e.clientX - worldRect.left) / zoom,
               y: (e.clientY - worldRect.top) / zoom,
-              label: edgeDef.label,
-              from: edgeDef.from,
-              to: edgeDef.to,
-              arrowType: edgeDef.arrowType,
+              label: resolvedEdge.label,
+              from: resolvedEdge.from,
+              to: resolvedEdge.to,
+              arrowType: resolvedEdge.arrowType,
             });
           } else {
-            const rect = getLocalRect(clickedEl);
+            const rect = getLocalRect(resolvedPath);
             if (rect) {
               setSelectedEdgePos({
                 x: rect.x + rect.width / 2,
                 y: rect.y + rect.height / 2,
-                label: edgeDef.label,
-                from: edgeDef.from,
-                to: edgeDef.to,
-                arrowType: edgeDef.arrowType,
+                label: resolvedEdge.label,
+                from: resolvedEdge.from,
+                to: resolvedEdge.to,
+                arrowType: resolvedEdge.arrowType,
               });
             }
           }
@@ -518,12 +551,34 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       hitArea.onclick = (e) => onEdgeClick(e, targetEdge, pathEl);
       hitArea.ondblclick = handleEdgeDblClick;
 
-      hitArea.onmouseenter = () => {
-        pathEl.classList.add('mermaid-edge-hovered');
+      hitArea.onmousemove = (e: MouseEvent) => {
+        if (!e.clientX || !e.clientY) return;
+        let closestPath: SVGPathElement | null = null;
+        let closestDist = 14;
+
+        for (const p of edgePaths) {
+          const dist = getDistanceToSvgPath(p, e.clientX, e.clientY);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestPath = p;
+          }
+        }
+
+        edgePaths.forEach((p) => {
+          if (p === closestPath) {
+            p.classList.add('mermaid-edge-hovered');
+          } else {
+            p.classList.remove('mermaid-edge-hovered');
+          }
+        });
       };
+
       hitArea.onmouseleave = () => {
-        pathEl.classList.remove('mermaid-edge-hovered');
+        edgePaths.forEach((p) => p.classList.remove('mermaid-edge-hovered'));
       };
+
+      pathEl.onmousemove = hitArea.onmousemove;
+      pathEl.onmouseleave = hitArea.onmouseleave;
     });
 
     // C. Setup Edge Labels
