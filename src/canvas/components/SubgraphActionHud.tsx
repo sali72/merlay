@@ -1,11 +1,14 @@
 import React from 'react';
 import { MermaidSubgraphDef } from '../../ast/types';
-import { PencilIcon, TrashIcon, UngroupIcon } from '../icons/Icons';
+import { PencilIcon, PaletteIcon, TrashIcon, UngroupIcon } from '../icons/Icons';
 
 export interface SubgraphActionHudProps {
   subgraph: MermaidSubgraphDef;
   centerX: number;
   topY: number;
+  currentStyle: Record<string, string> | undefined;
+  isStyleActive: boolean;
+  onToggleStyle: () => void;
   onRename: () => void;
   onDissolve: () => void;
   onDeleteAll: () => void;
@@ -15,6 +18,9 @@ export const SubgraphActionHud: React.FC<SubgraphActionHudProps> = ({
   subgraph,
   centerX,
   topY,
+  currentStyle,
+  isStyleActive,
+  onToggleStyle,
   onRename,
   onDissolve,
   onDeleteAll,
@@ -42,6 +48,21 @@ export const SubgraphActionHud: React.FC<SubgraphActionHudProps> = ({
         title="Rename Group"
       >
         <PencilIcon size={13} />
+      </button>
+
+      <button
+        type="button"
+        className={`mermaid-hud-btn icon-only ${isStyleActive ? 'is-active' : ''}`}
+        onClick={onToggleStyle}
+        title="Group Colors & Border Style"
+      >
+        <PaletteIcon size={14} />
+        {currentStyle?.fill && (
+          <span
+            className="mermaid-hud-color-indicator"
+            style={{ backgroundColor: currentStyle.fill }}
+          />
+        )}
       </button>
 
       <button

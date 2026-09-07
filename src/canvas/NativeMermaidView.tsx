@@ -47,6 +47,9 @@ import {
   moveNodeToSubgraph,
   moveNodesToSubgraph,
   duplicateNodes,
+  updateSubgraphStyle,
+  clearSubgraphStyle,
+  getSubgraphStyle,
 } from '../ast/mutations';
 import { matchSvgEdgeToAst } from '../utils/edgeMatching';
 import { getDistanceToSvgPath } from '../utils/edgeGeometry';
@@ -113,6 +116,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   const [editingSubgraphId, setEditingSubgraphId] = useState<string | null>(null);
   const [editSubgraphLabel, setEditSubgraphLabel] = useState<string>('');
   const [editingSubgraphPos, setEditingSubgraphPos] = useState<Rect | null>(null);
+  const [activeSubgraphPopover, setActiveSubgraphPopover] = useState<'style' | null>(null);
+  // Subgraphs with no rendered cluster element (e.g. empty groups mermaid
+  // collapses) stay selectable via fallback chips.
+  const [unmatchedSubgraphIds, setUnmatchedSubgraphIds] = useState<string[]>([]);
 
   // Mode & Multi-Selection state
   const [cursorMode, setCursorMode] = useState<CursorMode>('select');
@@ -208,6 +215,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   const renderTicketRef = useRef<number>(0);
   const zoomRef = useRef<number>(1);
   zoomRef.current = zoom;
+  const astRef = useRef(ast);
+  astRef.current = ast;
   useEffect(() => {
     selectedNodeIdsRef.current = selectedNodeIds;
   }, [selectedNodeIds]);
@@ -428,6 +437,31 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     const mountEl = svgMountRef.current;
     if (!mountEl) return;
 
+    const selectSubgraphByEl = (targetSubId: string, htmlEl: Element) => {
+      setSelectedSubgraphId(targetSubId);
+      const empty = new Set<string>();
+      selectedNodeIdsRef.current = empty;
+      selectedEdgeIdsRef.current = new Set<string>();
+      setSelectedNodeIds(new Set());
+      setSelectedEdgeIds(new Set());
+      setSelectedNodeRect(null);
+      setSelectedEdgePos(null);
+      setActiveNodePopover(null);
+      setActiveEdgePopover(null);
+      setActiveMultiPopover(null);
+      setActiveSubgraphPopover(null);
+      updateSelectedNodeHalo(new Set());
+      updateSelectedEdgeHalo(new Set());
+
+      mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
+        c.classList.remove('mermaid-cluster-selected')
+      );
+      htmlEl.classList.add('mermaid-cluster-selected');
+
+      const rect = getLocalRect(htmlEl);
+      if (rect) setSelectedSubgraphRect(rect);
+    };
+
     // A. Setup Node Listeners
     const nodeElements = mountEl.querySelectorAll('.node, [class*="node "]');
     nodeElements.forEach((el) => {
@@ -446,6 +480,31 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         ) {
           matchedNodeId = nid;
           break;
+        }
+      }
+
+      // Empty subgraphs degrade to plain `.node` elements with id
+      // `{diagramId}-{subId}` (verified against mermaid 11 render output:
+      // zero `.cluster` elements, one `.node`). Claim them as groups here —
+      // before the label fallback — so they stay selectable on canvas.
+      // Real nodes always match the loop above (their ids contain the
+      // `flowchart-` infix), so skip those to avoid misattribution.
+      if (!matchedNodeId && idAttr && !idAttr.includes('flowchart-')) {
+        for (const subId of ast.subgraphs.keys()) {
+          if (idAttr === subId || idAttr.endsWith(`-${subId}`)) {
+            htmlEl.setAttribute('data-mermaid-subgraph-id', subId);
+            const targetSubId = subId;
+            htmlEl.onclick = (e) => {
+              e.stopPropagation();
+              selectSubgraphByEl(targetSubId, htmlEl);
+            };
+            htmlEl.ondblclick = (e) => {
+              e.stopPropagation();
+              startEditingSubgraph(targetSubId, htmlEl);
+            };
+            // No connection-handle hover: groups are not connectable nodes.
+            return;
+          }
         }
       }
 
@@ -470,6 +529,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         const isMulti = e.shiftKey || e.metaKey || e.ctrlKey;
         setSelectedSubgraphId(null);
         setSelectedSubgraphRect(null);
+        setActiveSubgraphPopover(null);
         mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
           c.classList.remove('mermaid-cluster-selected')
         );
@@ -615,6 +675,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         const isMulti = e.shiftKey || e.metaKey || e.ctrlKey;
         setSelectedSubgraphId(null);
         setSelectedSubgraphRect(null);
+        setActiveSubgraphPopover(null);
         mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
           c.classList.remove('mermaid-cluster-selected')
         );
@@ -708,6 +769,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
         setSelectedSubgraphId(null);
         setSelectedSubgraphRect(null);
+        setActiveSubgraphPopover(null);
         mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
           c.classList.remove('mermaid-cluster-selected')
         );
@@ -758,82 +820,120 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     });
 
     // D. Setup Subgraph Clusters
-    const clusterElements = mountEl.querySelectorAll('.cluster, [class*="cluster"]');
-    clusterElements.forEach((el) => {
+    // NOTE: use `.cluster` only (not `[class*="cluster"]`) so inner
+    // `.cluster-label` elements don't each get their own click handler.
+    // Matching is two-pass: strong signals (id, node containment) first,
+    // then duplicate labels are disambiguated by DOM order vs AST order.
+    const clusterElements = Array.from(mountEl.querySelectorAll('.cluster'));
+    const usedSubIds = new Set<string>();
+    const pendingLabelClusters: Element[] = [];
+
+    const selectSubgraph = selectSubgraphByEl;
+
+    const matchByIdOrContainment = (htmlEl: Element): string | null => {
+      const idAttr = htmlEl.getAttribute('id') || '';
+      if (idAttr) {
+        for (const subId of ast.subgraphs.keys()) {
+          if (usedSubIds.has(subId)) continue;
+          if (
+            idAttr.includes(`flowchart-${subId}-`) ||
+            idAttr === `flowchart-${subId}` ||
+            idAttr.endsWith(`-${subId}`) ||
+            idAttr === subId
+          ) {
+            return subId;
+          }
+        }
+      }
+      // NOTE: nodes are siblings of clusters in mermaid output (never nested
+      // inside them), so containment below is only a best-effort fallback.
+      for (const [subId, subDef] of ast.subgraphs.entries()) {
+        if (usedSubIds.has(subId)) continue;
+        if (subDef.nodeIds.length === 0) continue;
+        for (const nid of subDef.nodeIds) {
+          if (htmlEl.querySelector(`[data-mermaid-node-id="${nid}"]`)) {
+            return subId;
+          }
+        }
+      }
+      return null;
+    };
+
+    const unassignedClusters: Element[] = [];
+    for (const el of clusterElements) {
       const htmlEl = el as SVGGraphicsElement;
       htmlEl.style.cursor = 'pointer';
-
-      const idAttr = htmlEl.getAttribute('id') || '';
-      let matchedSubId: string | null = null;
-
-      for (const subId of ast.subgraphs.keys()) {
-        if (
-          idAttr.includes(`flowchart-${subId}-`) ||
-          idAttr === `flowchart-${subId}` ||
-          idAttr.endsWith(`-${subId}`) ||
-          idAttr === subId
-        ) {
-          matchedSubId = subId;
-          break;
-        }
+      const matched = matchByIdOrContainment(htmlEl);
+      if (matched) {
+        usedSubIds.add(matched);
+        htmlEl.setAttribute('data-mermaid-subgraph-id', matched);
+        const targetSubId = matched;
+        htmlEl.onclick = (e) => {
+          e.stopPropagation();
+          selectSubgraph(targetSubId, htmlEl);
+        };
+        htmlEl.ondblclick = (e) => {
+          e.stopPropagation();
+          startEditingSubgraph(targetSubId, htmlEl);
+        };
+      } else {
+        unassignedClusters.push(htmlEl);
       }
+    }
 
-      if (!matchedSubId) {
-        const labelText = htmlEl.querySelector('.label, text, .cluster-label')?.textContent?.trim();
-        for (const [subId, subDef] of ast.subgraphs.entries()) {
-          if (subDef.label === labelText || subId === labelText) {
-            matchedSubId = subId;
-            break;
-          }
-        }
+    // Second pass: label matching disambiguated by order among duplicates.
+    // Groups remaining clusters by their rendered label (DOM order) and
+    // remaining subgraphs by AST label (insertion order), assigning nth-to-nth.
+    const clustersByLabel = new Map<string, Element[]>();
+    for (const el of unassignedClusters) {
+      const labelText =
+        el.querySelector('.label, text, .cluster-label')?.textContent?.trim() ?? '';
+      const key = labelText;
+      if (!clustersByLabel.has(key)) clustersByLabel.set(key, []);
+      clustersByLabel.get(key)!.push(el);
+    }
+    const subsByLabel = new Map<string, string[]>();
+    for (const [subId, subDef] of ast.subgraphs.entries()) {
+      if (usedSubIds.has(subId)) continue;
+      for (const key of [subDef.label, subId]) {
+        if (!subsByLabel.has(key)) subsByLabel.set(key, []);
+        subsByLabel.get(key)!.push(subId);
       }
-
-      if (!matchedSubId) {
-        for (const [subId, subDef] of ast.subgraphs.entries()) {
-          for (const nid of subDef.nodeIds) {
-            if (htmlEl.querySelector(`[data-mermaid-node-id="${nid}"]`)) {
-              matchedSubId = subId;
-              break;
-            }
-          }
-          if (matchedSubId) break;
-        }
+    }
+    for (const el of unassignedClusters) {
+      const htmlEl = el as SVGGraphicsElement;
+      if (htmlEl.hasAttribute('data-mermaid-subgraph-id')) continue;
+      const labelText =
+        htmlEl.querySelector('.label, text, .cluster-label')?.textContent?.trim() ?? '';
+      const clusterQueue = clustersByLabel.get(labelText) ?? [];
+      const subQueue = subsByLabel.get(labelText) ?? [];
+      if (subQueue.length === 0) {
+        pendingLabelClusters.push(htmlEl);
+        continue;
       }
-
-      if (!matchedSubId) return;
-      const targetSubId = matchedSubId;
+      const idx = clusterQueue.indexOf(el);
+      const targetSubId = subQueue[Math.min(idx, subQueue.length - 1)];
+      if (usedSubIds.has(targetSubId)) continue;
+      usedSubIds.add(targetSubId);
+      // Remove from queue so duplicates assign in order
+      const qIdx = subQueue.indexOf(targetSubId);
+      if (qIdx !== -1) subQueue.splice(qIdx, 1);
       htmlEl.setAttribute('data-mermaid-subgraph-id', targetSubId);
-
       htmlEl.onclick = (e) => {
         e.stopPropagation();
-        setSelectedSubgraphId(targetSubId);
-        const empty = new Set<string>();
-        selectedNodeIdsRef.current = empty;
-        selectedEdgeIdsRef.current = new Set<string>();
-        setSelectedNodeIds(new Set());
-        setSelectedEdgeIds(new Set());
-        setSelectedNodeRect(null);
-        setSelectedEdgePos(null);
-        setActiveNodePopover(null);
-        setActiveEdgePopover(null);
-        setActiveMultiPopover(null);
-        updateSelectedNodeHalo(new Set());
-        updateSelectedEdgeHalo(new Set());
-
-        mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
-          c.classList.remove('mermaid-cluster-selected')
-        );
-        htmlEl.classList.add('mermaid-cluster-selected');
-
-        const rect = getLocalRect(htmlEl);
-        if (rect) setSelectedSubgraphRect(rect);
+        selectSubgraph(targetSubId, htmlEl);
       };
-
       htmlEl.ondblclick = (e) => {
         e.stopPropagation();
         startEditingSubgraph(targetSubId, htmlEl);
       };
-    });
+    }
+    for (const el of pendingLabelClusters) {
+      const htmlEl = el as SVGGraphicsElement;
+      if (!htmlEl.onclick) {
+        htmlEl.style.cursor = 'default';
+      }
+    }
   }, [
     ast,
     getLocalRect,
@@ -902,6 +1002,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       });
       setSelectedSubgraphId(null);
       setSelectedSubgraphRect(null);
+      setActiveSubgraphPopover(null);
       return;
     }
 
@@ -959,6 +1060,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setActiveNodePopover(null);
         setActiveEdgePopover(null);
         setActiveMultiPopover(null);
+        setActiveSubgraphPopover(null);
         setEditingNodeId(null);
         setEditingEdgeId(null);
         setEditingSubgraphId(null);
@@ -988,6 +1090,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setActiveNodePopover(null);
         setActiveEdgePopover(null);
         setActiveMultiPopover(null);
+        setActiveSubgraphPopover(null);
         setEditingNodeId(null);
         setEditingEdgeId(null);
         setEditingSubgraphId(null);
@@ -1008,6 +1111,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     setSelectedNodeRect(null);
     setSelectedEdgePos(null);
     setSelectedSubgraphRect(null);
+    setActiveSubgraphPopover(null);
     updateSelectedNodeHalo(allNodeIds);
     updateSelectedEdgeHalo(allEdgeIds);
   }, [ast, updateSelectedNodeHalo, updateSelectedEdgeHalo]);
@@ -1058,6 +1162,78 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       createSubgraph(currentAst, 'New Group', [newNodeId]);
     });
   }, [applyAstMutation]);
+
+  const handleApplySubgraphPreset = useCallback(
+    (preset: ThemePreset) => {
+      if (!selectedSubgraphId) return;
+      const target = selectedSubgraphId;
+      applyAstMutation((a) => {
+        if (!preset.fill && !preset.stroke && !preset.color) {
+          clearSubgraphStyle(a, target);
+        } else {
+          const styles: Record<string, string> = {};
+          if (preset.fill) styles['fill'] = preset.fill;
+          if (preset.stroke) styles['stroke'] = preset.stroke;
+          if (preset.color) styles['color'] = preset.color;
+          updateSubgraphStyle(a, target, styles);
+        }
+      });
+    },
+    [selectedSubgraphId, applyAstMutation]
+  );
+
+  const handleUpdateSubgraphCustomStyle = useCallback(
+    (property: string, value: string) => {
+      if (!selectedSubgraphId) return;
+      const target = selectedSubgraphId;
+      applyAstMutation((a) => {
+        const current = getSubgraphStyle(a, target) || {};
+        const updated = { ...current };
+        if (value) {
+          updated[property] = value;
+        } else {
+          delete updated[property];
+        }
+        updateSubgraphStyle(a, target, updated);
+      });
+    },
+    [selectedSubgraphId, applyAstMutation]
+  );
+
+  const handleClearSubgraphStyle = useCallback(() => {
+    if (!selectedSubgraphId) return;
+    const target = selectedSubgraphId;
+    applyAstMutation((a) => {
+      clearSubgraphStyle(a, target);
+    });
+  }, [selectedSubgraphId, applyAstMutation]);
+
+  const selectUnmatchedSubgraph = useCallback(
+    (subId: string, index: number) => {
+      setSelectedSubgraphId(subId);
+      const empty = new Set<string>();
+      selectedNodeIdsRef.current = empty;
+      selectedEdgeIdsRef.current = new Set<string>();
+      setSelectedNodeIds(new Set());
+      setSelectedEdgeIds(new Set());
+      setSelectedNodeRect(null);
+      setSelectedEdgePos(null);
+      setActiveNodePopover(null);
+      setActiveEdgePopover(null);
+      setActiveMultiPopover(null);
+      setActiveSubgraphPopover(null);
+      updateSelectedNodeHalo(new Set());
+      updateSelectedEdgeHalo(new Set());
+      if (svgMountRef.current) {
+        svgMountRef.current
+          .querySelectorAll('.mermaid-cluster-selected')
+          .forEach((c) => c.classList.remove('mermaid-cluster-selected'));
+      }
+      // Synthetic rect below the fallback chip row so the HUD has an anchor.
+      setSelectedSubgraphRect({ x: 24, y: 52 + index * 4, width: 200, height: 30 });
+    },
+    [updateSelectedEdgeHalo, updateSelectedNodeHalo]
+  );
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -1137,10 +1313,11 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
       // Escape: Dismiss popovers and clear selection
       if (e.key === 'Escape') {
-        if (activeNodePopover || activeEdgePopover || activeMultiPopover) {
+        if (activeNodePopover || activeEdgePopover || activeMultiPopover || activeSubgraphPopover) {
           setActiveNodePopover(null);
           setActiveEdgePopover(null);
           setActiveMultiPopover(null);
+          setActiveSubgraphPopover(null);
         } else if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0 || selectedSubgraphId) {
           selectedNodeIdsRef.current = new Set();
           selectedEdgeIdsRef.current = new Set();
@@ -1150,6 +1327,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           setSelectedNodeRect(null);
           setSelectedEdgePos(null);
           setSelectedSubgraphRect(null);
+          setActiveSubgraphPopover(null);
           updateSelectedNodeHalo(new Set());
           updateSelectedEdgeHalo(new Set());
           if (svgMountRef.current) {
@@ -1186,6 +1364,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     activeNodePopover,
     activeEdgePopover,
     activeMultiPopover,
+    activeSubgraphPopover,
     selectedNodeIds,
     selectedEdgeIds,
     selectedSubgraphId,
@@ -1238,6 +1417,31 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         rectRef.current();
         haloNodeRef.current();
         haloEdgeRef.current();
+
+        // Track subgraphs with no rendered cluster element so they stay
+        // selectable via fallback chips (covers empty groups mermaid may
+        // collapse, plus any matcher misses).
+        try {
+          const rendered = new Set<string>();
+          mountEl
+            .querySelectorAll('[data-mermaid-subgraph-id]')
+            .forEach((el) => {
+              const id = el.getAttribute('data-mermaid-subgraph-id');
+              if (id) rendered.add(id);
+            });
+          const missing: string[] = [];
+          for (const subId of astRef.current.subgraphs.keys()) {
+            if (!rendered.has(subId)) missing.push(subId);
+          }
+          setUnmatchedSubgraphIds((prev) => {
+            if (prev.length === missing.length && prev.every((id) => missing.includes(id))) {
+              return prev;
+            }
+            return missing;
+          });
+        } catch {
+          /* ignore */
+        }
       })
       .catch((err) => {
         if (ticket !== renderTicketRef.current) return;
@@ -1937,6 +2141,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     return null;
   }, [isMultiSelect, multiSelectBounds, selectedNodeRect, selectedEdgePos, sproutX, sproutY, isLR]);
 
+  // Position for the subgraph style popover (anchored above the group HUD)
+  const subgraphPopoverPos: PopoverPos | null = useMemo(() => {
+    if (!selectedSubgraphRect || !selectedSubgraphId) return null;
+    return {
+      left: selectedSubgraphRect.x + selectedSubgraphRect.width / 2,
+      top: selectedSubgraphRect.y - 20,
+      transform: 'translate(-50%, -100%)',
+    };
+  }, [selectedSubgraphRect, selectedSubgraphId]);
+
   return (
     <div
       className={`mermaid-native-editor-root is-mode-${cursorMode} ${
@@ -1969,6 +2183,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setActiveNodePopover(null);
         setActiveEdgePopover(null);
         setActiveMultiPopover(null);
+        setActiveSubgraphPopover(null);
         updateSelectedNodeHalo(new Set());
         updateSelectedEdgeHalo(new Set());
         if (svgMountRef.current) {
@@ -2201,12 +2416,34 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
               subgraph={ast.subgraphs.get(selectedSubgraphId)!}
               centerX={selectedSubgraphRect.x + selectedSubgraphRect.width / 2}
               topY={selectedSubgraphRect.y}
+              currentStyle={
+                ast.subgraphs.get(selectedSubgraphId)?.style ||
+                getSubgraphStyle(ast, selectedSubgraphId)
+              }
+              isStyleActive={activeSubgraphPopover === 'style'}
+              onToggleStyle={() =>
+                setActiveSubgraphPopover((prev) => (prev === 'style' ? null : 'style'))
+              }
               onRename={() => {
                 const subEl = svgMountRef.current?.querySelector(
                   `[data-mermaid-subgraph-id="${selectedSubgraphId}"]`
                 );
                 if (subEl) {
                   startEditingSubgraph(selectedSubgraphId, subEl);
+                } else if (selectedSubgraphRect) {
+                  // Fallback for groups with no rendered cluster element
+                  // (e.g. empty groups mermaid collapses): anchor the inline
+                  // editor to the HUD rect instead of an SVG element.
+                  const rect = selectedSubgraphRect;
+                  setEditingSubgraphPos({
+                    x: rect.x + rect.width / 2 - 80,
+                    y: rect.y + 10,
+                    width: Math.max(160, Math.min(240, rect.width - 20)),
+                    height: 30,
+                  });
+                  const subDef = ast.subgraphs.get(selectedSubgraphId);
+                  setEditSubgraphLabel(subDef?.label || selectedSubgraphId);
+                  setEditingSubgraphId(selectedSubgraphId);
                 }
               }}
               onDissolve={() => {
@@ -2215,6 +2452,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 });
                 setSelectedSubgraphId(null);
                 setSelectedSubgraphRect(null);
+                setActiveSubgraphPopover(null);
               }}
               onDeleteAll={() => {
                 applyAstMutation((currentAst) => {
@@ -2222,8 +2460,67 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 });
                 setSelectedSubgraphId(null);
                 setSelectedSubgraphRect(null);
+                setActiveSubgraphPopover(null);
               }}
             />
+          )}
+
+          {/* Subgraph Style Popover (same presets as nodes, emitted as style <subId>) */}
+          {activeSubgraphPopover === 'style' && subgraphPopoverPos && selectedSubgraphId && ast.subgraphs.has(selectedSubgraphId) && !isMultiSelect && (
+            <NodeStylePopover
+              popoverPos={subgraphPopoverPos}
+              currentStyle={
+                ast.subgraphs.get(selectedSubgraphId)?.style ||
+                getSubgraphStyle(ast, selectedSubgraphId)
+              }
+              onApplyPreset={handleApplySubgraphPreset}
+              onUpdateCustomStyle={handleUpdateSubgraphCustomStyle}
+              onClearStyle={handleClearSubgraphStyle}
+            />
+          )}
+
+          {/* Fallback chips for groups with no rendered cluster element */}
+          {unmatchedSubgraphIds.length > 0 && (
+            <div
+              className="mermaid-group-fallback-bar nodrag"
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: 12,
+                display: 'flex',
+                gap: 6,
+                zIndex: 120,
+                maxWidth: '70%',
+                flexWrap: 'wrap',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {unmatchedSubgraphIds.map((subId, idx) => {
+                const sub = ast.subgraphs.get(subId);
+                if (!sub) return null;
+                const isActive = selectedSubgraphId === subId;
+                return (
+                  <button
+                    key={subId}
+                    type="button"
+                    className={`mermaid-subgraph-badge ${isActive ? 'is-selected' : ''}`}
+                    style={isActive ? { outline: '2px solid var(--mermaid-accent)' } : undefined}
+                    title={
+                      sub.nodeIds.length === 0
+                        ? `Empty group "${sub.label}" — click to select`
+                        : `Group "${sub.label}" — click to select`
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectUnmatchedSubgraph(subId, idx);
+                    }}
+                  >
+                    <span>{sub.label || subId}</span>
+                    {sub.nodeIds.length === 0 && <span> (empty)</span>}
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {/* Subgraph Membership Popover */}

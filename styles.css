@@ -874,6 +874,26 @@ pre.language-mermaid {
   text-overflow: ellipsis;
 }
 
+/* Fallback chips for groups with no rendered cluster element (e.g. empty groups) */
+.mermaid-group-fallback-bar {
+  pointer-events: all;
+}
+
+.mermaid-group-fallback-bar .mermaid-subgraph-badge {
+  cursor: pointer;
+  background: var(--mermaid-bg-secondary);
+  white-space: nowrap;
+}
+
+.mermaid-group-fallback-bar .mermaid-subgraph-badge:hover {
+  background: var(--mermaid-accent-subtle);
+}
+
+.mermaid-group-fallback-bar .mermaid-subgraph-badge.is-selected {
+  background: var(--mermaid-accent-subtle);
+  box-shadow: 0 0 0 2px var(--mermaid-accent);
+}
+
 /* Subgraph Popover */
 .mermaid-subgraph-popover {
   position: absolute;

@@ -9,6 +9,9 @@ import {
   moveNodeToSubgraph,
   moveNodesToSubgraph,
   duplicateNodes,
+  updateSubgraphStyle,
+  clearSubgraphStyle,
+  getSubgraphStyle,
 } from '../src/ast/mutations';
 
 test('Subgraph Mutations: createSubgraph, moveNode, renameSubgraph, dissolve', () => {
@@ -114,4 +117,51 @@ test('Duplication Mutations: duplicateNodes clones nodes and internal edges', ()
   assert.ok(dupEdge);
   assert.equal(dupEdge?.from, dupA);
   assert.equal(dupEdge?.to, dupB);
+});
+
+test('Subgraph Style Mutations: update/get/clear round-trips through serializer', () => {
+  const code = `flowchart TD
+    subgraph sub_1 ["Group 1"]
+        A["Node A"]
+    end
+    subgraph sub_2 ["Empty Group"]
+    end
+`;
+  const ast = parseMermaidFlowchart(code);
+  assert.equal(ast.subgraphs.size, 2);
+  assert.deepEqual(ast.subgraphs.get('sub_2')?.nodeIds, []);
+
+  // Empty groups are valid AST entries
+  assert.equal(getSubgraphStyle(ast, 'sub_1'), undefined);
+
+  // Update style on non-empty and empty groups alike
+  assert.ok(updateSubgraphStyle(ast, 'sub_1', { fill: '#ff0000', stroke: '#00ff00' }));
+  assert.deepEqual(getSubgraphStyle(ast, 'sub_1'), { fill: '#ff0000', stroke: '#00ff00' });
+  assert.ok(updateSubgraphStyle(ast, 'sub_2', { fill: '#0000ff' }));
+  assert.deepEqual(getSubgraphStyle(ast, 'sub_2'), { fill: '#0000ff' });
+
+  // Unknown subgraph id fails cleanly
+  assert.equal(updateSubgraphStyle(ast, 'nope', { fill: '#fff' }), false);
+  assert.equal(getSubgraphStyle(ast, 'nope'), undefined);
+  assert.equal(clearSubgraphStyle(ast, 'nope'), false);
+
+  // Serializer emits style statements for subgraphs
+  const serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('style sub_1 fill:#ff0000,stroke:#00ff00'));
+  assert.ok(serialized.includes('style sub_2 fill:#0000ff'));
+
+  // Re-parsing restores subgraph styles onto definitions
+  const reparsed = parseMermaidFlowchart(serialized);
+  assert.deepEqual(getSubgraphStyle(reparsed, 'sub_1'), { fill: '#ff0000', stroke: '#00ff00' });
+  assert.deepEqual(getSubgraphStyle(reparsed, 'sub_2'), { fill: '#0000ff' });
+
+  // Clearing removes both the def style and the style statement
+  assert.ok(clearSubgraphStyle(ast, 'sub_1'));
+  assert.equal(getSubgraphStyle(ast, 'sub_1'), undefined);
+  assert.ok(!serializeMermaidFlowchart(ast).includes('style sub_1'));
+
+  // Empty style object clears as well
+  assert.ok(updateSubgraphStyle(ast, 'sub_2', { fill: '#111' }));
+  assert.ok(updateSubgraphStyle(ast, 'sub_2', {}));
+  assert.equal(getSubgraphStyle(ast, 'sub_2'), undefined);
 });
