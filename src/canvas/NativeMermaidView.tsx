@@ -99,6 +99,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
   // Undo/Redo History Stack
   const history = useHistory(code);
+  // Stable reference to pushState (history object identity changes every render)
+  const pushHistoryState = history.pushState;
+  const undoHistory = history.undo;
+  const redoHistory = history.redo;
 
   // Clipboard for Copy / Paste
   const clipboardNodesRef = useRef<string[]>([]);
@@ -116,6 +120,11 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
 
+  // Mirrors of selection state for stable callbacks (avoid render-loop via deps)
+  // Declared before helpers so helpers can sync them synchronously.
+  const selectedNodeIdsRef = useRef<Set<string>>(new Set());
+  const selectedEdgeIdsRef = useRef<Set<string>>(new Set());
+
   const isMultiSelect =
     selectedNodeIds.size + selectedEdgeIds.size > 1 ||
     (selectedNodeIds.size >= 1 && selectedEdgeIds.size >= 1);
@@ -131,11 +140,15 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       : null;
 
   const setSelectedNodeId = useCallback((id: string | null) => {
-    setSelectedNodeIds(id ? new Set([id]) : new Set());
+    const next = id ? new Set([id]) : new Set<string>();
+    selectedNodeIdsRef.current = next;
+    setSelectedNodeIds(next);
   }, []);
 
   const setSelectedEdgeId = useCallback((id: string | null) => {
-    setSelectedEdgeIds(id ? new Set([id]) : new Set());
+    const next = id ? new Set([id]) : new Set<string>();
+    selectedEdgeIdsRef.current = next;
+    setSelectedEdgeIds(next);
   }, []);
 
   const [activeNodePopover, setActiveNodePopover] = useState<ActiveNodePopover>(null);
@@ -193,24 +206,33 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     screenY: number;
   } | null>(null);
   const renderTicketRef = useRef<number>(0);
+  const zoomRef = useRef<number>(1);
+  zoomRef.current = zoom;
+  useEffect(() => {
+    selectedNodeIdsRef.current = selectedNodeIds;
+  }, [selectedNodeIds]);
+  useEffect(() => {
+    selectedEdgeIdsRef.current = selectedEdgeIds;
+  }, [selectedEdgeIds]);
+  // rAF throttle for marquee selection updates
+  const marqueeRafRef = useRef<number>(0);
+  const pendingMarqueeRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null);
 
-  // Exact 1:1 screen-to-world coordinate calculation
-  const getLocalRect = useCallback(
-    (el: Element): Rect | null => {
-      if (!worldRef.current) return null;
-      const worldRect = worldRef.current.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      return {
-        x: (elRect.left - worldRect.left) / zoom,
-        y: (elRect.top - worldRect.top) / zoom,
-        width: elRect.width / zoom,
-        height: elRect.height / zoom,
-      };
-    },
-    [zoom]
-  );
+  // Exact 1:1 screen-to-world coordinate calculation (stable: reads zoom via ref)
+  const getLocalRect = useCallback((el: Element): Rect | null => {
+    if (!worldRef.current) return null;
+    const z = zoomRef.current;
+    const worldRect = worldRef.current.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    return {
+      x: (elRect.left - worldRect.left) / z,
+      y: (elRect.top - worldRect.top) / z,
+      width: elRect.width / z,
+      height: elRect.height / z,
+    };
+  }, []);
 
-  // Mutate AST and serialize to code
+  // Mutate AST and serialize to code (stable across selection changes)
   const applyAstMutation = useCallback(
     (mutator: (currentAst: MermaidFlowchartAST) => void, keepNodeId?: string) => {
       try {
@@ -232,7 +254,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         const newAst = { ...ast };
         mutator(newAst);
         const serialized = serializeMermaidFlowchart(newAst);
-        history.pushState(serialized);
+        pushHistoryState(serialized);
         setCode(serialized);
         setAst(newAst);
         setSyntaxError(null);
@@ -241,60 +263,77 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         console.error('AST Mutation Error:', err);
       }
     },
-    [ast, history, onCodeChange]
+    [ast, pushHistoryState, onCodeChange]
   );
 
   // Update selected node overlay box (for single selected node)
+  // Reads selection via ref so it stays stable and never triggers full re-renders.
   const updateSelectedNodeRect = useCallback(() => {
-    if (selectedNodeIds.size !== 1 || !svgMountRef.current) {
+    const ids = selectedNodeIdsRef.current;
+    if (ids.size !== 1 || !svgMountRef.current) {
       setSelectedNodeRect(null);
       return;
     }
 
-    const singleId = Array.from(selectedNodeIds)[0];
+    const singleId = Array.from(ids)[0];
     const nodeEl = svgMountRef.current.querySelector(
       `[data-mermaid-node-id="${singleId}"]`
     );
     if (nodeEl) {
       const rect = getLocalRect(nodeEl);
       if (rect) setSelectedNodeRect(rect);
+    } else {
+      setSelectedNodeRect(null);
     }
-  }, [selectedNodeIds, getLocalRect]);
+  }, [getLocalRect]);
 
   // Update shape-matched SVG selection halo for all currently selected nodes
+  // Stable: falls back to refs when no explicit targets are given.
   const updateSelectedNodeHalo = useCallback(
     (targets?: string | null | Set<string> | string[]) => {
-      applySelectedNodeHalos(svgMountRef.current, selectedNodeIds, targets);
+      applySelectedNodeHalos(
+        svgMountRef.current,
+        selectedNodeIdsRef.current,
+        targets
+      );
     },
-    [selectedNodeIds]
+    []
   );
 
-  // Update selection styling for all currently selected edges
+  // Update selection styling for all currently selected edges (stable)
   const updateSelectedEdgeHalo = useCallback(
     (targets?: string | null | Set<string> | string[]) => {
-      applySelectedEdgeHalos(svgMountRef.current, selectedEdgeIds, targets);
+      applySelectedEdgeHalos(
+        svgMountRef.current,
+        selectedEdgeIdsRef.current,
+        targets
+      );
     },
-    [selectedEdgeIds]
+    []
   );
 
-  const startEditingNode = (nodeId: string, nodeEl: Element) => {
-    setSelectedEdgeIds(new Set());
-    setSelectedEdgePos(null);
-    setEditingEdgeId(null);
-    updateSelectedEdgeHalo(new Set());
-    const rect = getLocalRect(nodeEl);
-    if (rect) {
-      setEditingPos({
-        x: rect.x,
-        y: rect.y,
-        width: Math.max(90, rect.width),
-        height: Math.max(34, rect.height),
-      });
-    }
-    const ndef = ast.nodes.get(nodeId);
-    setEditNodeLabel(ndef?.label || nodeId);
-    setEditingNodeId(nodeId);
-  };
+  const startEditingNode = useCallback(
+    (nodeId: string, nodeEl: Element) => {
+      setSelectedEdgeIds(new Set());
+      selectedEdgeIdsRef.current = new Set();
+      setSelectedEdgePos(null);
+      setEditingEdgeId(null);
+      updateSelectedEdgeHalo(new Set());
+      const rect = getLocalRect(nodeEl);
+      if (rect) {
+        setEditingPos({
+          x: rect.x,
+          y: rect.y,
+          width: Math.max(90, rect.width),
+          height: Math.max(34, rect.height),
+        });
+      }
+      const ndef = ast.nodes.get(nodeId);
+      setEditNodeLabel(ndef?.label || nodeId);
+      setEditingNodeId(nodeId);
+    },
+    [ast, getLocalRect, updateSelectedEdgeHalo]
+  );
 
   const handleFinishEditingNode = () => {
     if (editingNodeId) {
@@ -306,26 +345,30 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     }
   };
 
-  const startEditingEdge = (edgeId: string, anchorEl: Element) => {
-    setSelectedNodeIds(new Set());
-    setSelectedNodeRect(null);
-    setEditingNodeId(null);
-    updateSelectedNodeHalo(new Set());
-    const rect = getLocalRect(anchorEl);
-    if (rect) {
-      setEditingEdgePos({
-        x: rect.x + rect.width / 2 - 70,
-        y: rect.y + rect.height / 2 - 16,
-        width: Math.max(140, rect.width + 24),
-        height: Math.max(32, rect.height + 8),
-      });
-    }
-    const edgeDef = ast.edges.find((e) => e.id === edgeId);
-    setEditEdgeLabel(edgeDef?.label || '');
-    setEditingEdgeId(edgeId);
-    setSelectedEdgeId(edgeId);
-    updateSelectedEdgeHalo(new Set([edgeId]));
-  };
+  const startEditingEdge = useCallback(
+    (edgeId: string, anchorEl: Element) => {
+      setSelectedNodeIds(new Set());
+      selectedNodeIdsRef.current = new Set();
+      setSelectedNodeRect(null);
+      setEditingNodeId(null);
+      updateSelectedNodeHalo(new Set());
+      const rect = getLocalRect(anchorEl);
+      if (rect) {
+        setEditingEdgePos({
+          x: rect.x + rect.width / 2 - 70,
+          y: rect.y + rect.height / 2 - 16,
+          width: Math.max(140, rect.width + 24),
+          height: Math.max(32, rect.height + 8),
+        });
+      }
+      const edgeDef = ast.edges.find((e) => e.id === edgeId);
+      setEditEdgeLabel(edgeDef?.label || '');
+      setEditingEdgeId(edgeId);
+      setSelectedEdgeId(edgeId);
+      updateSelectedEdgeHalo(new Set([edgeId]));
+    },
+    [ast, getLocalRect, updateSelectedEdgeHalo, updateSelectedNodeHalo]
+  );
 
   const handleFinishEditingEdge = () => {
     if (editingEdgeId) {
@@ -337,30 +380,35 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     }
   };
 
-  const startEditingSubgraph = (subId: string, subEl: Element) => {
-    setSelectedNodeIds(new Set());
-    setSelectedEdgeIds(new Set());
-    setSelectedNodeRect(null);
-    setSelectedEdgePos(null);
-    setEditingNodeId(null);
-    setEditingEdgeId(null);
-    updateSelectedNodeHalo(new Set());
-    updateSelectedEdgeHalo(new Set());
+  const startEditingSubgraph = useCallback(
+    (subId: string, subEl: Element) => {
+      setSelectedNodeIds(new Set());
+      setSelectedEdgeIds(new Set());
+      selectedNodeIdsRef.current = new Set();
+      selectedEdgeIdsRef.current = new Set();
+      setSelectedNodeRect(null);
+      setSelectedEdgePos(null);
+      setEditingNodeId(null);
+      setEditingEdgeId(null);
+      updateSelectedNodeHalo(new Set());
+      updateSelectedEdgeHalo(new Set());
 
-    const rect = getLocalRect(subEl);
-    if (rect) {
-      setEditingSubgraphPos({
-        x: rect.x + rect.width / 2 - 80,
-        y: rect.y + 10,
-        width: Math.max(160, Math.min(240, rect.width - 20)),
-        height: 30,
-      });
-    }
-    const subDef = ast.subgraphs.get(subId);
-    setEditSubgraphLabel(subDef?.label || subId);
-    setEditingSubgraphId(subId);
-    setSelectedSubgraphId(subId);
-  };
+      const rect = getLocalRect(subEl);
+      if (rect) {
+        setEditingSubgraphPos({
+          x: rect.x + rect.width / 2 - 80,
+          y: rect.y + 10,
+          width: Math.max(160, Math.min(240, rect.width - 20)),
+          height: 30,
+        });
+      }
+      const subDef = ast.subgraphs.get(subId);
+      setEditSubgraphLabel(subDef?.label || subId);
+      setEditingSubgraphId(subId);
+      setSelectedSubgraphId(subId);
+    },
+    [ast, getLocalRect, updateSelectedEdgeHalo, updateSelectedNodeHalo]
+  );
 
   const handleFinishEditingSubgraph = () => {
     if (editingSubgraphId) {
@@ -427,24 +475,28 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         );
 
         if (isMulti) {
-          setSelectedNodeIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(targetNodeId)) {
-              next.delete(targetNodeId);
-            } else {
-              next.add(targetNodeId);
-            }
-            updateSelectedNodeHalo(next);
-            return next;
-          });
+          const prev = selectedNodeIdsRef.current;
+          const next = new Set(prev);
+          if (next.has(targetNodeId)) {
+            next.delete(targetNodeId);
+          } else {
+            next.add(targetNodeId);
+          }
+          selectedNodeIdsRef.current = next;
+          setSelectedNodeIds(next);
+          updateSelectedNodeHalo(next);
         } else {
-          setSelectedNodeIds(new Set([targetNodeId]));
-          setSelectedEdgeIds(new Set());
+          const nextNodes = new Set([targetNodeId]);
+          const emptyEdges = new Set<string>();
+          selectedNodeIdsRef.current = nextNodes;
+          selectedEdgeIdsRef.current = emptyEdges;
+          setSelectedNodeIds(nextNodes);
+          setSelectedEdgeIds(emptyEdges);
           setSelectedEdgePos(null);
-          updateSelectedEdgeHalo(new Set());
+          updateSelectedEdgeHalo(emptyEdges);
           const rect = getLocalRect(htmlEl);
           if (rect) setSelectedNodeRect(rect);
-          updateSelectedNodeHalo(new Set([targetNodeId]));
+          updateSelectedNodeHalo(nextNodes);
         }
       };
 
@@ -568,23 +620,27 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         );
 
         if (isMulti) {
-          setSelectedEdgeIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(edgeId)) {
-              next.delete(edgeId);
-            } else {
-              next.add(edgeId);
-            }
-            updateSelectedEdgeHalo(next);
-            return next;
-          });
+          const prev = selectedEdgeIdsRef.current;
+          const next = new Set(prev);
+          if (next.has(edgeId)) {
+            next.delete(edgeId);
+          } else {
+            next.add(edgeId);
+          }
+          selectedEdgeIdsRef.current = next;
+          setSelectedEdgeIds(next);
+          updateSelectedEdgeHalo(next);
         } else {
-          setSelectedEdgeIds(new Set([edgeId]));
-          setSelectedNodeIds(new Set());
+          const nextEdges = new Set([edgeId]);
+          const emptyNodes = new Set<string>();
+          selectedEdgeIdsRef.current = nextEdges;
+          selectedNodeIdsRef.current = emptyNodes;
+          setSelectedEdgeIds(nextEdges);
+          setSelectedNodeIds(emptyNodes);
           setSelectedNodeRect(null);
           setEditingNodeId(null);
-          updateSelectedNodeHalo(new Set());
-          updateSelectedEdgeHalo(new Set([edgeId]));
+          updateSelectedNodeHalo(emptyNodes);
+          updateSelectedEdgeHalo(nextEdges);
 
           const rect = getLocalRect(resolvedPath);
           if (rect) {
@@ -608,51 +664,23 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         onEdgeClick(e, targetEdge, pathEl);
       };
 
-      // Hover feedback on edge stroke
-      hitArea.onmouseenter = (e) => {
-        let closestPath = pathEl;
-        if (e.clientX && e.clientY && edgePaths.length > 1) {
-          let closestDist = Infinity;
-          for (const p of edgePaths) {
-            const dist = getDistanceToSvgPath(p, e.clientX, e.clientY);
-            if (dist < closestDist) {
-              closestDist = dist;
-              closestPath = p;
-            }
-          }
-        }
-        edgePaths.forEach((p) => {
-          if (p === closestPath) {
-            p.classList.add('mermaid-edge-hovered');
-          } else {
-            p.classList.remove('mermaid-edge-hovered');
-          }
-        });
+      // Hover feedback on edge stroke (O(1): no path sampling here.
+      // Proximity resolution is only needed on click, not on every mousemove.)
+      hitArea.onmouseenter = () => {
+        pathEl.classList.add('mermaid-edge-hovered');
       };
 
-      hitArea.onmousemove = (e) => {
-        let closestPath = pathEl;
-        if (e.clientX && e.clientY && edgePaths.length > 1) {
-          let closestDist = Infinity;
-          for (const p of edgePaths) {
-            const dist = getDistanceToSvgPath(p, e.clientX, e.clientY);
-            if (dist < closestDist) {
-              closestDist = dist;
-              closestPath = p;
-            }
-          }
+      hitArea.onmousemove = () => {
+        if (!pathEl.classList.contains('mermaid-edge-hovered')) {
+          mountEl
+            .querySelectorAll('.mermaid-edge-hovered')
+            .forEach((p) => p.classList.remove('mermaid-edge-hovered'));
+          pathEl.classList.add('mermaid-edge-hovered');
         }
-        edgePaths.forEach((p) => {
-          if (p === closestPath) {
-            p.classList.add('mermaid-edge-hovered');
-          } else {
-            p.classList.remove('mermaid-edge-hovered');
-          }
-        });
       };
 
       hitArea.onmouseleave = () => {
-        edgePaths.forEach((p) => p.classList.remove('mermaid-edge-hovered'));
+        pathEl.classList.remove('mermaid-edge-hovered');
       };
 
       pathEl.onmousemove = hitArea.onmousemove;
@@ -686,23 +714,27 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
         const isMulti = mouseEv.shiftKey || mouseEv.metaKey || mouseEv.ctrlKey;
         if (isMulti) {
-          setSelectedEdgeIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(targetEdgeId)) {
-              next.delete(targetEdgeId);
-            } else {
-              next.add(targetEdgeId);
-            }
-            updateSelectedEdgeHalo(next);
-            return next;
-          });
+          const prev = selectedEdgeIdsRef.current;
+          const next = new Set(prev);
+          if (next.has(targetEdgeId)) {
+            next.delete(targetEdgeId);
+          } else {
+            next.add(targetEdgeId);
+          }
+          selectedEdgeIdsRef.current = next;
+          setSelectedEdgeIds(next);
+          updateSelectedEdgeHalo(next);
         } else {
-          setSelectedEdgeIds(new Set([targetEdgeId]));
-          setSelectedNodeIds(new Set());
+          const nextEdges = new Set([targetEdgeId]);
+          const emptyNodes = new Set<string>();
+          selectedEdgeIdsRef.current = nextEdges;
+          selectedNodeIdsRef.current = emptyNodes;
+          setSelectedEdgeIds(nextEdges);
+          setSelectedNodeIds(emptyNodes);
           setSelectedNodeRect(null);
           setEditingNodeId(null);
-          updateSelectedNodeHalo(new Set());
-          updateSelectedEdgeHalo(new Set([targetEdgeId]));
+          updateSelectedNodeHalo(emptyNodes);
+          updateSelectedEdgeHalo(nextEdges);
 
           const rect = getLocalRect(htmlEl);
           if (rect) {
@@ -775,6 +807,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       htmlEl.onclick = (e) => {
         e.stopPropagation();
         setSelectedSubgraphId(targetSubId);
+        const empty = new Set<string>();
+        selectedNodeIdsRef.current = empty;
+        selectedEdgeIdsRef.current = new Set<string>();
         setSelectedNodeIds(new Set());
         setSelectedEdgeIds(new Set());
         setSelectedNodeRect(null);
@@ -801,7 +836,6 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     });
   }, [
     ast,
-    zoom,
     getLocalRect,
     updateSelectedNodeHalo,
     updateSelectedEdgeHalo,
@@ -809,6 +843,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     setSelectedEdgeId,
     setSelectedSubgraphId,
     setSelectedSubgraphRect,
+    startEditingNode,
+    startEditingEdge,
     startEditingSubgraph,
   ]);
 
@@ -873,6 +909,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     const nodesToDelete = Array.from(selectedNodeIds);
     const edgesToDelete = Array.from(selectedEdgeIds);
 
+    const empty = new Set<string>();
+    selectedNodeIdsRef.current = empty;
+    selectedEdgeIdsRef.current = new Set<string>();
     setSelectedNodeIds(new Set());
     setSelectedEdgeIds(new Set());
     setSelectedNodeRect(null);
@@ -901,7 +940,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   ]);
 
   const handleUndo = useCallback(() => {
-    const prevCode = history.undo();
+    const prevCode = undoHistory();
     if (prevCode !== null) {
       try {
         const parsed = parseMermaidFlowchart(prevCode);
@@ -909,6 +948,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setAst(parsed);
         setSyntaxError(null);
         onCodeChange(prevCode);
+        selectedNodeIdsRef.current = new Set();
+        selectedEdgeIdsRef.current = new Set();
         setSelectedNodeIds(new Set());
         setSelectedEdgeIds(new Set());
         setSelectedSubgraphId(null);
@@ -925,10 +966,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         console.error('Failed to parse undo state:', err);
       }
     }
-  }, [history, onCodeChange]);
+  }, [undoHistory, onCodeChange]);
 
   const handleRedo = useCallback(() => {
-    const nextCode = history.redo();
+    const nextCode = redoHistory();
     if (nextCode !== null) {
       try {
         const parsed = parseMermaidFlowchart(nextCode);
@@ -936,6 +977,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setAst(parsed);
         setSyntaxError(null);
         onCodeChange(nextCode);
+        selectedNodeIdsRef.current = new Set();
+        selectedEdgeIdsRef.current = new Set();
         setSelectedNodeIds(new Set());
         setSelectedEdgeIds(new Set());
         setSelectedSubgraphId(null);
@@ -952,11 +995,13 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         console.error('Failed to parse redo state:', err);
       }
     }
-  }, [history, onCodeChange]);
+  }, [redoHistory, onCodeChange]);
 
   const handleSelectAll = useCallback(() => {
     const allNodeIds = new Set(ast.nodes.keys());
     const allEdgeIds = new Set(ast.edges.map((e) => e.id));
+    selectedNodeIdsRef.current = allNodeIds;
+    selectedEdgeIdsRef.current = allEdgeIds;
     setSelectedNodeIds(allNodeIds);
     setSelectedEdgeIds(allEdgeIds);
     setSelectedSubgraphId(null);
@@ -973,12 +1018,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       const result = duplicateNodes(currentAst, selectedNodeIds);
       if (result.nodeIds.length > 0) {
         const newSet = new Set(result.nodeIds);
+        const newEdges = new Set(result.edgeIds);
+        selectedNodeIdsRef.current = newSet;
+        selectedEdgeIdsRef.current = newEdges;
         setSelectedNodeIds(newSet);
-        setSelectedEdgeIds(new Set(result.edgeIds));
+        setSelectedEdgeIds(newEdges);
         updateSelectedNodeHalo(newSet);
+        updateSelectedEdgeHalo(newEdges);
       }
     });
-  }, [selectedNodeIds, applyAstMutation, updateSelectedNodeHalo]);
+  }, [selectedNodeIds, applyAstMutation, updateSelectedNodeHalo, updateSelectedEdgeHalo]);
 
   const handleCopySelected = useCallback(() => {
     if (selectedNodeIds.size > 0) {
@@ -992,12 +1041,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       const result = duplicateNodes(currentAst, clipboardNodesRef.current);
       if (result.nodeIds.length > 0) {
         const newSet = new Set(result.nodeIds);
+        const newEdges = new Set(result.edgeIds);
+        selectedNodeIdsRef.current = newSet;
+        selectedEdgeIdsRef.current = newEdges;
         setSelectedNodeIds(newSet);
-        setSelectedEdgeIds(new Set(result.edgeIds));
+        setSelectedEdgeIds(newEdges);
         updateSelectedNodeHalo(newSet);
+        updateSelectedEdgeHalo(newEdges);
       }
     });
-  }, [applyAstMutation, updateSelectedNodeHalo]);
+  }, [applyAstMutation, updateSelectedNodeHalo, updateSelectedEdgeHalo]);
 
   const handleAddGroup = useCallback(() => {
     applyAstMutation((currentAst) => {
@@ -1089,6 +1142,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           setActiveEdgePopover(null);
           setActiveMultiPopover(null);
         } else if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0 || selectedSubgraphId) {
+          selectedNodeIdsRef.current = new Set();
+          selectedEdgeIdsRef.current = new Set();
           setSelectedNodeIds(new Set());
           setSelectedEdgeIds(new Set());
           setSelectedSubgraphId(null);
@@ -1145,7 +1200,24 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     handlePasteSelected,
   ]);
 
+  // Latest-callback refs so the render effect only depends on code/app.
+  // Without this, selection changes recreate setup/halo callbacks and would
+  // trigger a full (expensive, async) mermaid re-render that wipes the DOM
+  // mid-interaction — breaking single-select and freezing multi-select.
+  const setupRef = useRef(setupSvgInteractivity);
+  setupRef.current = setupSvgInteractivity;
+  const stabilizeRef = useRef(stabilizeCamera);
+  stabilizeRef.current = stabilizeCamera;
+  const rectRef = useRef(updateSelectedNodeRect);
+  rectRef.current = updateSelectedNodeRect;
+  const haloNodeRef = useRef(updateSelectedNodeHalo);
+  haloNodeRef.current = updateSelectedNodeHalo;
+  const haloEdgeRef = useRef(updateSelectedEdgeHalo);
+  haloEdgeRef.current = updateSelectedEdgeHalo;
+
   // 1. Render Obsidian's native Mermaid SVG with direct engine and double buffering
+  // NOTE: deps are intentionally [code, app] only. Selection/zoom/pan must NOT
+  // trigger a full re-render; they are handled by the lightweight halo effect above.
   useEffect(() => {
     const mountEl = svgMountRef.current;
     if (!mountEl) return;
@@ -1161,26 +1233,19 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         mountEl.innerHTML = svgHtml;
         setSyntaxError(null);
 
-        setupSvgInteractivity();
-        stabilizeCamera();
-        updateSelectedNodeRect();
-        updateSelectedNodeHalo();
-        updateSelectedEdgeHalo();
+        setupRef.current();
+        stabilizeRef.current();
+        rectRef.current();
+        haloNodeRef.current();
+        haloEdgeRef.current();
       })
       .catch((err) => {
         if (ticket !== renderTicketRef.current) return;
         console.error('Mermaid render error:', err);
         setSyntaxError(err?.message || 'Diagram syntax error');
       });
-  }, [
-    code,
-    app,
-    setupSvgInteractivity,
-    stabilizeCamera,
-    updateSelectedNodeRect,
-    updateSelectedNodeHalo,
-    updateSelectedEdgeHalo,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, app]);
 
   // Node Actions
   const handleSproutNextStep = (parentId: string) => {
@@ -1569,11 +1634,12 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       return;
     }
 
-    // Marquee Drag Selection update
+    // Marquee Drag Selection update (rAF-throttled; skips redundant setState)
     if (dragBoxStartRef.current && worldRef.current) {
       const worldRect = worldRef.current.getBoundingClientRect();
-      const currentX = (e.clientX - worldRect.left) / zoom;
-      const currentY = (e.clientY - worldRect.top) / zoom;
+      const z = zoomRef.current;
+      const currentX = (e.clientX - worldRect.left) / z;
+      const currentY = (e.clientY - worldRect.top) / z;
       const startX = dragBoxStartRef.current.x;
       const startY = dragBoxStartRef.current.y;
 
@@ -1581,61 +1647,84 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       if (dist > 3) {
         isMarqueeActiveRef.current = true;
         setSelectionBox({ startX, startY, currentX, currentY });
+        pendingMarqueeRef.current = { startX, startY, currentX, currentY };
 
-        const minX = Math.min(startX, currentX);
-        const maxX = Math.max(startX, currentX);
-        const minY = Math.min(startY, currentY);
-        const maxY = Math.max(startY, currentY);
+        if (marqueeRafRef.current) return;
+        marqueeRafRef.current = requestAnimationFrame(() => {
+          marqueeRafRef.current = 0;
+          const pending = pendingMarqueeRef.current;
+          pendingMarqueeRef.current = null;
+          if (!pending || !svgMountRef.current) return;
+          const { startX: sx, startY: sy, currentX: cx, currentY: cy } = pending;
+          // Re-read latest pointer via stored box? Use last selectionBox instead.
+          // Fallback: compute from current box state is handled by closure below.
+          const minX = Math.min(sx, cx);
+          const maxX = Math.max(sx, cx);
+          const minY = Math.min(sy, cy);
+          const maxY = Math.max(sy, cy);
 
-        const newSelectedNodes = new Set<string>();
-        const newSelectedEdges = new Set<string>();
-        if (svgMountRef.current) {
-          // 1. Check nodes
-          for (const nodeId of ast.nodes.keys()) {
-            const nodeEl = svgMountRef.current.querySelector(
-              `[data-mermaid-node-id="${nodeId}"]`
-            );
-            if (nodeEl) {
-              const rect = getLocalRect(nodeEl);
-              if (rect) {
-                const intersects = !(
-                  rect.x + rect.width < minX ||
-                  rect.x > maxX ||
-                  rect.y + rect.height < minY ||
-                  rect.y > maxY
-                );
-                if (intersects) {
-                  newSelectedNodes.add(nodeId);
+          const newSelectedNodes = new Set<string>();
+          const newSelectedEdges = new Set<string>();
+          const mount = svgMountRef.current;
+          if (mount) {
+            // 1. Check nodes
+            for (const nodeId of ast.nodes.keys()) {
+              const nodeEl = mount.querySelector(
+                `[data-mermaid-node-id="${nodeId}"]`
+              );
+              if (nodeEl) {
+                const rect = getLocalRect(nodeEl);
+                if (rect) {
+                  const intersects = !(
+                    rect.x + rect.width < minX ||
+                    rect.x > maxX ||
+                    rect.y + rect.height < minY ||
+                    rect.y > maxY
+                  );
+                  if (intersects) {
+                    newSelectedNodes.add(nodeId);
+                  }
+                }
+              }
+            }
+
+            // 2. Check edges
+            for (const edge of ast.edges) {
+              const edgePathEl = mount.querySelector(
+                `path[data-mermaid-edge-id="${edge.id}"]:not(.mermaid-edge-hit-area)`
+              );
+              if (edgePathEl) {
+                const rect = getLocalRect(edgePathEl);
+                if (rect) {
+                  const intersects = !(
+                    rect.x + rect.width < minX ||
+                    rect.x > maxX ||
+                    rect.y + rect.height < minY ||
+                    rect.y > maxY
+                  );
+                  if (intersects) {
+                    newSelectedEdges.add(edge.id);
+                  }
                 }
               }
             }
           }
-
-          // 2. Check edges
-          for (const edge of ast.edges) {
-            const edgePathEl = svgMountRef.current.querySelector(
-              `path[data-mermaid-edge-id="${edge.id}"]:not(.mermaid-edge-hit-area)`
-            );
-            if (edgePathEl) {
-              const rect = getLocalRect(edgePathEl);
-              if (rect) {
-                const intersects = !(
-                  rect.x + rect.width < minX ||
-                  rect.x > maxX ||
-                  rect.y + rect.height < minY ||
-                  rect.y > maxY
-                );
-                if (intersects) {
-                  newSelectedEdges.add(edge.id);
-                }
-              }
-            }
+          const sameSets = (a: Set<string>, b: Set<string>) => {
+            if (a.size !== b.size) return false;
+            for (const v of a) if (!b.has(v)) return false;
+            return true;
+          };
+          if (!sameSets(newSelectedNodes, selectedNodeIdsRef.current)) {
+            selectedNodeIdsRef.current = newSelectedNodes;
+            setSelectedNodeIds(newSelectedNodes);
+            updateSelectedNodeHalo(newSelectedNodes);
           }
-        }
-        setSelectedNodeIds(newSelectedNodes);
-        setSelectedEdgeIds(newSelectedEdges);
-        updateSelectedNodeHalo(newSelectedNodes);
-        updateSelectedEdgeHalo(newSelectedEdges);
+          if (!sameSets(newSelectedEdges, selectedEdgeIdsRef.current)) {
+            selectedEdgeIdsRef.current = newSelectedEdges;
+            setSelectedEdgeIds(newSelectedEdges);
+            updateSelectedEdgeHalo(newSelectedEdges);
+          }
+        });
       }
       return;
     }
@@ -1666,6 +1755,55 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     if (dragBoxStartRef.current) {
       dragBoxStartRef.current = null;
       setSelectionBox(null);
+      if (marqueeRafRef.current) {
+        cancelAnimationFrame(marqueeRafRef.current);
+        marqueeRafRef.current = 0;
+      }
+      // Flush any pending marquee selection so mouse-up state is exact
+      const pending = pendingMarqueeRef.current;
+      pendingMarqueeRef.current = null;
+      if (pending && svgMountRef.current) {
+        const minX = Math.min(pending.startX, pending.currentX);
+        const maxX = Math.max(pending.startX, pending.currentX);
+        const minY = Math.min(pending.startY, pending.currentY);
+        const maxY = Math.max(pending.startY, pending.currentY);
+        const newSelectedNodes = new Set<string>();
+        const newSelectedEdges = new Set<string>();
+        for (const nodeId of ast.nodes.keys()) {
+          const nodeEl = svgMountRef.current.querySelector(
+            `[data-mermaid-node-id="${nodeId}"]`
+          );
+          if (nodeEl) {
+            const rect = getLocalRect(nodeEl);
+            if (
+              rect &&
+              !(rect.x + rect.width < minX || rect.x > maxX || rect.y + rect.height < minY || rect.y > maxY)
+            ) {
+              newSelectedNodes.add(nodeId);
+            }
+          }
+        }
+        for (const edge of ast.edges) {
+          const edgePathEl = svgMountRef.current.querySelector(
+            `path[data-mermaid-edge-id="${edge.id}"]:not(.mermaid-edge-hit-area)`
+          );
+          if (edgePathEl) {
+            const rect = getLocalRect(edgePathEl);
+            if (
+              rect &&
+              !(rect.x + rect.width < minX || rect.x > maxX || rect.y + rect.height < minY || rect.y > maxY)
+            ) {
+              newSelectedEdges.add(edge.id);
+            }
+          }
+        }
+        selectedNodeIdsRef.current = newSelectedNodes;
+        selectedEdgeIdsRef.current = newSelectedEdges;
+        setSelectedNodeIds(newSelectedNodes);
+        setSelectedEdgeIds(newSelectedEdges);
+        updateSelectedNodeHalo(newSelectedNodes);
+        updateSelectedEdgeHalo(newSelectedEdges);
+      }
       setTimeout(() => {
         isMarqueeActiveRef.current = false;
       }, 50);
@@ -1817,6 +1955,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       }}
       onClick={() => {
         if (isMarqueeActiveRef.current) return;
+        selectedNodeIdsRef.current = new Set();
+        selectedEdgeIdsRef.current = new Set();
         setSelectedNodeIds(new Set());
         setSelectedEdgeIds(new Set());
         setSelectedSubgraphId(null);
