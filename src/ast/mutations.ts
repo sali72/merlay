@@ -8,6 +8,7 @@ import {
   MermaidEdgeDef,
   MermaidFlowchartAST,
   MermaidNodeDef,
+  MermaidShapeType,
 } from './types';
 
 export function generateUniqueNodeId(
@@ -25,14 +26,15 @@ export function generateUniqueNodeId(
 
 export function addNode(
   ast: MermaidFlowchartAST,
-  label: string = 'New Step'
+  label: string = 'New Step',
+  shape: MermaidShapeType = 'rectangle'
 ): string {
   const id = generateUniqueNodeId(ast, 'step');
   const newNode: MermaidNodeDef = {
     type: 'node',
     id,
     label: label.trim() || id,
-    shape: 'rectangle',
+    shape,
   };
   ast.nodes.set(id, newNode);
   return id;
@@ -41,7 +43,8 @@ export function addNode(
 export function addChildNode(
   ast: MermaidFlowchartAST,
   parentId: string,
-  label: string = 'Next Step'
+  label: string = 'Next Step',
+  shape: MermaidShapeType = 'rectangle'
 ): { nodeId: string; edgeId: string } {
   const childId = generateUniqueNodeId(ast, 'step');
   const parentNode = ast.nodes.get(parentId);
@@ -50,7 +53,7 @@ export function addChildNode(
     type: 'node',
     id: childId,
     label: label.trim() || childId,
-    shape: 'rectangle',
+    shape,
     subgraphId: parentNode?.subgraphId,
   };
   ast.nodes.set(childId, childNode);
@@ -135,6 +138,17 @@ export function updateNodeLabel(
   return true;
 }
 
+export function updateNodeShape(
+  ast: MermaidFlowchartAST,
+  nodeId: string,
+  newShape: MermaidShapeType
+): boolean {
+  const node = ast.nodes.get(nodeId);
+  if (!node) return false;
+  node.shape = newShape;
+  return true;
+}
+
 export function updateEdgeLabel(
   ast: MermaidFlowchartAST,
   edgeId: string,
@@ -174,7 +188,8 @@ export function reverseEdgeDirection(
 export function insertNodeOnEdge(
   ast: MermaidFlowchartAST,
   edgeId: string,
-  label = 'New Step'
+  label = 'New Step',
+  shape: MermaidShapeType = 'rectangle'
 ): { nodeId: string; edge1Id: string; edge2Id: string } | null {
   const edgeIndex = ast.edges.findIndex((e) => e.id === edgeId);
   if (edgeIndex === -1) return null;
@@ -194,7 +209,7 @@ export function insertNodeOnEdge(
     type: 'node',
     id: newNodeId,
     label: label.trim() || newNodeId,
-    shape: 'rectangle',
+    shape,
     subgraphId,
   };
   ast.nodes.set(newNodeId, newNode);
@@ -239,14 +254,15 @@ export function insertNodeBetween(
   ast: MermaidFlowchartAST,
   fromId: string,
   toId: string,
-  label = 'New Step'
+  label = 'New Step',
+  shape: MermaidShapeType = 'rectangle'
 ): { nodeId: string; edge1Id: string; edge2Id: string } | null {
   if (fromId === toId) return null;
   if (!ast.nodes.has(fromId) || !ast.nodes.has(toId)) return null;
 
   const existing = ast.edges.find((e) => e.from === fromId && e.to === toId);
   if (existing) {
-    return insertNodeOnEdge(ast, existing.id, label);
+    return insertNodeOnEdge(ast, existing.id, label, shape);
   }
 
   // If not directly connected yet, create node and connect both
@@ -259,7 +275,7 @@ export function insertNodeBetween(
     type: 'node',
     id: newNodeId,
     label: label.trim() || newNodeId,
-    shape: 'rectangle',
+    shape,
     subgraphId,
   };
   ast.nodes.set(newNodeId, newNode);

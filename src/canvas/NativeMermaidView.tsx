@@ -28,6 +28,7 @@ import {
   updateEdgeType,
   updateNodeLabel,
 } from '../ast/mutations';
+import { matchSvgEdgeToAst } from '../utils/edgeMatching';
 import {
   ArrowBidirectionalIcon,
   ArrowDottedIcon,
@@ -388,58 +389,15 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       el: Element,
       fallbackIdx?: number
     ): MermaidEdgeDef | null => {
-      const idAttr = (el.getAttribute('id') || '').trim();
-      const classAttr = (el.getAttribute('class') || '').trim();
-      const textContent = (el.textContent || '').trim();
-
-      if (idAttr) {
-        const normId = idAttr.replace(/[-_]/g, '_');
-        for (const edge of ast.edges) {
-          const normFrom = edge.from.replace(/[-_]/g, '_');
-          const normTo = edge.to.replace(/[-_]/g, '_');
-          if (
-            normId.includes(`L_${normFrom}_${normTo}`) ||
-            normId.includes(`_${normFrom}_${normTo}_`) ||
-            normId.endsWith(`_${normFrom}_${normTo}`) ||
-            normId === `${normFrom}_${normTo}` ||
-            normId.includes(`${normFrom}_${normTo}`)
-          ) {
-            return edge;
-          }
-        }
-      }
-
-      if (classAttr) {
-        const normClass = classAttr.replace(/[-_]/g, '_');
-        for (const edge of ast.edges) {
-          const normFrom = edge.from.replace(/[-_]/g, '_');
-          const normTo = edge.to.replace(/[-_]/g, '_');
-          if (
-            normClass.includes(`LS_${normFrom}`) &&
-            normClass.includes(`LE_${normTo}`)
-          ) {
-            return edge;
-          }
-          if (normClass.includes(`_${normFrom}_${normTo}_`)) {
-            return edge;
-          }
-        }
-      }
-
-      if (textContent) {
-        const matched = ast.edges.find((ed) => ed.label && ed.label === textContent);
-        if (matched) return matched;
-      }
-
-      if (
-        fallbackIdx !== undefined &&
-        fallbackIdx >= 0 &&
-        fallbackIdx < ast.edges.length
-      ) {
-        return ast.edges[fallbackIdx];
-      }
-
-      return null;
+      return matchSvgEdgeToAst(
+        {
+          id: el.getAttribute('id'),
+          className: el.getAttribute('class'),
+          textContent: el.textContent,
+        },
+        ast.edges,
+        fallbackIdx
+      );
     };
 
     // B. Setup Edge Paths & Invisible Hit-Areas

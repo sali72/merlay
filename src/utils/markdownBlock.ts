@@ -117,7 +117,35 @@ export function replaceMermaidBlock(
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim().startsWith('```mermaid')) {
       const before = lines.slice(0, i + 1);
-      const after = lines.slice(i + 1);
+
+      // Detect where the unclosed mermaid code ends and regular document text resumes
+      let endIdx = lines.length;
+      for (let j = i + 1; j < lines.length; j++) {
+        const trimmed = lines[j].trim();
+        if (!trimmed) continue;
+
+        // If line is a markdown heading, rule, or other code fence
+        if (trimmed.startsWith('#') || trimmed.startsWith('```') || trimmed === '---' || trimmed.startsWith('>')) {
+          // Look back to preserve empty lines before headings
+          endIdx = j;
+          if (j > i + 1 && !lines[j - 1].trim()) {
+            endIdx = j - 1;
+          }
+          break;
+        }
+
+        // If line doesn't match mermaid flowchart syntax
+        const isMermaidSyntax =
+          /^(flowchart|graph|subgraph|end|direction|classDef|class|style|%%)\b/i.test(trimmed) ||
+          /(-->|--|==>|===|-\.->|-.-|<-->|<==>|\[.*\]|\(.*\)|{.*})/.test(trimmed);
+
+        if (!isMermaidSyntax) {
+          endIdx = j;
+          break;
+        }
+      }
+
+      const after = lines.slice(endIdx);
       const newEndLine = i + 1 + codeLines.length;
       return {
         updatedText: [...before, ...codeLines, '```', ...after].join('\n'),

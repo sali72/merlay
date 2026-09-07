@@ -127,7 +127,8 @@ export function tokenize(input: string): Token[] {
       let wordEnd = pos;
       while (
         wordEnd < rawLine.length &&
-        !/[\s\[\(\{\|\-\=\.\>\<\%\"]/.test(rawLine[wordEnd])
+        !/[\s\[\]\(\)\{\}\|\%\"]/.test(rawLine[wordEnd]) &&
+        !matchArrow(rawLine, wordEnd)
       ) {
         wordEnd++;
       }
