@@ -188,6 +188,65 @@ pre.language-mermaid {
   margin: 0 4px;
 }
 
+/* Segmented Mode Switcher (Select vs Hand) */
+.mermaid-mode-segmented {
+  display: inline-flex;
+  align-items: center;
+  background: var(--background-primary);
+  border: 1px solid var(--mermaid-border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.mermaid-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--mermaid-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mermaid-mode-btn:hover {
+  color: var(--mermaid-text);
+  background: var(--background-modifier-hover);
+}
+
+.mermaid-mode-btn.is-active {
+  background: var(--mermaid-accent);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Cursor Mode States */
+.mermaid-native-editor-root.is-mode-select {
+  cursor: default;
+}
+
+.mermaid-native-editor-root.is-mode-hand {
+  cursor: grab;
+}
+
+.mermaid-native-editor-root.is-panning,
+.mermaid-native-editor-root.is-mode-hand:active {
+  cursor: grabbing !important;
+}
+
+.mermaid-native-editor-root.is-space-held {
+  cursor: grab !important;
+}
+
+.mermaid-native-editor-root.is-space-held.is-panning {
+  cursor: grabbing !important;
+}
+
 /* 4. Native SVG World & Mount */
 .mermaid-native-world {
   position: absolute;
@@ -297,6 +356,56 @@ pre.language-mermaid {
   50% {
     stroke-width: 8.5px;
     stroke-opacity: 0.48;
+  }
+}
+
+/* Marquee Drag Selection Box */
+.mermaid-selection-marquee {
+  position: absolute;
+  border: 1px solid var(--mermaid-accent);
+  background-color: var(--mermaid-accent-subtle);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 120;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.1);
+}
+
+/* Multi-Select Floating Action HUD */
+.mermaid-multiselect-hud {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--mermaid-bg-secondary);
+  border: 1px solid var(--mermaid-border);
+  border-radius: 20px;
+  box-shadow: var(--mermaid-shadow);
+  pointer-events: all;
+  white-space: nowrap;
+  animation: fadeInHud 0.15s ease-out;
+}
+
+.mermaid-multiselect-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--mermaid-accent-subtle);
+  border: 1px solid var(--mermaid-accent);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mermaid-accent);
+}
+
+@keyframes fadeInHud {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 }
 

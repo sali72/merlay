@@ -384,3 +384,88 @@ export function setDiagramDirection(
 ): void {
   ast.direction = direction;
 }
+
+/**
+ * Batch delete multiple nodes and all connected edges, subgraphs, and styles.
+ */
+export function deleteNodes(
+  ast: MermaidFlowchartAST,
+  nodeIds: Iterable<string>
+): number {
+  const idsSet = new Set(nodeIds);
+  let deletedCount = 0;
+
+  for (const id of idsSet) {
+    if (ast.nodes.delete(id)) {
+      deletedCount++;
+    }
+  }
+  if (deletedCount === 0) return 0;
+
+  // Filter edges connecting to any deleted node
+  ast.edges = ast.edges.filter(
+    (e) => !idsSet.has(e.from) && !idsSet.has(e.to)
+  );
+
+  // Filter from subgraphs
+  for (const sub of ast.subgraphs.values()) {
+    sub.nodeIds = sub.nodeIds.filter((id) => !idsSet.has(id));
+  }
+
+  // Filter styles
+  ast.styles = ast.styles.filter((s) => !idsSet.has(s.targetId));
+
+  return deletedCount;
+}
+
+/**
+ * Batch update shape for multiple nodes.
+ */
+export function updateNodesShape(
+  ast: MermaidFlowchartAST,
+  nodeIds: Iterable<string>,
+  shape: MermaidShapeType
+): number {
+  let count = 0;
+  for (const id of nodeIds) {
+    const node = ast.nodes.get(id);
+    if (node) {
+      node.shape = shape;
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Batch update visual styles for multiple nodes.
+ */
+export function updateNodesStyle(
+  ast: MermaidFlowchartAST,
+  nodeIds: Iterable<string>,
+  styles: Record<string, string> | null
+): number {
+  let count = 0;
+  for (const id of nodeIds) {
+    if (updateNodeStyle(ast, id, styles)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Batch clear visual styles for multiple nodes.
+ */
+export function clearNodesStyle(
+  ast: MermaidFlowchartAST,
+  nodeIds: Iterable<string>
+): number {
+  let count = 0;
+  for (const id of nodeIds) {
+    if (clearNodeStyle(ast, id)) {
+      count++;
+    }
+  }
+  return count;
+}
