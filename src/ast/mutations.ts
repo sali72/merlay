@@ -149,6 +149,74 @@ export function updateNodeShape(
   return true;
 }
 
+export function updateNodeStyle(
+  ast: MermaidFlowchartAST,
+  nodeId: string,
+  styles: Record<string, string> | null
+): boolean {
+  if (!ast.nodes.has(nodeId)) return false;
+
+  const node = ast.nodes.get(nodeId)!;
+
+  if (!styles || Object.keys(styles).length === 0) {
+    return clearNodeStyle(ast, nodeId);
+  }
+
+  // Clean empty values
+  const cleanStyles: Record<string, string> = {};
+  for (const [k, v] of Object.entries(styles)) {
+    const trimmed = v.trim();
+    if (trimmed) {
+      cleanStyles[k.trim()] = trimmed;
+    }
+  }
+
+  if (Object.keys(cleanStyles).length === 0) {
+    return clearNodeStyle(ast, nodeId);
+  }
+
+  // Update on node
+  node.style = cleanStyles;
+
+  // Update or insert in ast.styles
+  const existingIndex = ast.styles.findIndex((s) => s.targetId === nodeId);
+  if (existingIndex !== -1) {
+    ast.styles[existingIndex].styles = { ...cleanStyles };
+  } else {
+    ast.styles.push({
+      type: 'style',
+      targetId: nodeId,
+      styles: { ...cleanStyles },
+    });
+  }
+
+  return true;
+}
+
+export function clearNodeStyle(
+  ast: MermaidFlowchartAST,
+  nodeId: string
+): boolean {
+  if (!ast.nodes.has(nodeId)) return false;
+
+  const node = ast.nodes.get(nodeId)!;
+  delete node.style;
+
+  ast.styles = ast.styles.filter((s) => s.targetId !== nodeId);
+  return true;
+}
+
+export function getNodeStyle(
+  ast: MermaidFlowchartAST,
+  nodeId: string
+): Record<string, string> | undefined {
+  const node = ast.nodes.get(nodeId);
+  if (node?.style) return node.style;
+
+  const styleDef = ast.styles.find((s) => s.targetId === nodeId);
+  return styleDef?.styles;
+}
+
 export function updateEdgeLabel(
   ast: MermaidFlowchartAST,
   edgeId: string,

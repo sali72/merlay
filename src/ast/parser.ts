@@ -145,18 +145,25 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
       advance(); // consume 'style'
       if (currentToken().type === 'IDENTIFIER') {
         const targetId = advance().value;
-        const styleMap: Record<string, string> = {};
+        const styleParts: string[] = [];
 
         while (
           currentToken().type !== 'NEWLINE' &&
           currentToken().type !== 'EOF'
         ) {
-          const part = advance().value;
-          const pairs = part.split(',');
-          for (const p of pairs) {
-            const [key, val] = p.split(':');
+          styleParts.push(advance().value);
+        }
+
+        const fullStr = styleParts.join(' ');
+        const styleMap: Record<string, string> = {};
+        const pairs = fullStr.split(',');
+        for (const p of pairs) {
+          const colonIdx = p.indexOf(':');
+          if (colonIdx !== -1) {
+            const key = p.substring(0, colonIdx).trim();
+            const val = p.substring(colonIdx + 1).trim().replace(/[,;]$/, '');
             if (key && val) {
-              styleMap[key.trim()] = val.trim().replace(/[,;]$/, '');
+              styleMap[key] = val;
             }
           }
         }
@@ -171,18 +178,25 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
       advance(); // consume 'classDef'
       if (currentToken().type === 'IDENTIFIER') {
         const className = advance().value;
-        const styleMap: Record<string, string> = {};
+        const styleParts: string[] = [];
 
         while (
           currentToken().type !== 'NEWLINE' &&
           currentToken().type !== 'EOF'
         ) {
-          const part = advance().value;
-          const pairs = part.split(',');
-          for (const p of pairs) {
-            const [key, val] = p.split(':');
+          styleParts.push(advance().value);
+        }
+
+        const fullStr = styleParts.join(' ');
+        const styleMap: Record<string, string> = {};
+        const pairs = fullStr.split(',');
+        for (const p of pairs) {
+          const colonIdx = p.indexOf(':');
+          if (colonIdx !== -1) {
+            const key = p.substring(0, colonIdx).trim();
+            const val = p.substring(colonIdx + 1).trim().replace(/[,;]$/, '');
             if (key && val) {
-              styleMap[key.trim()] = val.trim().replace(/[,;]$/, '');
+              styleMap[key] = val;
             }
           }
         }
@@ -204,6 +218,13 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
 
     // Advance unknown tokens to avoid infinite loops
     advance();
+  }
+
+  // Link styles to node definitions
+  for (const s of ast.styles) {
+    if (ast.nodes.has(s.targetId)) {
+      ast.nodes.get(s.targetId)!.style = { ...s.styles };
+    }
   }
 
   return ast;

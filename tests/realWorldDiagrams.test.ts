@@ -174,7 +174,7 @@ flowchart LR
   assert.equal(ast.nodes.get('N6')?.shape, 'circle');
   assert.equal(ast.nodes.get('N7')?.shape, 'hexagon');
   assert.equal(ast.nodes.get('N8')?.shape, 'parallelogram');
-  assert.equal(ast.nodes.get('N9')?.shape, 'parallelogram');
+  assert.equal(ast.nodes.get('N9')?.shape, 'parallelogram_alt');
   assert.equal(ast.nodes.get('N10')?.shape, 'diamond');
 
   // Verify round-trip preserves all distinct shapes exactly

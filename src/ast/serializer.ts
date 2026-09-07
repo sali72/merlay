@@ -93,12 +93,22 @@ function formatShape(shape: MermaidShapeType, label: string): string {
       return `[(${safe})]`;
     case 'circle':
       return `((${safe}))`;
+    case 'double_circle':
+      return `(((${safe})))`;
     case 'diamond':
       return `{${safe}}`;
     case 'hexagon':
       return `{{${safe}}}`;
     case 'parallelogram':
       return `[/${safe}/]`;
+    case 'parallelogram_alt':
+      return `[\\${safe}\\]`;
+    case 'trapezoid':
+      return `[/${safe}\\]`;
+    case 'trapezoid_alt':
+      return `[\\${safe}/]`;
+    case 'asymmetric':
+      return `>${safe}]`;
     case 'rectangle':
     default:
       return `[${safe}]`;

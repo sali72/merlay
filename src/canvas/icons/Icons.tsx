@@ -220,6 +220,12 @@ export const InsertStepIcon: React.FC<IconProps> = ({ size = 15, className = '',
   </svg>
 );
 
+export const CheckIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
 export const ShapeIcons = {
   rectangle: ({ size = 14 }: { size?: number } = {}) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -247,6 +253,12 @@ export const ShapeIcons = {
       <circle cx="12" cy="12" r="9" />
     </svg>
   ),
+  double_circle: ({ size = 14 }: { size?: number } = {}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+    </svg>
+  ),
   diamond: ({ size = 14 }: { size?: number } = {}) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="12,2 22,12 12,22 2,12" />
@@ -267,6 +279,26 @@ export const ShapeIcons = {
   parallelogram: ({ size = 14 }: { size?: number } = {}) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="7,5 22,5 17,19 2,19" />
+    </svg>
+  ),
+  parallelogram_alt: ({ size = 14 }: { size?: number } = {}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="2,5 17,5 22,19 7,19" />
+    </svg>
+  ),
+  trapezoid: ({ size = 14 }: { size?: number } = {}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="6,5 18,5 22,19 2,19" />
+    </svg>
+  ),
+  trapezoid_alt: ({ size = 14 }: { size?: number } = {}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="2,5 22,5 18,19 6,19" />
+    </svg>
+  ),
+  asymmetric: ({ size = 14 }: { size?: number } = {}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="2,5 18,5 22,12 18,19 2,19" />
     </svg>
   ),
 };

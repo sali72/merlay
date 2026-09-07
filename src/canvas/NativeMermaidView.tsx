@@ -11,6 +11,7 @@ import {
   MermaidEdgeDef,
   MermaidFlowchartAST,
   FlowchartDirection,
+  MermaidShapeType,
 } from '../ast/types';
 import { parseMermaidFlowchart } from '../ast/parser';
 import { serializeMermaidFlowchart } from '../ast/serializer';
@@ -27,6 +28,10 @@ import {
   updateEdgeLabel,
   updateEdgeType,
   updateNodeLabel,
+  updateNodeShape,
+  updateNodeStyle,
+  clearNodeStyle,
+  getNodeStyle,
 } from '../ast/mutations';
 import { matchSvgEdgeToAst } from '../utils/edgeMatching';
 import {
@@ -35,13 +40,17 @@ import {
   ArrowOpenIcon,
   ArrowSolidIcon,
   ArrowThickIcon,
+  CheckIcon,
   CloseIcon,
   CodeIcon,
   FitViewIcon,
   InsertStepIcon,
+  PaletteIcon,
   PencilIcon,
   PlusIcon,
   ReverseIcon,
+  ShapesIcon,
+  ShapeIcons,
   TrashIcon,
 } from './icons/Icons';
 
@@ -103,6 +112,90 @@ async function renderMermaidSvg(app: App, code: string): Promise<string> {
   return tempContainer.innerHTML;
 }
 
+const SHAPE_OPTIONS: Array<{ type: MermaidShapeType; label: string }> = [
+  { type: 'rectangle', label: 'Rectangle [ ]' },
+  { type: 'rounded', label: 'Rounded ( )' },
+  { type: 'stadium', label: 'Stadium ([ ])' },
+  { type: 'subroutine', label: 'Subroutine [[ ]]' },
+  { type: 'cylinder', label: 'Database [( )]' },
+  { type: 'circle', label: 'Circle (( ))' },
+  { type: 'double_circle', label: 'Double Circle ((( )))' },
+  { type: 'diamond', label: 'Decision { }' },
+  { type: 'hexagon', label: 'Hexagon {{ }}' },
+  { type: 'parallelogram', label: 'Parallelogram [/ /]' },
+  { type: 'parallelogram_alt', label: 'Parallelogram [\\ \\]' },
+  { type: 'trapezoid', label: 'Trapezoid [/ \\]' },
+  { type: 'trapezoid_alt', label: 'Inv. Trapezoid [\\ /]' },
+  { type: 'asymmetric', label: 'Banner > ]' },
+];
+
+const THEME_PRESETS = [
+  {
+    name: 'Default',
+    fill: '',
+    stroke: '',
+    color: '',
+    bgPreview: 'transparent',
+    borderPreview: 'var(--mermaid-border)',
+  },
+  {
+    name: 'Emerald (Success)',
+    fill: '#d1fae5',
+    stroke: '#059669',
+    color: '#065f46',
+    bgPreview: '#10b981',
+    borderPreview: '#047857',
+  },
+  {
+    name: 'Sky (Process)',
+    fill: '#e0f2fe',
+    stroke: '#0284c7',
+    color: '#0369a1',
+    bgPreview: '#38bdf8',
+    borderPreview: '#0284c7',
+  },
+  {
+    name: 'Violet (Special)',
+    fill: '#ede9fe',
+    stroke: '#7c3aed',
+    color: '#5b21b6',
+    bgPreview: '#8b5cf6',
+    borderPreview: '#6d28d9',
+  },
+  {
+    name: 'Amber (Warning)',
+    fill: '#fef3c7',
+    stroke: '#d97706',
+    color: '#92400e',
+    bgPreview: '#f59e0b',
+    borderPreview: '#d97706',
+  },
+  {
+    name: 'Rose (Danger)',
+    fill: '#ffe4e6',
+    stroke: '#e11d48',
+    color: '#9f1239',
+    bgPreview: '#f43f5e',
+    borderPreview: '#e11d48',
+  },
+  {
+    name: 'Teal (Cloud)',
+    fill: '#ccfbf1',
+    stroke: '#0d9488',
+    color: '#115e59',
+    bgPreview: '#14b8a6',
+    borderPreview: '#0f766e',
+  },
+  {
+    name: 'Slate (System)',
+    fill: '#334155',
+    stroke: '#0f172a',
+    color: '#f8fafc',
+    bgPreview: '#475569',
+    borderPreview: '#1e293b',
+  },
+];
+
 export interface NativeMermaidViewProps {
   app: App;
   initialCode: string;
@@ -124,6 +217,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [activeNodePopover, setActiveNodePopover] = useState<'shape' | 'style' | null>(null);
 
   // Zoom & Pan state
   const [zoom, setZoom] = useState<number>(1);
@@ -562,6 +656,22 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     updateSelectedNodeRect();
   }, [selectedNodeId, zoom, pan, updateSelectedNodeRect]);
 
+  // Dismiss popovers and selection on Escape
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (activeNodePopover) {
+          setActiveNodePopover(null);
+        } else if (selectedNodeId || selectedEdgeId) {
+          setSelectedNodeId(null);
+          setSelectedEdgeId(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [activeNodePopover, selectedNodeId, selectedEdgeId]);
+
   // 1. Render Obsidian's native Mermaid SVG with direct engine and double buffering
   useEffect(() => {
     const mountEl = svgMountRef.current;
@@ -608,9 +718,57 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     const targetId = selectedNodeId;
     setSelectedNodeId(null);
     setSelectedNodeRect(null);
+    setActiveNodePopover(null);
     applyAstMutation((a) => {
       deleteNode(a, targetId);
     });
+  };
+
+  const handleUpdateNodeShape = (nodeId: string, shape: MermaidShapeType) => {
+    applyAstMutation((a) => {
+      updateNodeShape(a, nodeId, shape);
+    }, nodeId);
+    setActiveNodePopover(null);
+  };
+
+  const handleApplyNodePreset = (
+    nodeId: string,
+    preset: { fill: string; stroke: string; color: string }
+  ) => {
+    applyAstMutation((a) => {
+      if (!preset.fill && !preset.stroke && !preset.color) {
+        clearNodeStyle(a, nodeId);
+      } else {
+        const styles: Record<string, string> = {};
+        if (preset.fill) styles['fill'] = preset.fill;
+        if (preset.stroke) styles['stroke'] = preset.stroke;
+        if (preset.color) styles['color'] = preset.color;
+        updateNodeStyle(a, nodeId, styles);
+      }
+    }, nodeId);
+  };
+
+  const handleUpdateCustomStyle = (
+    nodeId: string,
+    property: string,
+    value: string
+  ) => {
+    applyAstMutation((a) => {
+      const current = getNodeStyle(a, nodeId) || {};
+      const updated = { ...current };
+      if (value) {
+        updated[property] = value;
+      } else {
+        delete updated[property];
+      }
+      updateNodeStyle(a, nodeId, updated);
+    }, nodeId);
+  };
+
+  const handleClearNodeStyle = (nodeId: string) => {
+    applyAstMutation((a) => {
+      clearNodeStyle(a, nodeId);
+    }, nodeId);
   };
 
   const handleAddStandaloneStep = () => {
@@ -842,6 +1000,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setSelectedEdgePos(null);
         setEditingNodeId(null);
         setEditingEdgeId(null);
+        setActiveNodePopover(null);
       }}
     >
       {/* Top Controls Bar */}
@@ -1015,6 +1174,57 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                   <PencilIcon size={13} />
                 </button>
 
+                {/* Shape Picker Button */}
+                <button
+                  type="button"
+                  className={`mermaid-hud-btn icon-only ${
+                    activeNodePopover === 'shape' ? 'is-active' : ''
+                  }`}
+                  onClick={() =>
+                    setActiveNodePopover((prev) => (prev === 'shape' ? null : 'shape'))
+                  }
+                  title="Change Shape"
+                >
+                  {(() => {
+                    const currentNode = ast.nodes.get(selectedNodeId);
+                    const ShapeComp =
+                      currentNode && ShapeIcons[currentNode.shape as keyof typeof ShapeIcons]
+                        ? ShapeIcons[currentNode.shape as keyof typeof ShapeIcons]
+                        : ShapeIcons.rectangle;
+                    return <ShapeComp size={14} />;
+                  })()}
+                </button>
+
+                {/* Visual Style & Color Button */}
+                <button
+                  type="button"
+                  className={`mermaid-hud-btn icon-only ${
+                    activeNodePopover === 'style' ? 'is-active' : ''
+                  }`}
+                  onClick={() =>
+                    setActiveNodePopover((prev) => (prev === 'style' ? null : 'style'))
+                  }
+                  title="Colors & Border Style"
+                >
+                  <PaletteIcon size={14} />
+                  {(() => {
+                    const currentStyle =
+                      ast.nodes.get(selectedNodeId)?.style ||
+                      getNodeStyle(ast, selectedNodeId);
+                    if (currentStyle?.fill) {
+                      return (
+                        <span
+                          className="mermaid-hud-color-indicator"
+                          style={{ backgroundColor: currentStyle.fill }}
+                        />
+                      );
+                    }
+                    return null;
+                  })()}
+                </button>
+
+                <div className="mermaid-hud-divider" />
+
                 <button
                   type="button"
                   className="mermaid-hud-btn delete-btn icon-only"
@@ -1024,6 +1234,202 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                   <TrashIcon size={13} />
                 </button>
               </div>
+
+              {/* Shape Popover */}
+              {activeNodePopover === 'shape' && (
+                <div
+                  className="mermaid-popover-menu mermaid-shape-popover nodrag"
+                  style={{
+                    position: 'absolute',
+                    left: sproutX,
+                    top: isLR ? sproutY + 28 : sproutY + 36,
+                    transform: isLR ? 'translate(0, 0)' : 'translate(-50%, 0)',
+                    zIndex: 200,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {SHAPE_OPTIONS.map((shape) => {
+                    const IconComp =
+                      ShapeIcons[shape.type as keyof typeof ShapeIcons] || ShapeIcons.rectangle;
+                    const isCurrent = ast.nodes.get(selectedNodeId)?.shape === shape.type;
+                    return (
+                      <button
+                        key={shape.type}
+                        type="button"
+                        className={`mermaid-shape-item-btn ${isCurrent ? 'is-active' : ''}`}
+                        onClick={() => handleUpdateNodeShape(selectedNodeId, shape.type)}
+                      >
+                        <span className="mermaid-shape-item-icon">
+                          <IconComp size={15} />
+                        </span>
+                        <span>{shape.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Visual Styling Popover */}
+              {activeNodePopover === 'style' && (
+                <div
+                  className="mermaid-popover-menu mermaid-style-popover nodrag"
+                  style={{
+                    position: 'absolute',
+                    left: sproutX,
+                    top: isLR ? sproutY + 28 : sproutY + 36,
+                    transform: isLR ? 'translate(0, 0)' : 'translate(-50%, 0)',
+                    zIndex: 200,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Theme Presets */}
+                  <div className="mermaid-style-popover-title">Themes</div>
+                  <div className="mermaid-swatches-grid">
+                    {THEME_PRESETS.map((p) => {
+                      const currentStyle =
+                        ast.nodes.get(selectedNodeId)?.style || getNodeStyle(ast, selectedNodeId);
+                      const isCurrent =
+                        (!p.fill && !currentStyle?.fill) ||
+                        (Boolean(currentStyle?.fill) &&
+                          currentStyle?.fill?.toLowerCase() === p.fill.toLowerCase());
+                      return (
+                        <button
+                          key={p.name}
+                          type="button"
+                          className={`mermaid-swatch-btn ${isCurrent ? 'is-active' : ''}`}
+                          style={{
+                            backgroundColor: p.bgPreview,
+                            borderColor: p.borderPreview,
+                          }}
+                          onClick={() => handleApplyNodePreset(selectedNodeId, p)}
+                          title={p.name}
+                        >
+                          {isCurrent && <CheckIcon size={12} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Stroke Width */}
+                  <div className="mermaid-style-control-row">
+                    <span className="mermaid-style-popover-title">Border</span>
+                    <div className="mermaid-style-segmented">
+                      {['1px', '2px', '3px', '4px'].map((w) => {
+                        const currentStyle =
+                          ast.nodes.get(selectedNodeId)?.style || getNodeStyle(ast, selectedNodeId);
+                        const isCurrent = currentStyle?.['stroke-width'] === w;
+                        return (
+                          <button
+                            key={w}
+                            type="button"
+                            className={`mermaid-segmented-btn ${isCurrent ? 'is-active' : ''}`}
+                            onClick={() => handleUpdateCustomStyle(selectedNodeId, 'stroke-width', w)}
+                          >
+                            {w}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Stroke Dash Style */}
+                  <div className="mermaid-style-control-row">
+                    <span className="mermaid-style-popover-title">Dash</span>
+                    <div className="mermaid-style-segmented">
+                      {[
+                        { label: 'Solid', value: '' },
+                        { label: 'Dashed', value: '5 5' },
+                        { label: 'Dotted', value: '2 2' },
+                      ].map((dash) => {
+                        const currentStyle =
+                          ast.nodes.get(selectedNodeId)?.style || getNodeStyle(ast, selectedNodeId);
+                        const isCurrent =
+                          (!dash.value && !currentStyle?.['stroke-dasharray']) ||
+                          currentStyle?.['stroke-dasharray'] === dash.value;
+                        return (
+                          <button
+                            key={dash.label}
+                            type="button"
+                            className={`mermaid-segmented-btn ${isCurrent ? 'is-active' : ''}`}
+                            onClick={() =>
+                              handleUpdateCustomStyle(selectedNodeId, 'stroke-dasharray', dash.value)
+                            }
+                          >
+                            {dash.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Custom Colors */}
+                  <div className="mermaid-style-control-row">
+                    <span>Fill Color</span>
+                    <div className="mermaid-color-input-wrapper">
+                      <input
+                        type="color"
+                        className="mermaid-color-picker-input"
+                        value={
+                          ast.nodes.get(selectedNodeId)?.style?.fill ||
+                          getNodeStyle(ast, selectedNodeId)?.fill ||
+                          '#ffffff'
+                        }
+                        onChange={(e) =>
+                          handleUpdateCustomStyle(selectedNodeId, 'fill', e.target.value)
+                        }
+                        title="Custom Fill Color"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mermaid-style-control-row">
+                    <span>Border Color</span>
+                    <div className="mermaid-color-input-wrapper">
+                      <input
+                        type="color"
+                        className="mermaid-color-picker-input"
+                        value={
+                          ast.nodes.get(selectedNodeId)?.style?.stroke ||
+                          getNodeStyle(ast, selectedNodeId)?.stroke ||
+                          '#7c3aed'
+                        }
+                        onChange={(e) =>
+                          handleUpdateCustomStyle(selectedNodeId, 'stroke', e.target.value)
+                        }
+                        title="Custom Border Color"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mermaid-style-control-row">
+                    <span>Text Color</span>
+                    <div className="mermaid-color-input-wrapper">
+                      <input
+                        type="color"
+                        className="mermaid-color-picker-input"
+                        value={
+                          ast.nodes.get(selectedNodeId)?.style?.color ||
+                          getNodeStyle(ast, selectedNodeId)?.color ||
+                          '#000000'
+                        }
+                        onChange={(e) =>
+                          handleUpdateCustomStyle(selectedNodeId, 'color', e.target.value)
+                        }
+                        title="Custom Text Color"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Reset to Default */}
+                  <button
+                    type="button"
+                    className="mermaid-style-reset-btn"
+                    onClick={() => handleClearNodeStyle(selectedNodeId)}
+                  >
+                    Reset to Default Theme
+                  </button>
+                </div>
+              )}
             </>
           )}
 

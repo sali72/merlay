@@ -127,7 +127,7 @@ export function tokenize(input: string): Token[] {
       let wordEnd = pos;
       while (
         wordEnd < rawLine.length &&
-        !/[\s\[\]\(\)\{\}\|\%\"]/.test(rawLine[wordEnd]) &&
+        !/[\s\[\]\(\)\{\}\|\%\">]/.test(rawLine[wordEnd]) &&
         !matchArrow(rawLine, wordEnd)
       ) {
         wordEnd++;
@@ -213,13 +213,17 @@ function matchShape(
     close: string;
     type: string;
   }> = [
+    { open: '(((', close: ')))', type: 'double_circle' },
     { open: '([', close: '])', type: 'stadium' },
     { open: '[[', close: ']]', type: 'subroutine' },
     { open: '[(', close: ')]', type: 'cylinder' },
     { open: '((', close: '))', type: 'circle' },
     { open: '{{', close: '}}', type: 'hexagon' },
     { open: '[/', close: '/]', type: 'parallelogram' },
-    { open: '[\\', close: '\\]', type: 'parallelogram' },
+    { open: '[/', close: '\\]', type: 'trapezoid' },
+    { open: '[\\', close: '\\]', type: 'parallelogram_alt' },
+    { open: '[\\', close: '/]', type: 'trapezoid_alt' },
+    { open: '>', close: ']', type: 'asymmetric' },
     { open: '[', close: ']', type: 'rectangle' },
     { open: '(', close: ')', type: 'rounded' },
     { open: '{', close: '}', type: 'diamond' },

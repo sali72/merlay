@@ -5,15 +5,20 @@
 export type FlowchartDirection = 'TB' | 'TD' | 'BT' | 'RL' | 'LR';
 
 export type MermaidShapeType =
-  | 'rectangle'      // [text]
-  | 'rounded'        // (text)
-  | 'stadium'        // ([text])
-  | 'subroutine'     // [[text]]
-  | 'cylinder'       // [(text)]
-  | 'circle'         // ((text))
-  | 'diamond'        // {text}
-  | 'hexagon'        // {{text}}
-  | 'parallelogram'; // [/text/]
+  | 'rectangle'          // [text]
+  | 'rounded'            // (text)
+  | 'stadium'            // ([text])
+  | 'subroutine'         // [[text]]
+  | 'cylinder'           // [(text)]
+  | 'circle'             // ((text))
+  | 'double_circle'      // (((text)))
+  | 'diamond'            // {text}
+  | 'hexagon'            // {{text}}
+  | 'parallelogram'      // [/text/]
+  | 'parallelogram_alt'  // [\text\]
+  | 'trapezoid'          // [/text\]
+  | 'trapezoid_alt'      // [\text/]
+  | 'asymmetric';        // >text]
 
 export type ArrowType =
   | 'arrow'          // -->
