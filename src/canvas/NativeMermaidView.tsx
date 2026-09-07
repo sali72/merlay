@@ -197,28 +197,6 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     screenY: number;
   } | null>(null);
   const renderTicketRef = useRef<number>(0);
-  const hoverTimeoutRef = useRef<number | null>(null);
-
-  const clearHoverTimeout = useCallback(() => {
-    if (hoverTimeoutRef.current !== null) {
-      window.clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-  }, []);
-
-  const scheduleClearHover = useCallback(() => {
-    clearHoverTimeout();
-    hoverTimeoutRef.current = window.setTimeout(() => {
-      setHoveredNodeId(null);
-      setHoveredNodeRect(null);
-    }, 200);
-  }, [clearHoverTimeout]);
-
-  useEffect(() => {
-    return () => {
-      clearHoverTimeout();
-    };
-  }, [clearHoverTimeout]);
 
   // Exact 1:1 screen-to-world coordinate calculation
   const getLocalRect = useCallback(
@@ -397,16 +375,11 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         startEditingNode(targetNodeId, htmlEl);
       };
 
-      // Node Hover -> Connection Handle (with grace period to eliminate flicker)
+      // Node Hover -> Connection Handle
       htmlEl.onmouseenter = () => {
-        clearHoverTimeout();
         setHoveredNodeId(targetNodeId);
         const rect = getLocalRect(htmlEl);
         if (rect) setHoveredNodeRect(rect);
-      };
-
-      htmlEl.onmouseleave = () => {
-        scheduleClearHover();
       };
     });
 
@@ -601,7 +574,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         startEditingEdge(targetEdgeId, htmlEl);
       };
     });
-  }, [ast, getLocalRect, zoom, clearHoverTimeout, scheduleClearHover]);
+  }, [ast, getLocalRect, zoom]);
 
   // Camera stabilization: keep active node anchored at same screen position
   const stabilizeCamera = useCallback(() => {
@@ -818,6 +791,25 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           : null
       );
     }
+
+    // Proximity-based smooth hover clearance (avoids rapid mount/unmount flapping)
+    if (hoveredNodeId && hoveredNodeRect && worldRef.current && !connectingSourceId) {
+      const worldRect = worldRef.current.getBoundingClientRect();
+      const mouseX = (e.clientX - worldRect.left) / zoom;
+      const mouseY = (e.clientY - worldRect.top) / zoom;
+      const pad = 24;
+      const withinX =
+        mouseX >= hoveredNodeRect.x - pad &&
+        mouseX <= hoveredNodeRect.x + hoveredNodeRect.width + pad + 24;
+      const withinY =
+        mouseY >= hoveredNodeRect.y - pad &&
+        mouseY <= hoveredNodeRect.y + hoveredNodeRect.height + pad + 24;
+
+      if (!withinX || !withinY) {
+        setHoveredNodeId(null);
+        setHoveredNodeRect(null);
+      }
+    }
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -835,22 +827,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       const targetEdgeId = targetEdgeEl?.getAttribute('data-mermaid-edge-id');
 
       if (targetNodeId && targetNodeId !== connectingSourceId) {
-        // If already connected, dragging again between them inserts an intermediate node
-        const alreadyConnected = ast.edges.some(
-          (ed) => ed.from === connectingSourceId && ed.to === targetNodeId
-        );
-        if (alreadyConnected) {
-          let createdNodeId: string | null = null;
-          applyAstMutation((a) => {
-            const res = insertNodeBetween(a, connectingSourceId, targetNodeId, 'New Step');
-            if (res) createdNodeId = res.nodeId;
-          }, connectingSourceId);
-          if (createdNodeId) setSelectedNodeId(createdNodeId);
-        } else {
-          applyAstMutation((a) => {
-            connectNodes(a, connectingSourceId, targetNodeId);
-          }, connectingSourceId);
-        }
+        // Dragging to another node simply creates a directed arrow (Mermaid allows multiple arrows)
+        applyAstMutation((a) => {
+          connectNodes(a, connectingSourceId, targetNodeId);
+        }, connectingSourceId);
       } else if (targetEdgeId) {
         // Dropped directly on an existing arrow -> split arrow and insert node in between
         let createdNodeId: string | null = null;
@@ -892,6 +872,12 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onMouseLeave={() => {
+        if (!connectingSourceId) {
+          setHoveredNodeId(null);
+          setHoveredNodeRect(null);
+        }
+      }}
       onClick={() => {
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
@@ -988,7 +974,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
             </svg>
           )}
 
-          {/* Hovered Node Connection Handle (Downstream only) */}
+          {/* Node Connection Handle (Downstream anchor dot) */}
           {hoveredNodeRect && hoveredNodeId && (
             <div
               className="mermaid-connection-handle nodrag"
@@ -1003,8 +989,6 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 transform: 'translate(-50%, -50%)',
                 zIndex: 100,
               }}
-              onMouseEnter={clearHoverTimeout}
-              onMouseLeave={scheduleClearHover}
               onMouseDown={(e) =>
                 handleStartConnect(
                   e,
@@ -1017,9 +1001,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 )
               }
               title="Drag to connect with another step"
-            >
-              <PlusIcon size={10} />
-            </div>
+            />
           )}
 
           {/* Selected Node Halo & Relational Sprout HUD */}

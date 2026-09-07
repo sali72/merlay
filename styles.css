@@ -348,30 +348,35 @@ pre.language-mermaid {
   margin: 0 2px;
 }
 
-/* Connection Handle (Anchor Dot / Sprout Plus) */
+/* Connection Handle (Anchor Dot) */
 .mermaid-connection-handle {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--mermaid-accent);
-  border: 1.5px solid #ffffff;
-  box-shadow: 0 0 8px var(--mermaid-accent);
-  cursor: crosshair;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px var(--mermaid-accent);
+  cursor: pointer;
   pointer-events: all;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+/* Invisible hit-area bridge around the handle so the mouse never falls into a gap */
+.mermaid-connection-handle::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  border-radius: 50%;
+  pointer-events: all;
 }
 
 .mermaid-connection-handle:hover {
-  transform: translate(-50%, -50%) scale(1.25) !important;
   background: var(--mermaid-accent-hover);
-}
-
-.mermaid-connection-handle svg {
-  pointer-events: none;
+  box-shadow: 0 0 10px var(--mermaid-accent);
 }
 
 /* Edge Action HUD */

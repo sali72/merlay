@@ -85,14 +85,7 @@ export function connectNodes(
   if (fromId === toId) return null;
   if (!ast.nodes.has(fromId) || !ast.nodes.has(toId)) return null;
 
-  // Check if identical directed connection already exists
-  const existing = ast.edges.find((e) => e.from === fromId && e.to === toId);
-  if (existing) {
-    if (label !== undefined) existing.label = label;
-    return existing.id;
-  }
-
-  const edgeId = `e_${fromId}_${toId}_${Date.now()}`;
+  const edgeId = `e_${fromId}_${toId}_${Date.now()}_${ast.edges.length}`;
   const newEdge: MermaidEdgeDef = {
     type: 'edge',
     id: edgeId,

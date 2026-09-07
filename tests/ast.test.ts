@@ -178,7 +178,7 @@ test('AST Mutations: addNode, addChildNode, connectNodes, deleteNode, deleteEdge
   assert.equal(sproutEdge.from, 'B');
   assert.equal(sproutEdge.to, childId);
 
-  // 3. connectNodes
+  // 3. connectNodes (supports multiple edges between same nodes)
   const newEdgeId = connectNodes(ast, standaloneId, 'A', 'arrow', 'Prereq');
   assert.ok(newEdgeId);
   const connEdge = ast.edges.find((e) => e.id === newEdgeId);
@@ -186,6 +186,11 @@ test('AST Mutations: addNode, addChildNode, connectNodes, deleteNode, deleteEdge
   assert.equal(connEdge.from, standaloneId);
   assert.equal(connEdge.to, 'A');
   assert.equal(connEdge.label, 'Prereq');
+
+  const secondEdgeId = connectNodes(ast, standaloneId, 'A', 'dotted', 'Secondary');
+  assert.ok(secondEdgeId);
+  assert.notEqual(secondEdgeId, newEdgeId);
+  assert.equal(ast.edges.filter((e) => e.from === standaloneId && e.to === 'A').length, 2);
 
   // 4. updateNodeLabel & updateEdgeLabel
   updateNodeLabel(ast, standaloneId, 'Initial Start');
