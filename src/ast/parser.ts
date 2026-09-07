@@ -59,6 +59,8 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
     }
   }
 
+  const pendingLinkStyles: Array<{ targetSpec: string; styleMap: Record<string, string> }> = [];
+
   while (cursor < tokens.length && currentToken().type !== 'EOF') {
     skipNewlines();
     if (currentToken().type === 'EOF') break;
@@ -173,6 +175,51 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
       continue;
     }
 
+    // 5.b LinkStyle definition: linkStyle 0 stroke:#...,stroke-width:...
+    if (token.type === 'LINK_STYLE') {
+      advance(); // consume 'linkStyle'
+      const parts: string[] = [];
+      while (
+        currentToken().type !== 'NEWLINE' &&
+        currentToken().type !== 'EOF'
+      ) {
+        parts.push(advance().value);
+      }
+
+      const fullStr = parts.join(' ').trim();
+      const tokensList = fullStr.split(/\s+/);
+      const targetParts: string[] = [];
+      const styleTokens: string[] = [];
+      let foundStyle = false;
+
+      for (const t of tokensList) {
+        if (!foundStyle && !t.includes(':')) {
+          targetParts.push(t);
+        } else {
+          foundStyle = true;
+          styleTokens.push(t);
+        }
+      }
+
+      const targetSpec = targetParts.join('').replace(/;$/, '');
+      const stylesStr = styleTokens.join(' ');
+      const styleMap: Record<string, string> = {};
+      const pairs = stylesStr.split(',');
+      for (const p of pairs) {
+        const colonIdx = p.indexOf(':');
+        if (colonIdx !== -1) {
+          const key = p.substring(0, colonIdx).trim();
+          const val = p.substring(colonIdx + 1).trim().replace(/[,;]$/, '');
+          if (key && val) {
+            styleMap[key] = val;
+          }
+        }
+      }
+
+      pendingLinkStyles.push({ targetSpec, styleMap });
+      continue;
+    }
+
     // 6. Class definition: classDef name fill:#...
     if (token.type === 'CLASS_DEF') {
       advance(); // consume 'classDef'
@@ -224,6 +271,23 @@ export function parseMermaidFlowchart(input: string): MermaidFlowchartAST {
   for (const s of ast.styles) {
     if (ast.nodes.has(s.targetId)) {
       ast.nodes.get(s.targetId)!.style = { ...s.styles };
+    }
+  }
+
+  // Link styles to edges (linkStyle <indices> <styles>)
+  for (const { targetSpec, styleMap } of pendingLinkStyles) {
+    if (targetSpec.toLowerCase() === 'default') {
+      for (const edge of ast.edges) {
+        edge.style = { ...(edge.style || {}), ...styleMap };
+      }
+    } else {
+      const idxStrs = targetSpec.split(',');
+      for (const idxStr of idxStrs) {
+        const idx = parseInt(idxStr.trim(), 10);
+        if (!isNaN(idx) && ast.edges[idx]) {
+          ast.edges[idx].style = { ...(ast.edges[idx].style || {}), ...styleMap };
+        }
+      }
     }
   }
 

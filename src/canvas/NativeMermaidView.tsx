@@ -36,6 +36,9 @@ import {
   clearNodeStyle,
   clearNodesStyle,
   getNodeStyle,
+  updateEdgeStyle,
+  clearEdgeStyle,
+  getEdgeStyle,
 } from '../ast/mutations';
 import { matchSvgEdgeToAst } from '../utils/edgeMatching';
 import {
@@ -203,6 +206,57 @@ const THEME_PRESETS = [
   },
 ];
 
+const EDGE_THEME_PRESETS = [
+  {
+    name: 'Default',
+    stroke: '',
+    bgPreview: 'transparent',
+    borderPreview: 'var(--mermaid-border)',
+  },
+  {
+    name: 'Violet (Primary)',
+    stroke: '#7c3aed',
+    bgPreview: '#8b5cf6',
+    borderPreview: '#6d28d9',
+  },
+  {
+    name: 'Emerald (Success / Yes)',
+    stroke: '#059669',
+    bgPreview: '#10b981',
+    borderPreview: '#047857',
+  },
+  {
+    name: 'Rose (Danger / No)',
+    stroke: '#e11d48',
+    bgPreview: '#f43f5e',
+    borderPreview: '#be123c',
+  },
+  {
+    name: 'Amber (Warning / Alert)',
+    stroke: '#d97706',
+    bgPreview: '#f59e0b',
+    borderPreview: '#b45309',
+  },
+  {
+    name: 'Sky (Info / Action)',
+    stroke: '#0284c7',
+    bgPreview: '#38bdf8',
+    borderPreview: '#0369a1',
+  },
+  {
+    name: 'Slate (Neutral)',
+    stroke: '#64748b',
+    bgPreview: '#94a3b8',
+    borderPreview: '#475569',
+  },
+  {
+    name: 'Monochrome Dark',
+    stroke: '#334155',
+    bgPreview: '#475569',
+    borderPreview: '#0f172a',
+  },
+];
+
 export interface NativeMermaidViewProps {
   app: App;
   initialCode: string;
@@ -234,6 +288,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [activeNodePopover, setActiveNodePopover] = useState<'shape' | 'style' | null>(null);
+  const [activeEdgePopover, setActiveEdgePopover] = useState<'style' | null>(null);
 
   // Marquee Drag Selection state
   const [selectionBox, setSelectionBox] = useState<{
@@ -870,8 +925,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
       // Escape: Dismiss popovers and clear selection
       if (e.key === 'Escape') {
-        if (activeNodePopover) {
+        if (activeNodePopover || activeEdgePopover) {
           setActiveNodePopover(null);
+          setActiveEdgePopover(null);
         } else if (selectedNodeIds.size > 0 || selectedEdgeId) {
           setSelectedNodeIds(new Set());
           setSelectedEdgeId(null);
@@ -904,7 +960,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('keyup', handleGlobalKeyUp);
     };
-  }, [activeNodePopover, selectedNodeIds, selectedEdgeId, updateSelectedNodeHalo]);
+  }, [activeNodePopover, activeEdgePopover, selectedNodeIds, selectedEdgeId, updateSelectedNodeHalo]);
 
   // 1. Render Obsidian's native Mermaid SVG with direct engine and double buffering
   useEffect(() => {
@@ -1133,6 +1189,42 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       updateEdgeLabel(a, selectedEdgeId, newLabel);
     });
     setSelectedEdgePos((prev) => (prev ? { ...prev, label: newLabel } : null));
+  };
+
+  const handleApplyEdgePreset = (preset: { stroke: string }) => {
+    if (!selectedEdgeId) return;
+    applyAstMutation((a) => {
+      if (!preset.stroke) {
+        clearEdgeStyle(a, selectedEdgeId);
+      } else {
+        const current = getEdgeStyle(a, selectedEdgeId) || {};
+        updateEdgeStyle(a, selectedEdgeId, {
+          ...current,
+          stroke: preset.stroke,
+        });
+      }
+    });
+  };
+
+  const handleUpdateEdgeCustomStyle = (property: string, value: string) => {
+    if (!selectedEdgeId) return;
+    applyAstMutation((a) => {
+      const current = getEdgeStyle(a, selectedEdgeId) || {};
+      const updated = { ...current };
+      if (value) {
+        updated[property] = value;
+      } else {
+        delete updated[property];
+      }
+      updateEdgeStyle(a, selectedEdgeId, updated);
+    });
+  };
+
+  const handleClearEdgeStyle = () => {
+    if (!selectedEdgeId) return;
+    applyAstMutation((a) => {
+      clearEdgeStyle(a, selectedEdgeId);
+    });
   };
 
   // Drag-to-Connect
@@ -1419,6 +1511,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setEditingNodeId(null);
         setEditingEdgeId(null);
         setActiveNodePopover(null);
+        setActiveEdgePopover(null);
         updateSelectedNodeHalo(new Set());
       }}
     >
@@ -2057,6 +2150,36 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 }}
               />
 
+              <div className="mermaid-hud-divider" />
+
+              {/* Arrow Colors & Themes Button */}
+              <button
+                type="button"
+                className={`mermaid-hud-btn icon-only ${
+                  activeEdgePopover === 'style' ? 'is-active' : ''
+                }`}
+                onClick={() =>
+                  setActiveEdgePopover((prev) => (prev === 'style' ? null : 'style'))
+                }
+                title="Arrow Colors & Themes"
+              >
+                <PaletteIcon size={14} />
+                {(() => {
+                  const edge = ast.edges.find((e) => e.id === selectedEdgeId);
+                  if (edge?.style?.stroke) {
+                    return (
+                      <span
+                        className="mermaid-hud-color-indicator"
+                        style={{ backgroundColor: edge.style.stroke }}
+                      />
+                    );
+                  }
+                  return null;
+                })()}
+              </button>
+
+              <div className="mermaid-hud-divider" />
+
               {/* Delete Edge */}
               <button
                 type="button"
@@ -2065,6 +2188,145 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 title="Delete connection"
               >
                 <TrashIcon size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Edge Style Popover */}
+          {activeEdgePopover === 'style' && selectedEdgePos && selectedEdgeId && (
+            <div
+              className="mermaid-popover-menu mermaid-style-popover nodrag"
+              style={{
+                position: 'absolute',
+                left: selectedEdgePos.x,
+                top: selectedEdgePos.y + 14,
+                transform: 'translate(-50%, 0)',
+                zIndex: 200,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Theme Presets */}
+              <div className="mermaid-style-popover-title">Arrow Themes</div>
+              <div className="mermaid-swatches-grid">
+                {EDGE_THEME_PRESETS.map((p) => {
+                  const currentEdge = ast.edges.find((e) => e.id === selectedEdgeId);
+                  const isCurrent =
+                    (!p.stroke && !currentEdge?.style?.stroke) ||
+                    (Boolean(currentEdge?.style?.stroke) &&
+                      currentEdge?.style?.stroke?.toLowerCase() === p.stroke.toLowerCase());
+                  return (
+                    <button
+                      key={p.name}
+                      type="button"
+                      className={`mermaid-swatch-btn ${isCurrent ? 'is-active' : ''}`}
+                      style={{
+                        backgroundColor: p.bgPreview,
+                        borderColor: p.borderPreview,
+                      }}
+                      onClick={() => handleApplyEdgePreset(p)}
+                      title={p.name}
+                    >
+                      {isCurrent && <CheckIcon size={12} />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Stroke Width */}
+              <div className="mermaid-style-control-row">
+                <span className="mermaid-style-popover-title">Thickness</span>
+                <div className="mermaid-style-segmented">
+                  {['1px', '2px', '3px', '4px'].map((w) => {
+                    const currentEdge = ast.edges.find((e) => e.id === selectedEdgeId);
+                    const isCurrent = currentEdge?.style?.['stroke-width'] === w;
+                    return (
+                      <button
+                        key={w}
+                        type="button"
+                        className={`mermaid-segmented-btn ${isCurrent ? 'is-active' : ''}`}
+                        onClick={() => handleUpdateEdgeCustomStyle('stroke-width', w)}
+                      >
+                        {w}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Stroke Dash Style */}
+              <div className="mermaid-style-control-row">
+                <span className="mermaid-style-popover-title">Dash</span>
+                <div className="mermaid-style-segmented">
+                  {[
+                    { label: 'Solid', value: '' },
+                    { label: 'Dashed', value: '5 5' },
+                    { label: 'Dotted', value: '2 2' },
+                  ].map((dash) => {
+                    const currentEdge = ast.edges.find((e) => e.id === selectedEdgeId);
+                    const isCurrent =
+                      (!dash.value && !currentEdge?.style?.['stroke-dasharray']) ||
+                      currentEdge?.style?.['stroke-dasharray'] === dash.value;
+                    return (
+                      <button
+                        key={dash.label}
+                        type="button"
+                        className={`mermaid-segmented-btn ${isCurrent ? 'is-active' : ''}`}
+                        onClick={() =>
+                          handleUpdateEdgeCustomStyle('stroke-dasharray', dash.value)
+                        }
+                      >
+                        {dash.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Arrow Color */}
+              <div className="mermaid-style-control-row">
+                <span>Arrow Color</span>
+                <div className="mermaid-color-input-wrapper">
+                  <input
+                    type="color"
+                    className="mermaid-color-picker-input"
+                    value={
+                      ast.edges.find((e) => e.id === selectedEdgeId)?.style?.stroke ||
+                      '#7c3aed'
+                    }
+                    onChange={(e) =>
+                      handleUpdateEdgeCustomStyle('stroke', e.target.value)
+                    }
+                    title="Custom Arrow Color"
+                  />
+                </div>
+              </div>
+
+              {/* Custom Caption Text Color */}
+              <div className="mermaid-style-control-row">
+                <span>Caption Color</span>
+                <div className="mermaid-color-input-wrapper">
+                  <input
+                    type="color"
+                    className="mermaid-color-picker-input"
+                    value={
+                      ast.edges.find((e) => e.id === selectedEdgeId)?.style?.color ||
+                      '#000000'
+                    }
+                    onChange={(e) =>
+                      handleUpdateEdgeCustomStyle('color', e.target.value)
+                    }
+                    title="Custom Caption Text Color"
+                  />
+                </div>
+              </div>
+
+              {/* Reset to Default */}
+              <button
+                type="button"
+                className="mermaid-style-reset-btn"
+                onClick={handleClearEdgeStyle}
+              >
+                Reset to Default Arrow Style
               </button>
             </div>
           )}

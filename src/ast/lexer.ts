@@ -13,6 +13,7 @@ export type TokenType =
   | 'ARROW'           // -->, -.->, ==>, etc.
   | 'ARROW_LABEL'     // |label|
   | 'STYLE'           // style
+  | 'LINK_STYLE'      // linkStyle
   | 'CLASS_DEF'       // classDef
   | 'CLASS'           // class
   | 'COMMENT'         // %%
@@ -147,6 +148,8 @@ export function tokenize(input: string): Token[] {
           tokens.push({ type: 'SUBGRAPH', value: word, line: lineIdx + 1, col: pos + 1 });
         } else if (word.toLowerCase() === 'end') {
           tokens.push({ type: 'END', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else if (word === 'linkStyle') {
+          tokens.push({ type: 'LINK_STYLE', value: word, line: lineIdx + 1, col: pos + 1 });
         } else if (word === 'style') {
           tokens.push({ type: 'STYLE', value: word, line: lineIdx + 1, col: pos + 1 });
         } else if (word === 'classDef') {

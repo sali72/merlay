@@ -77,6 +77,22 @@ export function serializeMermaidFlowchart(ast: MermaidFlowchartAST): string {
     }
   }
 
+  // 7. LinkStyle statements
+  let hasLinkStyles = false;
+  for (let i = 0; i < ast.edges.length; i++) {
+    const edge = ast.edges[i];
+    if (edge.style && Object.keys(edge.style).length > 0) {
+      if (!hasLinkStyles) {
+        lines.push('');
+        hasLinkStyles = true;
+      }
+      const stylePairs = Object.entries(edge.style)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(',');
+      lines.push(`    linkStyle ${i} ${stylePairs}`);
+    }
+  }
+
   return lines.join('\n').trim() + '\n';
 }
 
