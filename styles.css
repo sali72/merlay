@@ -299,9 +299,20 @@ pre.language-mermaid {
   stroke-width: 3px !important;
 }
 
+.mermaid-native-svg-mount path.mermaid-edge-selected {
+  stroke: var(--mermaid-accent, #7c3aed) !important;
+  stroke-width: 3.5px !important;
+  filter: drop-shadow(0 0 5px var(--mermaid-accent, #7c3aed)) !important;
+}
+
 .mermaid-edge-hit-area {
   pointer-events: stroke !important;
   cursor: pointer !important;
+}
+
+.mermaid-native-svg-mount .edgeLabel.mermaid-edge-selected,
+.mermaid-native-svg-mount [class*="edgeLabel"].mermaid-edge-selected {
+  filter: drop-shadow(0 0 4px var(--mermaid-accent, #7c3aed)) !important;
 }
 
 .mermaid-native-svg-mount .edgeLabel {

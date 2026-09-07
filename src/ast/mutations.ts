@@ -525,3 +525,66 @@ export function getEdgeStyle(
   return edge?.style;
 }
 
+/**
+ * Batch update arrow type for multiple edges.
+ */
+export function updateEdgesType(
+  ast: MermaidFlowchartAST,
+  edgeIds: Iterable<string>,
+  arrowType: ArrowType
+): number {
+  let count = 0;
+  for (const id of edgeIds) {
+    if (updateEdgeType(ast, id, arrowType)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Batch update visual styles for multiple edges.
+ */
+export function updateEdgesStyle(
+  ast: MermaidFlowchartAST,
+  edgeIds: Iterable<string>,
+  styles: Record<string, string> | null
+): number {
+  let count = 0;
+  for (const id of edgeIds) {
+    if (updateEdgeStyle(ast, id, styles)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Batch clear visual styles from multiple edges.
+ */
+export function clearEdgesStyle(
+  ast: MermaidFlowchartAST,
+  edgeIds: Iterable<string>
+): number {
+  let count = 0;
+  for (const id of edgeIds) {
+    if (clearEdgeStyle(ast, id)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Batch delete multiple edges from the diagram.
+ */
+export function deleteEdges(
+  ast: MermaidFlowchartAST,
+  edgeIds: Iterable<string>
+): number {
+  const idsSet = new Set(edgeIds);
+  const initialLen = ast.edges.length;
+  ast.edges = ast.edges.filter((e) => !idsSet.has(e.id));
+  return initialLen - ast.edges.length;
+}
+

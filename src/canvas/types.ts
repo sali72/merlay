@@ -33,6 +33,7 @@ export interface SelectionBox {
 
 export type ActiveNodePopover = 'shape' | 'style' | null;
 export type ActiveEdgePopover = 'style' | null;
+export type ActiveMultiPopover = 'shape' | 'style' | 'edgeType' | null;
 
 export interface PopoverPos {
   left: number;

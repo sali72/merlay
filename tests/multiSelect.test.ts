@@ -8,6 +8,11 @@ import {
   updateNodesStyle,
   clearNodesStyle,
   getNodeStyle,
+  updateEdgesType,
+  updateEdgesStyle,
+  clearEdgesStyle,
+  deleteEdges,
+  getEdgeStyle,
 } from '../src/ast/mutations';
 
 test('Multi-Select Batch Mutations: deleteNodes removes multiple nodes and cascades edges', () => {
@@ -186,4 +191,96 @@ test('Multi-Select Marquee Geometry: Box Intersection Logic', () => {
   assert.equal(isIntersecting(nodeA, marquee5), false);
   assert.equal(isIntersecting(nodeB, marquee5), false);
   assert.equal(isIntersecting(nodeC, marquee5), false);
+});
+
+test('Multi-Select Batch Mutations: batch edge mutations (updateEdgesType, updateEdgesStyle, deleteEdges)', () => {
+  const code = `flowchart LR
+  A --> B
+  B --> C
+  C --> D`;
+
+  const ast = parseMermaidFlowchart(code);
+  assert.equal(ast.edges.length, 3);
+  const edge0Id = ast.edges[0].id;
+  const edge1Id = ast.edges[1].id;
+  const edge2Id = ast.edges[2].id;
+
+  // 1. Batch change edge arrow types
+  updateEdgesType(ast, [edge0Id, edge2Id], 'thick');
+  assert.equal(ast.edges[0].arrowType, 'thick');
+  assert.equal(ast.edges[1].arrowType, 'arrow'); // unchanged
+  assert.equal(ast.edges[2].arrowType, 'thick');
+
+  let serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('A ==> B'));
+  assert.ok(serialized.includes('B --> C'));
+  assert.ok(serialized.includes('C ==> D'));
+
+  // 2. Batch change edge styles
+  updateEdgesStyle(ast, [edge0Id, edge1Id], { stroke: '#059669', 'stroke-width': '3px' });
+  assert.equal(getEdgeStyle(ast, edge0Id)?.stroke, '#059669');
+  assert.equal(getEdgeStyle(ast, edge1Id)?.stroke, '#059669');
+  assert.equal(getEdgeStyle(ast, edge2Id), undefined);
+
+  serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('linkStyle 0 stroke:#059669,stroke-width:3px'));
+  assert.ok(serialized.includes('linkStyle 1 stroke:#059669,stroke-width:3px'));
+
+  // 3. Batch clear edge styles
+  clearEdgesStyle(ast, [edge0Id]);
+  assert.equal(getEdgeStyle(ast, edge0Id), undefined);
+  assert.equal(getEdgeStyle(ast, edge1Id)?.stroke, '#059669');
+
+  // 4. Batch delete edges
+  const deletedEdges = deleteEdges(ast, [edge1Id, edge2Id]);
+  assert.equal(deletedEdges, 2);
+  assert.equal(ast.edges.length, 1);
+  assert.equal(ast.edges[0].id, edge0Id);
+});
+
+test('Multi-Select Batch Mutations: simultaneous node and edge styling & deletion', () => {
+  const code = `flowchart TD
+  Start[Start Node] --> Action1[Action 1]
+  Action1 --> Action2[Action 2]
+  Action2 --> Finish[Finish Node]`;
+
+  const ast = parseMermaidFlowchart(code);
+  const targetNodes = ['Start', 'Action1'];
+  const targetEdgeIds = [ast.edges[0].id]; // Start --> Action1
+
+  // 1. Simultaneously style selected nodes and selected arrows
+  const presetTheme = {
+    fill: '#ede9fe',
+    stroke: '#7c3aed',
+    color: '#5b21b6',
+  };
+  updateNodesStyle(ast, targetNodes, presetTheme);
+  updateEdgesStyle(ast, targetEdgeIds, { stroke: presetTheme.stroke, 'stroke-width': '2px' });
+
+  assert.equal(getNodeStyle(ast, 'Start')?.fill, '#ede9fe');
+  assert.equal(getNodeStyle(ast, 'Action1')?.fill, '#ede9fe');
+  assert.equal(getNodeStyle(ast, 'Action2'), undefined);
+  assert.equal(getEdgeStyle(ast, targetEdgeIds[0])?.stroke, '#7c3aed');
+
+  let serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('style Start fill:#ede9fe,stroke:#7c3aed,color:#5b21b6'));
+  assert.ok(serialized.includes('style Action1 fill:#ede9fe,stroke:#7c3aed,color:#5b21b6'));
+  assert.ok(serialized.includes('linkStyle 0 stroke:#7c3aed,stroke-width:2px'));
+
+  // 2. Simultaneously clear styles
+  clearNodesStyle(ast, targetNodes);
+  clearEdgesStyle(ast, targetEdgeIds);
+  assert.equal(getNodeStyle(ast, 'Start'), undefined);
+  assert.equal(getEdgeStyle(ast, targetEdgeIds[0]), undefined);
+
+  // 3. Simultaneously delete selected nodes and selected edges
+  // E.g. select Action2 (node) and the Action1-->Action2 edge (which is redundant since deleting Action2 cascades it)
+  // PLUS select the Action2-->Finish edge and Finish node
+  deleteNodes(ast, ['Action2']);
+  deleteEdges(ast, [ast.edges[0].id]); // delete remaining Start-->Action1 edge
+
+  assert.equal(ast.nodes.has('Action2'), false);
+  assert.equal(ast.nodes.has('Start'), true);
+  assert.equal(ast.nodes.has('Finish'), true);
+  assert.equal(ast.edges.length, 0); // all edges gone
 });

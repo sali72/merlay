@@ -19,6 +19,7 @@ import {
   addNode,
   connectNodes,
   deleteEdge,
+  deleteEdges,
   deleteNode,
   deleteNodes,
   insertNodeOnEdge,
@@ -26,6 +27,7 @@ import {
   setDiagramDirection,
   updateEdgeLabel,
   updateEdgeType,
+  updateEdgesType,
   updateNodeLabel,
   updateNodeShape,
   updateNodesShape,
@@ -35,7 +37,9 @@ import {
   clearNodesStyle,
   getNodeStyle,
   updateEdgeStyle,
+  updateEdgesStyle,
   clearEdgeStyle,
+  clearEdgesStyle,
   getEdgeStyle,
 } from '../ast/mutations';
 import { matchSvgEdgeToAst } from '../utils/edgeMatching';
@@ -46,12 +50,16 @@ import {
   SelectionBox,
   ActiveNodePopover,
   ActiveEdgePopover,
+  ActiveMultiPopover,
   NativeMermaidViewProps,
   PopoverPos,
 } from './types';
 import { ThemePreset, EdgeThemePreset } from './constants';
 import { renderMermaidSvg } from './renderer/mermaidRenderer';
-import { applySelectedNodeHalos } from './renderer/selectionHalo';
+import {
+  applySelectedNodeHalos,
+  applySelectedEdgeHalos,
+} from './renderer/selectionHalo';
 import { CanvasTopBar } from './components/CanvasTopBar';
 import { SelectionMarquee } from './components/SelectionMarquee';
 import { ConnectionLine } from './components/ConnectionLine';
@@ -60,6 +68,7 @@ import { NodeActionHud } from './components/NodeActionHud';
 import { MultiSelectHud } from './components/MultiSelectHud';
 import { EdgeActionHud } from './components/EdgeActionHud';
 import { ShapePopover } from './components/ShapePopover';
+import { EdgeTypePopover } from './components/EdgeTypePopover';
 import { NodeStylePopover } from './components/NodeStylePopover';
 import { EdgeStylePopover } from './components/EdgeStylePopover';
 import { SyntaxDrawer } from './components/SyntaxDrawer';
@@ -82,15 +91,33 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   const [cursorMode, setCursorMode] = useState<CursorMode>('select');
   const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const selectedNodeId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null;
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
+
+  const isMultiSelect =
+    selectedNodeIds.size + selectedEdgeIds.size > 1 ||
+    (selectedNodeIds.size >= 1 && selectedEdgeIds.size >= 1);
+
+  const selectedNodeId =
+    selectedNodeIds.size === 1 && selectedEdgeIds.size === 0
+      ? Array.from(selectedNodeIds)[0]
+      : null;
+
+  const selectedEdgeId =
+    selectedEdgeIds.size === 1 && selectedNodeIds.size === 0
+      ? Array.from(selectedEdgeIds)[0]
+      : null;
 
   const setSelectedNodeId = useCallback((id: string | null) => {
     setSelectedNodeIds(id ? new Set([id]) : new Set());
   }, []);
 
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const setSelectedEdgeId = useCallback((id: string | null) => {
+    setSelectedEdgeIds(id ? new Set([id]) : new Set());
+  }, []);
+
   const [activeNodePopover, setActiveNodePopover] = useState<ActiveNodePopover>(null);
   const [activeEdgePopover, setActiveEdgePopover] = useState<ActiveEdgePopover>(null);
+  const [activeMultiPopover, setActiveMultiPopover] = useState<ActiveMultiPopover>(null);
 
   // Marquee Drag Selection state
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
@@ -218,10 +245,19 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     [selectedNodeIds]
   );
 
+  // Update selection styling for all currently selected edges
+  const updateSelectedEdgeHalo = useCallback(
+    (targets?: string | null | Set<string> | string[]) => {
+      applySelectedEdgeHalos(svgMountRef.current, selectedEdgeIds, targets);
+    },
+    [selectedEdgeIds]
+  );
+
   const startEditingNode = (nodeId: string, nodeEl: Element) => {
-    setSelectedEdgeId(null);
+    setSelectedEdgeIds(new Set());
     setSelectedEdgePos(null);
     setEditingEdgeId(null);
+    updateSelectedEdgeHalo(new Set());
     const rect = getLocalRect(nodeEl);
     if (rect) {
       setEditingPos({
@@ -247,9 +283,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   };
 
   const startEditingEdge = (edgeId: string, anchorEl: Element) => {
-    setSelectedNodeId(null);
+    setSelectedNodeIds(new Set());
     setSelectedNodeRect(null);
     setEditingNodeId(null);
+    updateSelectedNodeHalo(new Set());
     const rect = getLocalRect(anchorEl);
     if (rect) {
       setEditingEdgePos({
@@ -263,6 +300,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     setEditEdgeLabel(edgeDef?.label || '');
     setEditingEdgeId(edgeId);
     setSelectedEdgeId(edgeId);
+    updateSelectedEdgeHalo(new Set([edgeId]));
   };
 
   const handleFinishEditingEdge = () => {
@@ -318,8 +356,6 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       // Node Click -> Selection (supports Shift / Cmd / Ctrl multi-selection)
       htmlEl.onclick = (e) => {
         e.stopPropagation();
-        setSelectedEdgeId(null);
-        setSelectedEdgePos(null);
 
         const isMulti = e.shiftKey || e.metaKey || e.ctrlKey;
         if (isMulti) {
@@ -335,6 +371,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           });
         } else {
           setSelectedNodeIds(new Set([targetNodeId]));
+          setSelectedEdgeIds(new Set());
+          setSelectedEdgePos(null);
+          updateSelectedEdgeHalo(new Set());
           const rect = getLocalRect(htmlEl);
           if (rect) setSelectedNodeRect(rect);
           updateSelectedNodeHalo(new Set([targetNodeId]));
@@ -412,34 +451,57 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
       pathEl.parentNode?.insertBefore(hitArea, pathEl.nextSibling);
 
-      const handleEdgeClick = (e: MouseEvent) => {
+      const onEdgeClick = (
+        e: MouseEvent,
+        edgeDef: MermaidEdgeDef,
+        clickedEl: Element
+      ) => {
         e.stopPropagation();
         e.preventDefault();
-        setSelectedEdgeId(targetEdgeId);
-        setSelectedNodeId(null);
-        setEditingNodeId(null);
 
-        if (worldRef.current && e.clientX && e.clientY) {
-          const worldRect = worldRef.current.getBoundingClientRect();
-          setSelectedEdgePos({
-            x: (e.clientX - worldRect.left) / zoom,
-            y: (e.clientY - worldRect.top) / zoom,
-            label: targetEdge.label,
-            from: targetEdge.from,
-            to: targetEdge.to,
-            arrowType: targetEdge.arrowType,
+        const edgeId = edgeDef.id;
+        const isMulti = e.shiftKey || e.metaKey || e.ctrlKey;
+        if (isMulti) {
+          setSelectedEdgeIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(edgeId)) {
+              next.delete(edgeId);
+            } else {
+              next.add(edgeId);
+            }
+            updateSelectedEdgeHalo(next);
+            return next;
           });
         } else {
-          const rect = getLocalRect(pathEl);
-          if (rect) {
+          setSelectedEdgeIds(new Set([edgeId]));
+          setSelectedNodeIds(new Set());
+          setSelectedNodeRect(null);
+          setEditingNodeId(null);
+          updateSelectedNodeHalo(new Set());
+          updateSelectedEdgeHalo(new Set([edgeId]));
+
+          if (worldRef.current && e.clientX && e.clientY) {
+            const worldRect = worldRef.current.getBoundingClientRect();
             setSelectedEdgePos({
-              x: rect.x + rect.width / 2,
-              y: rect.y + rect.height / 2,
-              label: targetEdge.label,
-              from: targetEdge.from,
-              to: targetEdge.to,
-              arrowType: targetEdge.arrowType,
+              x: (e.clientX - worldRect.left) / zoom,
+              y: (e.clientY - worldRect.top) / zoom,
+              label: edgeDef.label,
+              from: edgeDef.from,
+              to: edgeDef.to,
+              arrowType: edgeDef.arrowType,
             });
+          } else {
+            const rect = getLocalRect(clickedEl);
+            if (rect) {
+              setSelectedEdgePos({
+                x: rect.x + rect.width / 2,
+                y: rect.y + rect.height / 2,
+                label: edgeDef.label,
+                from: edgeDef.from,
+                to: edgeDef.to,
+                arrowType: edgeDef.arrowType,
+              });
+            }
           }
         }
       };
@@ -450,10 +512,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         startEditingEdge(targetEdgeId, pathEl);
       };
 
-      pathEl.onclick = handleEdgeClick;
+      pathEl.onclick = (e) => onEdgeClick(e, targetEdge, pathEl);
       pathEl.ondblclick = handleEdgeDblClick;
 
-      hitArea.onclick = handleEdgeClick;
+      hitArea.onclick = (e) => onEdgeClick(e, targetEdge, pathEl);
       hitArea.ondblclick = handleEdgeDblClick;
 
       hitArea.onmouseenter = () => {
@@ -478,22 +540,42 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       htmlEl.style.cursor = 'pointer';
 
       htmlEl.onclick = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        setSelectedEdgeId(targetEdgeId);
-        setSelectedNodeId(null);
-        setEditingNodeId(null);
+        const edgeDef = ast.edges.find((ed) => ed.id === targetEdgeId) || targetEdge;
+        const mouseEv = e as unknown as MouseEvent;
+        mouseEv.stopPropagation();
+        mouseEv.preventDefault();
 
-        const rect = getLocalRect(htmlEl);
-        if (rect) {
-          setSelectedEdgePos({
-            x: rect.x + rect.width / 2,
-            y: rect.y + rect.height / 2,
-            label: targetEdge.label,
-            from: targetEdge.from,
-            to: targetEdge.to,
-            arrowType: targetEdge.arrowType,
+        const isMulti = mouseEv.shiftKey || mouseEv.metaKey || mouseEv.ctrlKey;
+        if (isMulti) {
+          setSelectedEdgeIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(targetEdgeId)) {
+              next.delete(targetEdgeId);
+            } else {
+              next.add(targetEdgeId);
+            }
+            updateSelectedEdgeHalo(next);
+            return next;
           });
+        } else {
+          setSelectedEdgeIds(new Set([targetEdgeId]));
+          setSelectedNodeIds(new Set());
+          setSelectedNodeRect(null);
+          setEditingNodeId(null);
+          updateSelectedNodeHalo(new Set());
+          updateSelectedEdgeHalo(new Set([targetEdgeId]));
+
+          const rect = getLocalRect(htmlEl);
+          if (rect) {
+            setSelectedEdgePos({
+              x: rect.x + rect.width / 2,
+              y: rect.y + rect.height / 2,
+              label: edgeDef.label,
+              from: edgeDef.from,
+              to: edgeDef.to,
+              arrowType: edgeDef.arrowType,
+            });
+          }
         }
       };
 
@@ -508,7 +590,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     zoom,
     getLocalRect,
     updateSelectedNodeHalo,
+    updateSelectedEdgeHalo,
     setSelectedNodeId,
+    setSelectedEdgeId,
   ]);
 
   // 3. Camera Stabilization: Lock viewport around active element across re-renders
@@ -532,18 +616,30 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     setPan((p) => ({ x: p.x + deltaX, y: p.y + deltaY }));
   }, []);
 
-  // Update selected node rect and shape halo whenever selection, zoom, or pan changes
+  // Update selected node and edge halos whenever selection, zoom, or pan changes
   useEffect(() => {
     updateSelectedNodeRect();
     updateSelectedNodeHalo();
+    updateSelectedEdgeHalo();
     return () => {
       if (svgMountRef.current) {
         svgMountRef.current
           .querySelectorAll('.mermaid-node-selection-halo')
           .forEach((el) => el.remove());
+        svgMountRef.current
+          .querySelectorAll('.mermaid-edge-selected')
+          .forEach((el) => el.classList.remove('mermaid-edge-selected'));
       }
     };
-  }, [selectedNodeIds, zoom, pan, updateSelectedNodeRect, updateSelectedNodeHalo]);
+  }, [
+    selectedNodeIds,
+    selectedEdgeIds,
+    zoom,
+    pan,
+    updateSelectedNodeRect,
+    updateSelectedNodeHalo,
+    updateSelectedEdgeHalo,
+  ]);
 
   // Global Keyboard Shortcuts (V for Select, H for Hand, Space for pan, Delete/Backspace, Escape)
   useEffect(() => {
@@ -573,25 +669,26 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
       // Escape: Dismiss popovers and clear selection
       if (e.key === 'Escape') {
-        if (activeNodePopover || activeEdgePopover) {
+        if (activeNodePopover || activeEdgePopover || activeMultiPopover) {
           setActiveNodePopover(null);
           setActiveEdgePopover(null);
-        } else if (selectedNodeIds.size > 0 || selectedEdgeId) {
+          setActiveMultiPopover(null);
+        } else if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0) {
           setSelectedNodeIds(new Set());
-          setSelectedEdgeId(null);
+          setSelectedEdgeIds(new Set());
+          setSelectedNodeRect(null);
+          setSelectedEdgePos(null);
           updateSelectedNodeHalo(new Set());
+          updateSelectedEdgeHalo(new Set());
         }
         return;
       }
 
       // Delete / Backspace: Delete selected elements
       if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputActive) {
-        if (selectedNodeIds.size > 0) {
+        if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0) {
           e.preventDefault();
           handleBatchDeleteSelected();
-        } else if (selectedEdgeId) {
-          e.preventDefault();
-          handleDeleteSelectedEdge();
         }
       }
     };
@@ -608,7 +705,15 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('keyup', handleGlobalKeyUp);
     };
-  }, [activeNodePopover, activeEdgePopover, selectedNodeIds, selectedEdgeId, updateSelectedNodeHalo]);
+  }, [
+    activeNodePopover,
+    activeEdgePopover,
+    activeMultiPopover,
+    selectedNodeIds,
+    selectedEdgeIds,
+    updateSelectedNodeHalo,
+    updateSelectedEdgeHalo,
+  ]);
 
   // 1. Render Obsidian's native Mermaid SVG with direct engine and double buffering
   useEffect(() => {
@@ -630,6 +735,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         stabilizeCamera();
         updateSelectedNodeRect();
         updateSelectedNodeHalo();
+        updateSelectedEdgeHalo();
       })
       .catch((err) => {
         if (ticket !== renderTicketRef.current) return;
@@ -643,6 +749,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     stabilizeCamera,
     updateSelectedNodeRect,
     updateSelectedNodeHalo,
+    updateSelectedEdgeHalo,
   ]);
 
   // Node Actions
@@ -671,14 +778,113 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   };
 
   const handleBatchDeleteSelected = () => {
-    if (selectedNodeIds.size === 0) return;
-    const targets = Array.from(selectedNodeIds);
+    if (selectedNodeIds.size === 0 && selectedEdgeIds.size === 0) return;
+    const nodesToDelete = Array.from(selectedNodeIds);
+    const edgesToDelete = Array.from(selectedEdgeIds);
+
     setSelectedNodeIds(new Set());
+    setSelectedEdgeIds(new Set());
     setSelectedNodeRect(null);
+    setSelectedEdgePos(null);
     setActiveNodePopover(null);
+    setActiveEdgePopover(null);
+    setActiveMultiPopover(null);
     updateSelectedNodeHalo(new Set());
+    updateSelectedEdgeHalo(new Set());
+
     applyAstMutation((a) => {
-      deleteNodes(a, targets);
+      if (nodesToDelete.length > 0) {
+        deleteNodes(a, nodesToDelete);
+      }
+      if (edgesToDelete.length > 0) {
+        deleteEdges(a, edgesToDelete);
+      }
+    });
+  };
+
+  const handleBatchUpdateShape = (shape: MermaidShapeType) => {
+    if (selectedNodeIds.size === 0) return;
+    applyAstMutation((a) => {
+      updateNodesShape(a, selectedNodeIds, shape);
+    });
+    setActiveMultiPopover(null);
+  };
+
+  const handleBatchUpdateEdgeType = (newType: ArrowType) => {
+    if (selectedEdgeIds.size === 0) return;
+    applyAstMutation((a) => {
+      updateEdgesType(a, selectedEdgeIds, newType);
+    });
+    setActiveMultiPopover(null);
+  };
+
+  const handleBatchApplyThemePreset = (preset: ThemePreset) => {
+    applyAstMutation((a) => {
+      if (selectedNodeIds.size > 0) {
+        if (!preset.fill && !preset.stroke && !preset.color) {
+          clearNodesStyle(a, selectedNodeIds);
+        } else {
+          const styles: Record<string, string> = {};
+          if (preset.fill) styles['fill'] = preset.fill;
+          if (preset.stroke) styles['stroke'] = preset.stroke;
+          if (preset.color) styles['color'] = preset.color;
+          updateNodesStyle(a, selectedNodeIds, styles);
+        }
+      }
+      if (selectedEdgeIds.size > 0) {
+        if (!preset.stroke) {
+          clearEdgesStyle(a, selectedEdgeIds);
+        } else {
+          updateEdgesStyle(a, selectedEdgeIds, { stroke: preset.stroke });
+        }
+      }
+    });
+  };
+
+  const handleBatchUpdateCustomStyle = (property: string, value: string) => {
+    applyAstMutation((a) => {
+      if (selectedNodeIds.size > 0) {
+        for (const nid of selectedNodeIds) {
+          const current = getNodeStyle(a, nid) || {};
+          const updated = { ...current };
+          if (value) {
+            updated[property] = value;
+          } else {
+            delete updated[property];
+          }
+          updateNodeStyle(a, nid, updated);
+        }
+      }
+      if (selectedEdgeIds.size > 0) {
+        if (
+          property === 'stroke' ||
+          property === 'stroke-width' ||
+          property === 'stroke-dasharray' ||
+          property === 'color'
+        ) {
+          for (const eid of selectedEdgeIds) {
+            const current = getEdgeStyle(a, eid) || {};
+            const updated = { ...current };
+            if (value) {
+              updated[property] = value;
+            } else {
+              delete current[property];
+            }
+            updateEdgeStyle(a, eid, updated);
+          }
+        }
+      }
+    });
+  };
+
+  const handleBatchClearStyle = () => {
+    applyAstMutation((a) => {
+      if (selectedNodeIds.size > 0) {
+        clearNodesStyle(a, selectedNodeIds);
+      }
+      if (selectedEdgeIds.size > 0) {
+        clearEdgesStyle(a, selectedEdgeIds);
+      }
     });
   };
 
@@ -823,8 +1029,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   const handleDeleteSelectedEdge = () => {
     if (!selectedEdgeId) return;
     const targetEdgeId = selectedEdgeId;
-    setSelectedEdgeId(null);
+    setSelectedEdgeIds(new Set());
     setSelectedEdgePos(null);
+    updateSelectedEdgeHalo(new Set());
     applyAstMutation((a) => {
       deleteEdge(a, targetEdgeId);
     });
@@ -975,8 +1182,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         const minY = Math.min(startY, currentY);
         const maxY = Math.max(startY, currentY);
 
-        const newSelected = new Set<string>();
+        const newSelectedNodes = new Set<string>();
+        const newSelectedEdges = new Set<string>();
         if (svgMountRef.current) {
+          // 1. Check nodes
           for (const nodeId of ast.nodes.keys()) {
             const nodeEl = svgMountRef.current.querySelector(
               `[data-mermaid-node-id="${nodeId}"]`
@@ -991,14 +1200,37 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                   rect.y > maxY
                 );
                 if (intersects) {
-                  newSelected.add(nodeId);
+                  newSelectedNodes.add(nodeId);
+                }
+              }
+            }
+          }
+
+          // 2. Check edges
+          for (const edge of ast.edges) {
+            const edgePathEl = svgMountRef.current.querySelector(
+              `path[data-mermaid-edge-id="${edge.id}"]:not(.mermaid-edge-hit-area)`
+            );
+            if (edgePathEl) {
+              const rect = getLocalRect(edgePathEl);
+              if (rect) {
+                const intersects = !(
+                  rect.x + rect.width < minX ||
+                  rect.x > maxX ||
+                  rect.y + rect.height < minY ||
+                  rect.y > maxY
+                );
+                if (intersects) {
+                  newSelectedEdges.add(edge.id);
                 }
               }
             }
           }
         }
-        setSelectedNodeIds(newSelected);
-        updateSelectedNodeHalo(newSelected);
+        setSelectedNodeIds(newSelectedNodes);
+        setSelectedEdgeIds(newSelectedEdges);
+        updateSelectedNodeHalo(newSelectedNodes);
+        updateSelectedEdgeHalo(newSelectedEdges);
       }
       return;
     }
@@ -1083,9 +1315,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       : selectedNodeRect.y + selectedNodeRect.height + 12
     : 0;
 
-  // Bounding box enclosing all selected nodes in world coordinates (for Multi-Select)
+  // Bounding box enclosing all selected nodes & edges in world coordinates (for Multi-Select)
   const multiSelectBounds = useMemo(() => {
-    if (selectedNodeIds.size <= 1 || !svgMountRef.current) return null;
+    const totalCount = selectedNodeIds.size + selectedEdgeIds.size;
+    if (totalCount <= 1 || !svgMountRef.current) return null;
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
@@ -1107,6 +1340,23 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         }
       }
     }
+
+    for (const edgeId of selectedEdgeIds) {
+      const el = svgMountRef.current.querySelector(
+        `path[data-mermaid-edge-id="${edgeId}"]:not(.mermaid-edge-hit-area)`
+      );
+      if (el) {
+        const rect = getLocalRect(el);
+        if (rect) {
+          minX = Math.min(minX, rect.x);
+          minY = Math.min(minY, rect.y);
+          maxX = Math.max(maxX, rect.x + rect.width);
+          maxY = Math.max(maxY, rect.y + rect.height);
+          found++;
+        }
+      }
+    }
+
     if (found === 0) return null;
     return {
       x: minX,
@@ -1116,11 +1366,11 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       centerX: minX + (maxX - minX) / 2,
       topY: minY,
     };
-  }, [selectedNodeIds, getLocalRect]);
+  }, [selectedNodeIds, selectedEdgeIds, getLocalRect]);
 
-  // Position for Shape & Style popovers (anchored to single sprout or multi-select cluster)
+  // Position for Shape, Arrow Type & Style popovers (anchored to single sprout or multi-select cluster)
   const popoverPos: PopoverPos | null = useMemo(() => {
-    if (selectedNodeIds.size > 1 && multiSelectBounds) {
+    if (isMultiSelect && multiSelectBounds) {
       return {
         left: multiSelectBounds.centerX,
         top: multiSelectBounds.topY - 8,
@@ -1134,8 +1384,15 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         transform: isLR ? 'translate(0, 0)' : 'translate(-50%, 0)',
       };
     }
+    if (selectedEdgePos) {
+      return {
+        left: selectedEdgePos.x,
+        top: selectedEdgePos.y + 14,
+        transform: 'translate(-50%, 0)',
+      };
+    }
     return null;
-  }, [selectedNodeIds.size, multiSelectBounds, selectedNodeRect, sproutX, sproutY, isLR]);
+  }, [isMultiSelect, multiSelectBounds, selectedNodeRect, selectedEdgePos, sproutX, sproutY, isLR]);
 
   return (
     <div
@@ -1156,14 +1413,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       onClick={() => {
         if (isMarqueeActiveRef.current) return;
         setSelectedNodeIds(new Set());
+        setSelectedEdgeIds(new Set());
         setSelectedNodeRect(null);
-        setSelectedEdgeId(null);
         setSelectedEdgePos(null);
         setEditingNodeId(null);
         setEditingEdgeId(null);
         setActiveNodePopover(null);
         setActiveEdgePopover(null);
+        setActiveMultiPopover(null);
         updateSelectedNodeHalo(new Set());
+        updateSelectedEdgeHalo(new Set());
       }}
     >
       {/* Top Controls Bar */}
@@ -1208,21 +1467,22 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           />
 
           {/* Multi-Select Floating Action HUD */}
-          {multiSelectBounds && selectedNodeIds.size > 1 && (
+          {multiSelectBounds && isMultiSelect && (
             <MultiSelectHud
-              selectedCount={selectedNodeIds.size}
+              selectedNodeCount={selectedNodeIds.size}
+              selectedEdgeCount={selectedEdgeIds.size}
               centerX={multiSelectBounds.centerX}
               topY={multiSelectBounds.topY}
-              activeNodePopover={activeNodePopover}
+              activePopover={activeMultiPopover}
               onTogglePopover={(popover) =>
-                setActiveNodePopover((prev) => (prev === popover ? null : popover))
+                setActiveMultiPopover((prev) => (prev === popover ? null : popover))
               }
               onBatchDelete={handleBatchDeleteSelected}
             />
           )}
 
           {/* Single Node Relational Sprout HUD */}
-          {selectedNodeRect && selectedNodeId && selectedNodeIds.size === 1 && (
+          {selectedNodeRect && selectedNodeId && !isMultiSelect && (
             <NodeActionHud
               selectedNodeId={selectedNodeId}
               sproutX={sproutX}
@@ -1248,38 +1508,61 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
             />
           )}
 
-          {/* Shape Popover (supports single or multi-select) */}
-          {activeNodePopover === 'shape' && popoverPos && (
+          {/* Shape Popover (supports single node or multi-select) */}
+          {(activeNodePopover === 'shape' || activeMultiPopover === 'shape') && popoverPos && (
             <ShapePopover
               popoverPos={popoverPos}
               selectedNodeId={selectedNodeId}
               selectedNodeIds={selectedNodeIds}
               astNodes={ast.nodes}
-              onSelectShape={(shape) => handleUpdateNodeShape(shape)}
+              onSelectShape={(shape) => {
+                if (isMultiSelect) {
+                  handleBatchUpdateShape(shape);
+                } else {
+                  handleUpdateNodeShape(shape);
+                }
+              }}
             />
           )}
 
-          {/* Node Visual Styling Popover (supports single or multi-select) */}
-          {activeNodePopover === 'style' && popoverPos && (
+          {/* Edge Type Popover for multi-select */}
+          {activeMultiPopover === 'edgeType' && popoverPos && (
+            <EdgeTypePopover
+              popoverPos={popoverPos}
+              onSelectType={handleBatchUpdateEdgeType}
+            />
+          )}
+
+          {/* Node & Edge Visual Styling Popover (supports single node or multi-select of nodes AND arrows) */}
+          {(activeNodePopover === 'style' || activeMultiPopover === 'style') && popoverPos && (
             <NodeStylePopover
               popoverPos={popoverPos}
               currentStyle={
                 selectedNodeId
                   ? ast.nodes.get(selectedNodeId)?.style ||
                     getNodeStyle(ast, selectedNodeId)
-                  : Array.from(selectedNodeIds).length > 0
+                  : selectedNodeIds.size > 0
                   ? ast.nodes.get(Array.from(selectedNodeIds)[0])?.style ||
                     getNodeStyle(ast, Array.from(selectedNodeIds)[0])
+                  : selectedEdgeIds.size > 0
+                  ? ast.edges.find((e) => e.id === Array.from(selectedEdgeIds)[0])?.style ||
+                    getEdgeStyle(ast, Array.from(selectedEdgeIds)[0])
                   : undefined
               }
-              onApplyPreset={handleApplyNodePreset}
-              onUpdateCustomStyle={handleUpdateCustomStyle}
-              onClearStyle={handleClearNodeStyle}
+              onApplyPreset={
+                isMultiSelect ? handleBatchApplyThemePreset : handleApplyNodePreset
+              }
+              onUpdateCustomStyle={
+                isMultiSelect ? handleBatchUpdateCustomStyle : handleUpdateCustomStyle
+              }
+              onClearStyle={
+                isMultiSelect ? handleBatchClearStyle : handleClearNodeStyle
+              }
             />
           )}
 
           {/* Selected Edge HUD */}
-          {selectedEdgePos && selectedEdgeId && (
+          {selectedEdgePos && selectedEdgeId && !isMultiSelect && (
             <EdgeActionHud
               selectedEdgeId={selectedEdgeId}
               selectedEdgePos={selectedEdgePos}
@@ -1300,7 +1583,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           )}
 
           {/* Edge Style Popover */}
-          {activeEdgePopover === 'style' && selectedEdgePos && selectedEdgeId && (
+          {activeEdgePopover === 'style' && selectedEdgePos && selectedEdgeId && !isMultiSelect && (
             <EdgeStylePopover
               selectedEdgePos={selectedEdgePos}
               currentEdgeStyle={

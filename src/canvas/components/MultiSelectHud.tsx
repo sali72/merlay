@@ -1,29 +1,44 @@
 import React from 'react';
-import { ActiveNodePopover } from '../types';
+import { ActiveMultiPopover } from '../types';
 import {
   CheckSquareIcon,
   ShapesIcon,
   PaletteIcon,
   TrashIcon,
+  ArrowSolidIcon,
 } from '../icons/Icons';
 
 export interface MultiSelectHudProps {
-  selectedCount: number;
+  selectedNodeCount: number;
+  selectedEdgeCount: number;
   centerX: number;
   topY: number;
-  activeNodePopover: ActiveNodePopover;
-  onTogglePopover: (popover: 'shape' | 'style') => void;
+  activePopover: ActiveMultiPopover;
+  onTogglePopover: (popover: 'shape' | 'style' | 'edgeType') => void;
   onBatchDelete: () => void;
 }
 
 export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
-  selectedCount,
+  selectedNodeCount,
+  selectedEdgeCount,
   centerX,
   topY,
-  activeNodePopover,
+  activePopover,
   onTogglePopover,
   onBatchDelete,
 }) => {
+  const totalCount = selectedNodeCount + selectedEdgeCount;
+
+  const renderBadgeText = () => {
+    if (selectedNodeCount > 0 && selectedEdgeCount > 0) {
+      return `${selectedNodeCount} Steps, ${selectedEdgeCount} Arrows`;
+    }
+    if (selectedNodeCount > 0) {
+      return `${selectedNodeCount} Steps Selected`;
+    }
+    return `${selectedEdgeCount} Arrows Selected`;
+  };
+
   return (
     <div
       className="mermaid-multiselect-hud nodrag"
@@ -38,31 +53,47 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
     >
       <div className="mermaid-multiselect-badge">
         <CheckSquareIcon size={12} />
-        <span>{selectedCount} Steps Selected</span>
+        <span>{renderBadgeText()}</span>
       </div>
 
       <div className="mermaid-hud-divider" />
 
-      {/* Batch Shape Picker */}
-      <button
-        type="button"
-        className={`mermaid-hud-btn icon-only ${
-          activeNodePopover === 'shape' ? 'is-active' : ''
-        }`}
-        onClick={() => onTogglePopover('shape')}
-        title="Change Shape (All Selected)"
-      >
-        <ShapesIcon size={14} />
-      </button>
+      {/* Batch Shape Picker (visible if any nodes selected) */}
+      {selectedNodeCount > 0 && (
+        <button
+          type="button"
+          className={`mermaid-hud-btn icon-only ${
+            activePopover === 'shape' ? 'is-active' : ''
+          }`}
+          onClick={() => onTogglePopover('shape')}
+          title="Change Shape (All Selected Nodes)"
+        >
+          <ShapesIcon size={14} />
+        </button>
+      )}
 
-      {/* Batch Visual Style & Color */}
+      {/* Batch Arrow Type Picker (visible if any edges selected) */}
+      {selectedEdgeCount > 0 && (
+        <button
+          type="button"
+          className={`mermaid-hud-btn icon-only ${
+            activePopover === 'edgeType' ? 'is-active' : ''
+          }`}
+          onClick={() => onTogglePopover('edgeType')}
+          title="Change Arrow Type (All Selected Arrows)"
+        >
+          <ArrowSolidIcon size={14} />
+        </button>
+      )}
+
+      {/* Batch Visual Style & Color (Applies to both nodes & arrows!) */}
       <button
         type="button"
         className={`mermaid-hud-btn icon-only ${
-          activeNodePopover === 'style' ? 'is-active' : ''
+          activePopover === 'style' ? 'is-active' : ''
         }`}
         onClick={() => onTogglePopover('style')}
-        title="Themes & Colors (All Selected)"
+        title="Themes & Colors (All Selected Items)"
       >
         <PaletteIcon size={14} />
       </button>
@@ -74,7 +105,7 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
         type="button"
         className="mermaid-hud-btn delete-btn icon-only"
         onClick={onBatchDelete}
-        title={`Delete Selected Steps (${selectedCount})`}
+        title={`Delete Selected Items (${totalCount})`}
       >
         <TrashIcon size={13} />
       </button>

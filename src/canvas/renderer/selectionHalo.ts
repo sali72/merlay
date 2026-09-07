@@ -107,3 +107,43 @@ export function applySelectedNodeHalos(
     });
   }
 }
+
+/**
+ * Update selection styling for all currently selected edges.
+ * Applies .mermaid-edge-selected to matching SVG paths and edge labels.
+ */
+export function applySelectedEdgeHalos(
+  mountEl: HTMLElement | null,
+  selectedEdgeIds: Iterable<string>,
+  targets?: string | null | Set<string> | string[]
+): void {
+  if (!mountEl) return;
+
+  mountEl.querySelectorAll('.mermaid-edge-selected').forEach((el) => {
+    el.classList.remove('mermaid-edge-selected');
+  });
+
+  let activeIds: string[] = [];
+  if (targets !== undefined) {
+    if (!targets) {
+      activeIds = [];
+    } else if (typeof targets === 'string') {
+      activeIds = [targets];
+    } else {
+      activeIds = Array.from(targets);
+    }
+  } else {
+    activeIds = Array.from(selectedEdgeIds);
+  }
+
+  if (activeIds.length === 0) return;
+
+  for (const activeId of activeIds) {
+    const els = mountEl.querySelectorAll(`[data-mermaid-edge-id="${activeId}"]`);
+    els.forEach((el) => {
+      if (!el.classList.contains('mermaid-edge-hit-area')) {
+        el.classList.add('mermaid-edge-selected');
+      }
+    });
+  }
+}
