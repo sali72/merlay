@@ -358,6 +358,99 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     }
   }, [selectedNodeId, getLocalRect]);
 
+  // Update shape-matched SVG selection halo (outlines the exact geometry of any Mermaid node shape)
+  const updateSelectedNodeHalo = useCallback(
+    (targetId?: string | null) => {
+      const mountEl = svgMountRef.current;
+      if (!mountEl) return;
+
+      // 1. Clean up any existing selection halos & selected classes
+      mountEl
+        .querySelectorAll('.mermaid-node-selection-halo')
+        .forEach((el) => el.remove());
+      mountEl.querySelectorAll('.mermaid-node-selected').forEach((el) => {
+        el.classList.remove('mermaid-node-selected');
+      });
+
+      const activeId = targetId !== undefined ? targetId : selectedNodeId;
+      if (!activeId) return;
+
+      const nodeEl = mountEl.querySelector(
+        `[data-mermaid-node-id="${activeId}"]`
+      ) as SVGGraphicsElement | null;
+      if (!nodeEl) return;
+
+      nodeEl.classList.add('mermaid-node-selected');
+
+      // 2. Identify shape elements representing the node's geometry
+      // Filter out label text, foreignObject, or previous halos
+      let shapeElements = Array.from(
+        nodeEl.querySelectorAll('rect, circle, polygon, path, ellipse')
+      ).filter((el) => {
+        if (
+          el.closest('.label') ||
+          el.closest('text') ||
+          el.closest('foreignObject')
+        ) {
+          return false;
+        }
+        if (el.classList.contains('mermaid-node-selection-halo')) {
+          return false;
+        }
+        return true;
+      });
+
+      // Prefer the primary label-container shape(s) if present (handles double_circle and subroutine cleanly)
+      const primaryShapes = shapeElements.filter(
+        (el) =>
+          el.classList.contains('label-container') ||
+          el.classList.contains('outer') ||
+          el.classList.contains('basic')
+      );
+      if (primaryShapes.length > 0) {
+        shapeElements = primaryShapes;
+      }
+
+      if (shapeElements.length === 0) return;
+
+      // 3. For each shape element, inject an outer soft pulsing glow and an inner crisp accent contour
+      shapeElements.forEach((shapeEl) => {
+        const parent = shapeEl.parentNode;
+        if (!parent) return;
+
+        // Outer soft pulsing halo
+        const outerHalo = shapeEl.cloneNode(false) as SVGElement;
+        outerHalo.removeAttribute('id');
+        outerHalo.removeAttribute('style');
+        outerHalo.removeAttribute('fill');
+        outerHalo.removeAttribute('stroke');
+        outerHalo.setAttribute('fill', 'none');
+        outerHalo.setAttribute(
+          'class',
+          'mermaid-node-selection-halo mermaid-node-selection-halo-glow'
+        );
+        outerHalo.setAttribute('pointer-events', 'none');
+
+        // Inner crisp accent contour
+        const innerHalo = shapeEl.cloneNode(false) as SVGElement;
+        innerHalo.removeAttribute('id');
+        innerHalo.removeAttribute('style');
+        innerHalo.removeAttribute('fill');
+        innerHalo.removeAttribute('stroke');
+        innerHalo.setAttribute('fill', 'none');
+        innerHalo.setAttribute(
+          'class',
+          'mermaid-node-selection-halo mermaid-node-selection-halo-accent'
+        );
+        innerHalo.setAttribute('pointer-events', 'none');
+
+        parent.insertBefore(outerHalo, shapeEl.nextSibling);
+        parent.insertBefore(innerHalo, outerHalo.nextSibling);
+      });
+    },
+    [selectedNodeId]
+  );
+
   const startEditingNode = (nodeId: string, nodeEl: Element) => {
     setSelectedEdgeId(null);
     setSelectedEdgePos(null);
@@ -462,6 +555,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setSelectedEdgeId(null);
         const rect = getLocalRect(htmlEl);
         if (rect) setSelectedNodeRect(rect);
+        updateSelectedNodeHalo(targetNodeId);
       };
 
       // Node Double Click -> Inline Editing
@@ -651,10 +745,18 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     }
   }, []);
 
-  // Update selected node rect whenever selection, zoom, or pan changes
+  // Update selected node rect and shape halo whenever selection, zoom, or pan changes
   useEffect(() => {
     updateSelectedNodeRect();
-  }, [selectedNodeId, zoom, pan, updateSelectedNodeRect]);
+    updateSelectedNodeHalo();
+    return () => {
+      if (svgMountRef.current) {
+        svgMountRef.current
+          .querySelectorAll('.mermaid-node-selection-halo')
+          .forEach((el) => el.remove());
+      }
+    };
+  }, [selectedNodeId, zoom, pan, updateSelectedNodeRect, updateSelectedNodeHalo]);
 
   // Dismiss popovers and selection on Escape
   useEffect(() => {
@@ -665,12 +767,13 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         } else if (selectedNodeId || selectedEdgeId) {
           setSelectedNodeId(null);
           setSelectedEdgeId(null);
+          updateSelectedNodeHalo(null);
         }
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeNodePopover, selectedNodeId, selectedEdgeId]);
+  }, [activeNodePopover, selectedNodeId, selectedEdgeId, updateSelectedNodeHalo]);
 
   // 1. Render Obsidian's native Mermaid SVG with direct engine and double buffering
   useEffect(() => {
@@ -691,13 +794,21 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setupSvgInteractivity();
         stabilizeCamera();
         updateSelectedNodeRect();
+        updateSelectedNodeHalo();
       })
       .catch((err) => {
         if (ticket !== renderTicketRef.current) return;
         console.error('Mermaid render error:', err);
         setSyntaxError(err?.message || 'Diagram syntax error');
       });
-  }, [code, app, setupSvgInteractivity, stabilizeCamera, updateSelectedNodeRect]);
+  }, [
+    code,
+    app,
+    setupSvgInteractivity,
+    stabilizeCamera,
+    updateSelectedNodeRect,
+    updateSelectedNodeHalo,
+  ]);
 
   // Node Actions
   const handleSproutNextStep = (parentId: string) => {
@@ -719,6 +830,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     setSelectedNodeId(null);
     setSelectedNodeRect(null);
     setActiveNodePopover(null);
+    updateSelectedNodeHalo(null);
     applyAstMutation((a) => {
       deleteNode(a, targetId);
     });
@@ -1001,6 +1113,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         setEditingNodeId(null);
         setEditingEdgeId(null);
         setActiveNodePopover(null);
+        updateSelectedNodeHalo(null);
       }}
     >
       {/* Top Controls Bar */}
@@ -1121,23 +1234,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
             />
           )}
 
-          {/* Selected Node Halo & Relational Sprout HUD */}
+          {/* Selected Node Relational Sprout HUD */}
           {selectedNodeRect && selectedNodeId && (
             <>
-              {/* Selection Halo Ring */}
-              <div
-                className="mermaid-node-selection-ring"
-                style={{
-                  position: 'absolute',
-                  left: selectedNodeRect.x - 3,
-                  top: selectedNodeRect.y - 3,
-                  width: selectedNodeRect.width + 6,
-                  height: selectedNodeRect.height + 6,
-                  pointerEvents: 'none',
-                  zIndex: 90,
-                }}
-              />
-
               {/* Action HUD anchored directly downstream */}
               <div
                 className="mermaid-action-hud nodrag"

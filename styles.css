@@ -264,20 +264,41 @@ pre.language-mermaid {
   pointer-events: none;
 }
 
-/* Node Selection Ring */
-.mermaid-node-selection-ring {
-  border: 2px solid var(--mermaid-accent);
-  border-radius: 8px;
-  box-shadow: 0 0 0 3px var(--mermaid-accent-subtle);
-  animation: pulseHalo 1.8s infinite ease-in-out;
+/* Node Selection Halo (Matches exact SVG geometry of all 14 node shapes) */
+.mermaid-node-selection-halo {
+  fill: none !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none !important;
 }
 
-@keyframes pulseHalo {
+/* Outer soft pulsing halo glow */
+.mermaid-node-selection-halo-glow {
+  stroke: var(--mermaid-accent, #7c3aed) !important;
+  stroke-width: 6px !important;
+  stroke-opacity: 0.32 !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: pulseSvgGlow 1.8s infinite ease-in-out;
+}
+
+/* Inner crisp accent contour */
+.mermaid-node-selection-halo-accent {
+  stroke: var(--mermaid-accent, #7c3aed) !important;
+  stroke-width: 2.5px !important;
+  stroke-opacity: 1 !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px var(--mermaid-accent, #7c3aed));
+}
+
+@keyframes pulseSvgGlow {
   0%, 100% {
-    box-shadow: 0 0 0 3px var(--mermaid-accent-subtle);
+    stroke-width: 5px;
+    stroke-opacity: 0.22;
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(124, 58, 237, 0.22);
+    stroke-width: 8.5px;
+    stroke-opacity: 0.48;
   }
 }
 
