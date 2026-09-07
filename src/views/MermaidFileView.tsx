@@ -49,16 +49,14 @@ export class MermaidFileView extends TextFileView {
     }
 
     this.root.render(
-      <React.StrictMode>
-        <NativeMermaidView
-          app={this.app}
-          initialCode={this.currentData}
-          onCodeChange={(newCode) => {
-            this.currentData = newCode;
-            this.requestSave();
-          }}
-        />
-      </React.StrictMode>
+      <NativeMermaidView
+        app={this.app}
+        initialCode={this.currentData}
+        onCodeChange={(newCode) => {
+          this.currentData = newCode;
+          this.requestSave();
+        }}
+      />
     );
   }
 

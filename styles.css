@@ -73,7 +73,9 @@ pre.language-mermaid {
 .mod-mermaid-block-modal .mermaid-studio-edit-btn,
 .mermaid-native-container .mermaid-studio-edit-btn,
 .mermaid-file-view-root .mermaid-studio-edit-btn,
-.mermaid-block-modal-root .mermaid-studio-edit-btn {
+.mermaid-block-modal-root .mermaid-studio-edit-btn,
+.mermaid-studio-leaf-root .mermaid-studio-edit-btn,
+.mermaid-native-editor-root .mermaid-studio-edit-btn {
   display: none !important;
   pointer-events: none !important;
 }

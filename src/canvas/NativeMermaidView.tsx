@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { App, MarkdownRenderer, Component } from 'obsidian';
+import { App, MarkdownRenderer, Component, loadMermaid } from 'obsidian';
 import {
   MermaidFlowchartAST,
   FlowchartDirection,
@@ -30,6 +30,64 @@ import {
   PlusIcon,
   TrashIcon,
 } from './icons/Icons';
+
+let cachedMermaidApi: any = null;
+
+async function getMermaidApi(): Promise<any> {
+  if (cachedMermaidApi) return cachedMermaidApi;
+  if (typeof window !== 'undefined' && (window as any).mermaid) {
+    cachedMermaidApi = (window as any).mermaid;
+    return cachedMermaidApi;
+  }
+  try {
+    cachedMermaidApi = await loadMermaid();
+    return cachedMermaidApi;
+  } catch (err) {
+    console.warn(
+      'Visual Mermaid: Direct loadMermaid not available, fallback to MarkdownRenderer',
+      err
+    );
+    return null;
+  }
+}
+
+let renderSeq = 0;
+
+async function renderMermaidSvg(app: App, code: string): Promise<string> {
+  const mermaidApi = await getMermaidApi();
+  if (mermaidApi && typeof mermaidApi.render === 'function') {
+    const id = `vmm_${Date.now()}_${++renderSeq}`;
+    const scratch = document.body.createDiv('mermaid');
+    scratch.style.position = 'absolute';
+    scratch.style.visibility = 'hidden';
+    scratch.style.top = '-9999px';
+    scratch.style.left = '-9999px';
+    scratch.style.width = '1200px';
+
+    try {
+      const res = await mermaidApi.render(id, code, scratch);
+      scratch.remove();
+      return typeof res === 'string' ? res : res.svg;
+    } catch (err) {
+      scratch.remove();
+      throw err;
+    }
+  }
+
+  // Fallback to MarkdownRenderer if direct API is unavailable
+  const tempContainer = document.createElement('div');
+  const comp = new Component();
+  comp.load();
+  await MarkdownRenderer.render(
+    app,
+    `\`\`\`mermaid\n${code}\n\`\`\``,
+    tempContainer,
+    '',
+    comp
+  );
+  comp.unload();
+  return tempContainer.innerHTML;
+}
 
 export interface NativeMermaidViewProps {
   app: App;
@@ -112,6 +170,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     screenX: number;
     screenY: number;
   } | null>(null);
+  const renderTicketRef = useRef<number>(0);
 
   // Exact 1:1 screen-to-world coordinate calculation
   const getLocalRect = useCallback(
@@ -178,62 +237,30 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     }
   }, [selectedNodeId, getLocalRect]);
 
-  // 1. Render Obsidian's native Mermaid SVG
-  useEffect(() => {
-    let isCancelled = false;
-    const mountEl = svgMountRef.current;
-    if (!mountEl) return;
-
-    mountEl.empty();
-    const renderComponent = new Component();
-    renderComponent.load();
-
-    const markdown = `\`\`\`mermaid\n${code}\n\`\`\``;
-
-    MarkdownRenderer.render(app, markdown, mountEl, '', renderComponent)
-      .then(() => {
-        if (isCancelled) return;
-        setupSvgInteractivity();
-        stabilizeCamera();
-        updateSelectedNodeRect();
-      })
-      .catch((err) => {
-        console.error('Error rendering native Mermaid SVG:', err);
+  const startEditingNode = (nodeId: string, nodeEl: Element) => {
+    const rect = getLocalRect(nodeEl);
+    if (rect) {
+      setEditingPos({
+        x: rect.x,
+        y: rect.y,
+        width: Math.max(90, rect.width),
+        height: Math.max(34, rect.height),
       });
-
-    return () => {
-      isCancelled = true;
-      renderComponent.unload();
-    };
-  }, [code, app]);
-
-  // Camera stabilization: keep active node anchored at same screen position
-  const stabilizeCamera = useCallback(() => {
-    const pin = pendingCameraPinRef.current;
-    if (!pin || !svgMountRef.current) return;
-    pendingCameraPinRef.current = null;
-
-    const el = svgMountRef.current.querySelector(
-      `[data-mermaid-node-id="${pin.nodeId}"]`
-    );
-    if (!el) return;
-
-    const b = el.getBoundingClientRect();
-    const currentScreenX = b.left + b.width / 2;
-    const currentScreenY = b.top + b.height / 2;
-
-    const deltaX = pin.screenX - currentScreenX;
-    const deltaY = pin.screenY - currentScreenY;
-
-    if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
-      setPan((p) => ({ x: p.x + deltaX, y: p.y + deltaY }));
     }
-  }, []);
+    const ndef = ast.nodes.get(nodeId);
+    setEditNodeLabel(ndef?.label || nodeId);
+    setEditingNodeId(nodeId);
+  };
 
-  // Update selected node rect whenever selection, zoom, or pan changes
-  useEffect(() => {
-    updateSelectedNodeRect();
-  }, [selectedNodeId, zoom, pan, updateSelectedNodeRect]);
+  const handleFinishEditingNode = () => {
+    if (editingNodeId) {
+      applyAstMutation((a) => {
+        updateNodeLabel(a, editingNodeId, editNodeLabel);
+      }, editingNodeId);
+      setEditingNodeId(null);
+      setEditingPos(null);
+    }
+  };
 
   // 2. Attach interactive listeners to SVG elements
   const setupSvgInteractivity = useCallback(() => {
@@ -361,30 +388,60 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     });
   }, [ast, getLocalRect]);
 
-  const startEditingNode = (nodeId: string, nodeEl: Element) => {
-    const rect = getLocalRect(nodeEl);
-    if (rect) {
-      setEditingPos({
-        x: rect.x,
-        y: rect.y,
-        width: Math.max(90, rect.width),
-        height: Math.max(34, rect.height),
-      });
-    }
-    const ndef = ast.nodes.get(nodeId);
-    setEditNodeLabel(ndef?.label || nodeId);
-    setEditingNodeId(nodeId);
-  };
+  // Camera stabilization: keep active node anchored at same screen position
+  const stabilizeCamera = useCallback(() => {
+    const pin = pendingCameraPinRef.current;
+    if (!pin || !svgMountRef.current) return;
+    pendingCameraPinRef.current = null;
 
-  const handleFinishEditingNode = () => {
-    if (editingNodeId) {
-      applyAstMutation((a) => {
-        updateNodeLabel(a, editingNodeId, editNodeLabel);
-      }, editingNodeId);
-      setEditingNodeId(null);
-      setEditingPos(null);
+    const el = svgMountRef.current.querySelector(
+      `[data-mermaid-node-id="${pin.nodeId}"]`
+    );
+    if (!el) return;
+
+    const b = el.getBoundingClientRect();
+    const currentScreenX = b.left + b.width / 2;
+    const currentScreenY = b.top + b.height / 2;
+
+    const deltaX = pin.screenX - currentScreenX;
+    const deltaY = pin.screenY - currentScreenY;
+
+    if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+      setPan((p) => ({ x: p.x + deltaX, y: p.y + deltaY }));
     }
-  };
+  }, []);
+
+  // Update selected node rect whenever selection, zoom, or pan changes
+  useEffect(() => {
+    updateSelectedNodeRect();
+  }, [selectedNodeId, zoom, pan, updateSelectedNodeRect]);
+
+  // 1. Render Obsidian's native Mermaid SVG with direct engine and double buffering
+  useEffect(() => {
+    const mountEl = svgMountRef.current;
+    if (!mountEl) return;
+
+    const ticket = ++renderTicketRef.current;
+
+    renderMermaidSvg(app, code)
+      .then((svgHtml) => {
+        // Discard stale renders
+        if (ticket !== renderTicketRef.current) return;
+
+        // Double buffering: Atomic swap of DOM content (no blank gap!)
+        mountEl.innerHTML = svgHtml;
+        setSyntaxError(null);
+
+        setupSvgInteractivity();
+        stabilizeCamera();
+        updateSelectedNodeRect();
+      })
+      .catch((err) => {
+        if (ticket !== renderTicketRef.current) return;
+        console.error('Mermaid render error:', err);
+        setSyntaxError(err?.message || 'Diagram syntax error');
+      });
+  }, [code, app, setupSvgInteractivity, stabilizeCamera, updateSelectedNodeRect]);
 
   // Node Actions
   const handleSproutNextStep = (parentId: string) => {

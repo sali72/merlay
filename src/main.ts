@@ -166,7 +166,11 @@ export default class VisualMermaidPlugin extends Plugin {
       container.closest('.mermaid-block-modal-root') ||
       container.closest('.mermaid-file-view-root') ||
       container.closest('.mermaid-native-container') ||
-      container.closest('.mermaid-native-view')
+      container.closest('.mermaid-native-view') ||
+      container.closest('.mermaid-native-editor-root') ||
+      container.closest('.mermaid-studio-leaf-root') ||
+      container.closest('.mermaid-native-world') ||
+      container.closest('.mermaid-native-svg-mount')
     ) {
       return;
     }
@@ -206,7 +210,11 @@ export default class VisualMermaidPlugin extends Plugin {
       el.closest('.mermaid-block-modal-root') ||
       el.closest('.mermaid-file-view-root') ||
       el.closest('.mermaid-native-container') ||
-      el.closest('.mermaid-native-view')
+      el.closest('.mermaid-native-view') ||
+      el.closest('.mermaid-native-editor-root') ||
+      el.closest('.mermaid-studio-leaf-root') ||
+      el.closest('.mermaid-native-world') ||
+      el.closest('.mermaid-native-svg-mount')
     ) {
       return null;
     }

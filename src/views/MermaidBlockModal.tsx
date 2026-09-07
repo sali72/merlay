@@ -42,17 +42,15 @@ export class MermaidBlockModal extends Modal {
 
     this.root = createRoot(contentEl);
     this.root.render(
-      <React.StrictMode>
-        <NativeMermaidView
-          app={this.app}
-          initialCode={this.initialCode}
-          onCodeChange={(newCode) => {
-            this.latestCode = newCode;
-            this.scheduleSave();
-          }}
-          onClose={() => this.close()}
-        />
-      </React.StrictMode>
+      <NativeMermaidView
+        app={this.app}
+        initialCode={this.initialCode}
+        onCodeChange={(newCode) => {
+          this.latestCode = newCode;
+          this.scheduleSave();
+        }}
+        onClose={() => this.close()}
+      />
     );
   }
 
