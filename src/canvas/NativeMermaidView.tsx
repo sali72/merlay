@@ -2473,6 +2473,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 ast.subgraphs.get(selectedSubgraphId)?.style ||
                 getSubgraphStyle(ast, selectedSubgraphId)
               }
+              defaultDash="dashed"
               onApplyPreset={handleApplySubgraphPreset}
               onUpdateCustomStyle={handleUpdateSubgraphCustomStyle}
               onClearStyle={handleClearSubgraphStyle}

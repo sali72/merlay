@@ -9,6 +9,12 @@ export interface NodeStylePopoverProps {
   onApplyPreset: (preset: ThemePreset) => void;
   onUpdateCustomStyle: (property: string, value: string) => void;
   onClearStyle: () => void;
+  /**
+   * Which dash the target has when `stroke-dasharray` is unset.
+   * Nodes default to solid; groups default to dashed (via container CSS),
+   * so for groups Solid must write explicit `none` instead of deleting.
+   */
+  defaultDash?: 'solid' | 'dashed';
 }
 
 export const NodeStylePopover: React.FC<NodeStylePopoverProps> = ({
@@ -17,8 +23,13 @@ export const NodeStylePopover: React.FC<NodeStylePopoverProps> = ({
   onApplyPreset,
   onUpdateCustomStyle,
   onClearStyle,
+  defaultDash = 'solid',
 }) => {
   if (!popoverPos) return null;
+
+  const solidValue = defaultDash === 'dashed' ? 'none' : '';
+  // Effective dash for highlight purposes: unset means the target default.
+  const effectiveDash = currentStyle?.['stroke-dasharray'] ?? (defaultDash === 'dashed' ? '5 5' : '');
 
   return (
     <div
@@ -83,13 +94,11 @@ export const NodeStylePopover: React.FC<NodeStylePopoverProps> = ({
         <span className="mermaid-style-popover-title">Dash</span>
         <div className="mermaid-style-segmented">
           {[
-            { label: 'Solid', value: '' },
+            { label: 'Solid', value: solidValue },
             { label: 'Dashed', value: '5 5' },
             { label: 'Dotted', value: '2 2' },
           ].map((dash) => {
-            const isCurrent =
-              (!dash.value && !currentStyle?.['stroke-dasharray']) ||
-              currentStyle?.['stroke-dasharray'] === dash.value;
+            const isCurrent = effectiveDash === dash.value;
             return (
               <button
                 key={dash.label}

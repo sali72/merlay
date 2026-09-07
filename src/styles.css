@@ -995,6 +995,24 @@ pre.language-mermaid {
   border-color: var(--mermaid-accent);
 }
 
+/* Distinct default look for group containers (unstyled subgraphs).
+   CSS-only so explicit `style <subId>` user styles (inline) still win,
+   and the !important selection highlight below still wins. */
+.mermaid-native-svg-mount .cluster > rect {
+  fill: var(--mermaid-accent-subtle);
+  stroke: var(--mermaid-accent, #7c3aed);
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 5;
+}
+
+/* Same container look for empty groups, which mermaid degrades to plain nodes */
+.mermaid-native-svg-mount .node[data-mermaid-subgraph-id] :is(rect, circle, polygon, ellipse, path):not(.mermaid-node-selection-halo) {
+  fill: var(--mermaid-accent-subtle);
+  stroke: var(--mermaid-accent, #7c3aed);
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 5;
+}
+
 /* Subgraph SVG Selection Highlight */
 .mermaid-cluster-selected rect {
   stroke: var(--mermaid-accent, #7c3aed) !important;

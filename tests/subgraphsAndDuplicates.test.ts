@@ -165,3 +165,22 @@ test('Subgraph Style Mutations: update/get/clear round-trips through serializer'
   assert.ok(updateSubgraphStyle(ast, 'sub_2', {}));
   assert.equal(getSubgraphStyle(ast, 'sub_2'), undefined);
 });
+
+test('Subgraph Style Mutations: solid border (stroke-dasharray none) round-trips', () => {
+  const code = `flowchart TD
+    subgraph sub_1 ["Group 1"]
+        A["Node A"]
+    end
+`;
+  const ast = parseMermaidFlowchart(code);
+
+  // Solid writes explicit none so it overrides the dashed container default
+  assert.ok(updateSubgraphStyle(ast, 'sub_1', { 'stroke-dasharray': 'none' }));
+  assert.deepEqual(getSubgraphStyle(ast, 'sub_1'), { 'stroke-dasharray': 'none' });
+
+  const serialized = serializeMermaidFlowchart(ast);
+  assert.ok(serialized.includes('style sub_1 stroke-dasharray:none'));
+
+  const reparsed = parseMermaidFlowchart(serialized);
+  assert.deepEqual(getSubgraphStyle(reparsed, 'sub_1'), { 'stroke-dasharray': 'none' });
+});
