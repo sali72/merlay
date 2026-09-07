@@ -197,6 +197,28 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     screenY: number;
   } | null>(null);
   const renderTicketRef = useRef<number>(0);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  const clearHoverTimeout = useCallback(() => {
+    if (hoverTimeoutRef.current !== null) {
+      window.clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleClearHover = useCallback(() => {
+    clearHoverTimeout();
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setHoveredNodeId(null);
+      setHoveredNodeRect(null);
+    }, 200);
+  }, [clearHoverTimeout]);
+
+  useEffect(() => {
+    return () => {
+      clearHoverTimeout();
+    };
+  }, [clearHoverTimeout]);
 
   // Exact 1:1 screen-to-world coordinate calculation
   const getLocalRect = useCallback(
@@ -375,74 +397,187 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         startEditingNode(targetNodeId, htmlEl);
       };
 
-      // Node Hover -> Connection Handle
+      // Node Hover -> Connection Handle (with grace period to eliminate flicker)
       htmlEl.onmouseenter = () => {
+        clearHoverTimeout();
         setHoveredNodeId(targetNodeId);
         const rect = getLocalRect(htmlEl);
         if (rect) setHoveredNodeRect(rect);
       };
 
       htmlEl.onmouseleave = () => {
-        setHoveredNodeId(null);
-        setHoveredNodeRect(null);
+        scheduleClearHover();
       };
     });
 
-    // B. Setup Edge Listeners
-    const edgeElements = mountEl.querySelectorAll(
-      '.flowchart-link, [class*="flowchart-link"], .edgePath, .edgePath path, .edgeLabel, [class*="edgeLabel"]'
+    // Helper: Match SVG element to AST edge definition
+    const findEdgeForElement = (
+      el: Element,
+      fallbackIdx?: number
+    ): MermaidEdgeDef | null => {
+      const idAttr = (el.getAttribute('id') || '').trim();
+      const classAttr = (el.getAttribute('class') || '').trim();
+      const textContent = (el.textContent || '').trim();
+
+      if (idAttr) {
+        const normId = idAttr.replace(/[-_]/g, '_');
+        for (const edge of ast.edges) {
+          const normFrom = edge.from.replace(/[-_]/g, '_');
+          const normTo = edge.to.replace(/[-_]/g, '_');
+          if (
+            normId.includes(`L_${normFrom}_${normTo}`) ||
+            normId.includes(`_${normFrom}_${normTo}_`) ||
+            normId.endsWith(`_${normFrom}_${normTo}`) ||
+            normId === `${normFrom}_${normTo}` ||
+            normId.includes(`${normFrom}_${normTo}`)
+          ) {
+            return edge;
+          }
+        }
+      }
+
+      if (classAttr) {
+        const normClass = classAttr.replace(/[-_]/g, '_');
+        for (const edge of ast.edges) {
+          const normFrom = edge.from.replace(/[-_]/g, '_');
+          const normTo = edge.to.replace(/[-_]/g, '_');
+          if (
+            normClass.includes(`LS_${normFrom}`) &&
+            normClass.includes(`LE_${normTo}`)
+          ) {
+            return edge;
+          }
+          if (normClass.includes(`_${normFrom}_${normTo}_`)) {
+            return edge;
+          }
+        }
+      }
+
+      if (textContent) {
+        const matched = ast.edges.find((ed) => ed.label && ed.label === textContent);
+        if (matched) return matched;
+      }
+
+      if (
+        fallbackIdx !== undefined &&
+        fallbackIdx >= 0 &&
+        fallbackIdx < ast.edges.length
+      ) {
+        return ast.edges[fallbackIdx];
+      }
+
+      return null;
+    };
+
+    // B. Setup Edge Paths & Invisible Hit-Areas
+    mountEl.querySelectorAll('.mermaid-edge-hit-area').forEach((el) => el.remove());
+
+    const rawEdgePaths = mountEl.querySelectorAll(
+      '.edgePaths path, .edgePath path, path.flowchart-link, [class*="flowchart-link"]'
     );
-    edgeElements.forEach((el) => {
-      const htmlEl = el as SVGGraphicsElement;
-      htmlEl.style.cursor = 'pointer';
-
-      const classAttr =
-        (htmlEl.getAttribute('class') || '') +
-        ' ' +
-        (htmlEl.parentElement?.getAttribute('class') || '') +
-        ' ' +
-        (htmlEl.closest('g.edgePath, g.edgeLabel')?.getAttribute('class') || '');
-      const idAttr =
-        (htmlEl.getAttribute('id') || '') +
-        ' ' +
-        (htmlEl.parentElement?.getAttribute('id') || '') +
-        ' ' +
-        (htmlEl.closest('g.edgePath, g.edgeLabel')?.getAttribute('id') || '');
-
-      let matchedEdge: MermaidEdgeDef | null = null;
-      for (const edge of ast.edges) {
-        const hasSource =
-          classAttr.includes(`LS-${edge.from}`) || idAttr.includes(`LS-${edge.from}`);
-        const hasTarget =
-          classAttr.includes(`LE-${edge.to}`) || idAttr.includes(`LE-${edge.to}`);
-        if (hasSource && hasTarget) {
-          matchedEdge = edge;
-          break;
-        }
-        if (
-          idAttr.includes(`L-${edge.from}-${edge.to}`) ||
-          idAttr.includes(`${edge.from}-${edge.to}`) ||
-          classAttr.includes(`${edge.from}-${edge.to}`)
-        ) {
-          matchedEdge = edge;
-          break;
-        }
+    const edgePaths: SVGPathElement[] = [];
+    rawEdgePaths.forEach((p) => {
+      const pathEl = p as SVGPathElement;
+      if (
+        pathEl.tagName.toLowerCase() === 'path' &&
+        pathEl.getAttribute('d') &&
+        !pathEl.classList.contains('mermaid-edge-hit-area') &&
+        !pathEl.classList.contains('arrowheadPath')
+      ) {
+        edgePaths.push(pathEl);
       }
+    });
 
-      if (!matchedEdge) {
-        const labelText = htmlEl.textContent?.trim();
-        if (labelText) {
-          matchedEdge = ast.edges.find((ed) => ed.label === labelText) || null;
-        }
-      }
-
-      if (!matchedEdge) return;
-      const targetEdge = matchedEdge;
+    edgePaths.forEach((pathEl, idx) => {
+      const targetEdge = findEdgeForElement(pathEl, idx);
+      if (!targetEdge) return;
       const targetEdgeId = targetEdge.id;
+
+      pathEl.setAttribute('data-mermaid-edge-id', targetEdgeId);
+      pathEl.style.cursor = 'pointer';
+
+      // Create an invisible 18px stroke hit overlay
+      const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      hitArea.setAttribute('d', pathEl.getAttribute('d') || '');
+      hitArea.setAttribute('class', 'mermaid-edge-hit-area');
+      hitArea.setAttribute('data-mermaid-edge-id', targetEdgeId);
+      hitArea.setAttribute('fill', 'none');
+      hitArea.setAttribute('stroke', 'transparent');
+      hitArea.setAttribute('stroke-width', '18');
+      hitArea.setAttribute('stroke-linecap', 'round');
+      hitArea.style.cursor = 'pointer';
+      hitArea.style.pointerEvents = 'stroke';
+
+      pathEl.parentNode?.insertBefore(hitArea, pathEl.nextSibling);
+
+      const handleEdgeClick = (e: MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setSelectedEdgeId(targetEdgeId);
+        setSelectedNodeId(null);
+        setEditingNodeId(null);
+
+        if (worldRef.current && e.clientX && e.clientY) {
+          const worldRect = worldRef.current.getBoundingClientRect();
+          setSelectedEdgePos({
+            x: (e.clientX - worldRect.left) / zoom,
+            y: (e.clientY - worldRect.top) / zoom,
+            label: targetEdge.label,
+            from: targetEdge.from,
+            to: targetEdge.to,
+            arrowType: targetEdge.arrowType,
+          });
+        } else {
+          const rect = getLocalRect(pathEl);
+          if (rect) {
+            setSelectedEdgePos({
+              x: rect.x + rect.width / 2,
+              y: rect.y + rect.height / 2,
+              label: targetEdge.label,
+              from: targetEdge.from,
+              to: targetEdge.to,
+              arrowType: targetEdge.arrowType,
+            });
+          }
+        }
+      };
+
+      const handleEdgeDblClick = (e: MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        startEditingEdge(targetEdgeId, pathEl);
+      };
+
+      pathEl.onclick = handleEdgeClick;
+      pathEl.ondblclick = handleEdgeDblClick;
+
+      hitArea.onclick = handleEdgeClick;
+      hitArea.ondblclick = handleEdgeDblClick;
+
+      hitArea.onmouseenter = () => {
+        pathEl.classList.add('mermaid-edge-hovered');
+      };
+      hitArea.onmouseleave = () => {
+        pathEl.classList.remove('mermaid-edge-hovered');
+      };
+    });
+
+    // C. Setup Edge Labels
+    const edgeLabels = mountEl.querySelectorAll(
+      '.edgeLabels .edgeLabel, .edgeLabel, [class*="edgeLabel"]'
+    );
+    edgeLabels.forEach((el) => {
+      const htmlEl = el as SVGGraphicsElement;
+      const targetEdge = findEdgeForElement(htmlEl);
+      if (!targetEdge) return;
+      const targetEdgeId = targetEdge.id;
+
       htmlEl.setAttribute('data-mermaid-edge-id', targetEdgeId);
+      htmlEl.style.cursor = 'pointer';
 
       htmlEl.onclick = (e) => {
         e.stopPropagation();
+        e.preventDefault();
         setSelectedEdgeId(targetEdgeId);
         setSelectedNodeId(null);
         setEditingNodeId(null);
@@ -462,10 +597,11 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
       htmlEl.ondblclick = (e) => {
         e.stopPropagation();
+        e.preventDefault();
         startEditingEdge(targetEdgeId, htmlEl);
       };
     });
-  }, [ast, getLocalRect]);
+  }, [ast, getLocalRect, zoom, clearHoverTimeout, scheduleClearHover]);
 
   // Camera stabilization: keep active node anchored at same screen position
   const stabilizeCamera = useCallback(() => {
@@ -821,7 +957,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         }}
       >
         {/* Native Mermaid SVG Output */}
-        <div className="mermaid-native-svg-mount" ref={svgMountRef} />
+        <div className="mermaid-native-svg-mount mermaid" ref={svgMountRef} />
 
         {/* Interactive Overlay Layer */}
         <div className="mermaid-native-overlay">
@@ -867,6 +1003,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 transform: 'translate(-50%, -50%)',
                 zIndex: 100,
               }}
+              onMouseEnter={clearHoverTimeout}
+              onMouseLeave={scheduleClearHover}
               onMouseDown={(e) =>
                 handleStartConnect(
                   e,
@@ -879,7 +1017,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
                 )
               }
               title="Drag to connect with another step"
-            />
+            >
+              <PlusIcon size={10} />
+            </div>
           )}
 
           {/* Selected Node Halo & Relational Sprout HUD */}

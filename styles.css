@@ -200,7 +200,8 @@ pre.language-mermaid {
   will-change: transform;
 }
 
-.mermaid-native-svg-mount {
+.mermaid-native-svg-mount,
+.mermaid-native-svg-mount.mermaid {
   position: absolute;
   top: 80px;
   left: 80px;
@@ -225,14 +226,23 @@ pre.language-mermaid {
 }
 
 .mermaid-native-svg-mount .flowchart-link,
-.mermaid-native-svg-mount .edgePath {
+.mermaid-native-svg-mount .edgePath,
+.mermaid-native-svg-mount .edgePath path,
+.mermaid-native-svg-mount path.flowchart-link {
   cursor: pointer;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease;
 }
 
 .mermaid-native-svg-mount .flowchart-link:hover,
-.mermaid-native-svg-mount .edgePath:hover path {
+.mermaid-native-svg-mount .edgePath:hover path,
+.mermaid-native-svg-mount path.mermaid-edge-hovered {
   stroke: var(--mermaid-accent) !important;
-  stroke-width: 2.5px !important;
+  stroke-width: 3px !important;
+}
+
+.mermaid-edge-hit-area {
+  pointer-events: stroke !important;
+  cursor: pointer !important;
 }
 
 .mermaid-native-svg-mount .edgeLabel {
@@ -338,21 +348,30 @@ pre.language-mermaid {
   margin: 0 2px;
 }
 
-/* Connection Handle (Anchor Dot) */
+/* Connection Handle (Anchor Dot / Sprout Plus) */
 .mermaid-connection-handle {
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--mermaid-accent);
-  border: 2px solid #ffffff;
+  border: 1.5px solid #ffffff;
   box-shadow: 0 0 8px var(--mermaid-accent);
   cursor: crosshair;
   pointer-events: all;
-  transition: transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
 .mermaid-connection-handle:hover {
-  transform: translate(-50%, -50%) scale(1.35) !important;
+  transform: translate(-50%, -50%) scale(1.25) !important;
+  background: var(--mermaid-accent-hover);
+}
+
+.mermaid-connection-handle svg {
+  pointer-events: none;
 }
 
 /* Edge Action HUD */
