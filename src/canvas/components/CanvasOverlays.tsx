@@ -286,8 +286,8 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         />
       )}
 
-      {/* Single Node Relational Sprout HUD (start/end anchors have no HUD — use drag handle) */}
-      {selectedNodeRect && selectedNodeId && selectedNodeId !== '[*]' && !isMultiSelect && (
+      {/* Single Node Relational Sprout HUD */}
+      {selectedNodeRect && selectedNodeId && !isMultiSelect && (
         <NodeActionHud
           selectedNodeId={selectedNodeId}
           sproutX={sproutX}
@@ -304,7 +304,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
           onDelete={onDeleteNode}
           canRenameState={canRenameState}
           hideSprout={isStateDiagram && selectedNodeId === '[*]'}
-          hideDelete={isStateDiagram && selectedNodeId === '[*]'}
+          hideDelete={false}
         />
       )}
 

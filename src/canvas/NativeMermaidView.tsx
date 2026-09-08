@@ -17,6 +17,7 @@ import {
   Rect,
 } from './types';
 import { renderMermaidSvg } from './renderer/mermaidRenderer';
+import { applySelectedNodeHalos } from './renderer/selectionHalo';
 import { useHistory } from './useHistory';
 
 import { useCanvasCamera } from './hooks/useCanvasCamera';
@@ -79,11 +80,18 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     endPan,
   } = useCanvasCamera({ worldRef, svgMountRef });
 
+  const [selectedStarKind, setSelectedStarKind] = useState<'start' | 'end' | null>(null);
+  const selectedStarKindRef = useRef<'start' | 'end' | null>(null);
+  useEffect(() => {
+    selectedStarKindRef.current = selectedStarKind;
+  }, [selectedStarKind]);
+
   // 2. Selection & Halos
   const selection = useCanvasSelection({
     svgMountRef,
     getLocalRect,
     displayDirection: isStateDiagram ? 'LR' : 'TD',
+    selectedStarKind,
   });
 
   // 3. Diagram Mutations & AST State
@@ -115,6 +123,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     updateSelectedEdgeHalo: selection.updateSelectedEdgeHalo,
     selectedNodeIdsRef: selection.selectedNodeIdsRef,
     selectedEdgeIdsRef: selection.selectedEdgeIdsRef,
+    selectedStarKind,
+    setSelectedStarKind,
   });
 
   // 4. Marquee Selection
@@ -124,6 +134,11 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     zoomRef,
     getLocalRect,
     onSelectionChange: (nodes, edges) => {
+      // Marquee never includes [*] (filtered in hook), clear star kind
+      if (!nodes.has('[*]')) {
+        selectedStarKindRef.current = null;
+        setSelectedStarKind(null);
+      }
       selection.selectedNodeIdsRef.current = nodes;
       selection.selectedEdgeIdsRef.current = edges;
       selection.setSelectedNodeIds(nodes);
@@ -230,6 +245,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         mutations.setSyntaxError(null);
         onCodeChange(prevCode);
         selection.clearSelection();
+        selectedStarKindRef.current = null;
+        setSelectedStarKind(null);
         inlineEditing.setEditingNodeId(null);
         inlineEditing.setEditingEdgeId(null);
         inlineEditing.setEditingSubgraphId(null);
@@ -253,6 +270,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         mutations.setSyntaxError(null);
         onCodeChange(nextCode);
         selection.clearSelection();
+        selectedStarKindRef.current = null;
+        setSelectedStarKind(null);
         inlineEditing.setEditingNodeId(null);
         inlineEditing.setEditingEdgeId(null);
         inlineEditing.setEditingSubgraphId(null);
@@ -267,6 +286,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       Array.from(mutations.displayNodes.keys()).filter((id) => id !== '[*]')
     );
     const allEdgeIds = new Set(mutations.displayEdges.map((e) => e.id));
+    selectedStarKindRef.current = null;
+    setSelectedStarKind(null);
     selection.selectedNodeIdsRef.current = allNodeIds;
     selection.selectedEdgeIdsRef.current = allEdgeIds;
     selection.setSelectedNodeIds(allNodeIds);
@@ -333,6 +354,19 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
           c.classList.remove('mermaid-cluster-selected')
         );
+        // Track which [*] anchor (start vs end) was clicked — they share id "[*]" but have distinct visuals.
+        const starKindForTarget =
+          targetNodeId === '[*]'
+            ? ((htmlEl.getAttribute('data-mermaid-start-end') as 'start'|'end'|null) ||
+               (htmlEl.getAttribute('id')?.includes('root_start') ? 'start' : htmlEl.getAttribute('id')?.includes('root_end') ? 'end' : null))
+            : null;
+        if (targetNodeId === '[*]' && starKindForTarget) {
+          selectedStarKindRef.current = starKindForTarget;
+          setSelectedStarKind(starKindForTarget);
+        } else if (targetNodeId !== '[*]') {
+          selectedStarKindRef.current = null;
+          setSelectedStarKind(null);
+        }
 
         if (isMulti) {
           // Start/end anchors ([*]) are single-select only — never part of a multi-select group.
@@ -345,7 +379,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
             selection.updateSelectedEdgeHalo(new Set());
             const rect = getLocalRect(htmlEl);
             if (rect) selection.setSelectedNodeRect(rect);
-            selection.updateSelectedNodeHalo(nextNodes);
+            // Kind-filtered halo — only highlight the clicked anchor, not both
+            applySelectedNodeHalos(mountEl, nextNodes, undefined, starKindForTarget);
             return;
           }
           const prev = selection.selectedNodeIdsRef.current;
@@ -367,10 +402,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           selection.updateSelectedEdgeHalo(emptyEdges);
           const rect = getLocalRect(htmlEl);
           if (rect) selection.setSelectedNodeRect(rect);
-          selection.updateSelectedNodeHalo(nextNodes);
+          if (targetNodeId === '[*]' && starKindForTarget) {
+            applySelectedNodeHalos(mountEl, nextNodes, undefined, starKindForTarget);
+          } else {
+            selection.updateSelectedNodeHalo(nextNodes);
+          }
         }
       },
       onSelectEdge: (targetEdge, resolvedPath, isMulti) => {
+        selectedStarKindRef.current = null;
+        setSelectedStarKind(null);
         selection.setSelectedSubgraphId(null);
         selection.setSelectedSubgraphRect(null);
         selection.setActiveSubgraphPopover(null);
@@ -413,6 +454,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         }
       },
       onSelectSubgraph: (targetSubId, htmlEl) => {
+        selectedStarKindRef.current = null;
+        setSelectedStarKind(null);
         selection.setSelectedSubgraphId(targetSubId);
         const empty = new Set<string>();
         selection.selectedNodeIdsRef.current = empty;
@@ -699,6 +742,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       onClick={() => {
         if (marquee.isMarqueeActiveRef.current) return;
         selection.clearSelection();
+        selectedStarKindRef.current = null;
+        setSelectedStarKind(null);
         inlineEditing.setEditingNodeId(null);
         inlineEditing.setEditingEdgeId(null);
         inlineEditing.setEditingSubgraphId(null);

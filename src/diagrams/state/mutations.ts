@@ -161,6 +161,22 @@ export function pruneOrphanStartEnd(ast: MermaidStateAST): void {
   }
 }
 
+export function deleteStartAnchor(ast: MermaidStateAST): void {
+  const before = ast.transitions.length;
+  ast.transitions = ast.transitions.filter((t) => t.from !== '[*]');
+  if (ast.transitions.length !== before) {
+    pruneOrphanStartEnd(ast);
+  }
+}
+
+export function deleteEndAnchor(ast: MermaidStateAST): void {
+  const before = ast.transitions.length;
+  ast.transitions = ast.transitions.filter((t) => t.to !== '[*]');
+  if (ast.transitions.length !== before) {
+    pruneOrphanStartEnd(ast);
+  }
+}
+
 export function deleteState(ast: MermaidStateAST, stateId: string): void {
   ast.states.delete(stateId);
 

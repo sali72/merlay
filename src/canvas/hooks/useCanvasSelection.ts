@@ -16,12 +16,14 @@ export interface UseCanvasSelectionOptions {
   svgMountRef: React.RefObject<HTMLDivElement>;
   getLocalRect: (el: Element) => Rect | null;
   displayDirection: string;
+  selectedStarKind?: 'start' | 'end' | null;
 }
 
 export function useCanvasSelection({
   svgMountRef,
   getLocalRect,
   displayDirection,
+  selectedStarKind,
 }: UseCanvasSelectionOptions) {
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
@@ -58,10 +60,11 @@ export function useCanvasSelection({
       applySelectedNodeHalos(
         svgMountRef.current,
         selectedNodeIdsRef.current,
-        targets
+        targets,
+        selectedStarKind ?? null
       );
     },
-    [svgMountRef]
+    [svgMountRef, selectedStarKind]
   );
 
   const updateSelectedEdgeHalo = useCallback(
@@ -84,27 +87,34 @@ export function useCanvasSelection({
       setSelectedNodeRect(null);
       return;
     }
-    // [*] can match two distinct circles (start + end); take the union so the
-    // HUD does not jump to only one of them.
-    const nodeEls = Array.from(
-      svgMountRef.current.querySelectorAll(`[data-mermaid-node-id="${currentId}"]`)
-    );
-    if (nodeEls.length === 0) {
+    // For [*] we keep anchors distinct — HUD should anchor to the selected
+    // start or end circle, not the union of both.
+    const selector =
+      currentId === '[*]' && selectedStarKind
+        ? `[data-mermaid-node-id="${currentId}"][data-mermaid-start-end="${selectedStarKind}"]`
+        : `[data-mermaid-node-id="${currentId}"]`;
+    const nodeEls = Array.from(svgMountRef.current.querySelectorAll(selector)) as Element[];
+    // Fallback to any [*] element if kind-filtered query found nothing (e.g. during re-render)
+    const elsToUse =
+      nodeEls.length > 0
+        ? nodeEls
+        : Array.from(svgMountRef.current.querySelectorAll(`[data-mermaid-node-id="${currentId}"]`));
+    if (elsToUse.length === 0) {
       setSelectedNodeRect(null);
       return;
     }
-    if (nodeEls.length === 1) {
-      const rect = getLocalRect(nodeEls[0]);
+    if (elsToUse.length === 1) {
+      const rect = getLocalRect(elsToUse[0]);
       if (rect) setSelectedNodeRect(rect);
       return;
     }
-    // Union of all matching rects (covers both start & end anchors).
+    // Union of all matching rects (covers both start & end anchors when no kind).
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
     let found = false;
-    for (const el of nodeEls) {
+    for (const el of elsToUse) {
       const r = getLocalRect(el);
       if (!r) continue;
       minX = Math.min(minX, r.x);
@@ -116,7 +126,7 @@ export function useCanvasSelection({
     if (found) {
       setSelectedNodeRect({ x: minX, y: minY, width: maxX - minX, height: maxY - minY });
     }
-  }, [getLocalRect, svgMountRef]);
+  }, [getLocalRect, svgMountRef, selectedStarKind]);
 
   const setSelectedNodeId = useCallback(
     (id: string | null) => {
@@ -125,11 +135,15 @@ export function useCanvasSelection({
       setSelectedNodeIds(newSet);
       updateSelectedNodeHalo(newSet);
       if (id && svgMountRef.current) {
-        const nodeEls = Array.from(
-          svgMountRef.current.querySelectorAll(`[data-mermaid-node-id="${id}"]`)
-        );
+        const selector =
+          id === '[*]' && selectedStarKind
+            ? `[data-mermaid-node-id="${id}"][data-mermaid-start-end="${selectedStarKind}"]`
+            : `[data-mermaid-node-id="${id}"]`;
+        let nodeEls = Array.from(svgMountRef.current.querySelectorAll(selector)) as Element[];
+        if (nodeEls.length === 0) {
+          nodeEls = Array.from(svgMountRef.current.querySelectorAll(`[data-mermaid-node-id="${id}"]`));
+        }
         if (nodeEls.length > 0) {
-          // Union for [*] (both anchors)
           if (nodeEls.length === 1) {
             const rect = getLocalRect(nodeEls[0]);
             if (rect) setSelectedNodeRect(rect);
@@ -155,7 +169,7 @@ export function useCanvasSelection({
         setSelectedNodeRect(null);
       }
     },
-    [getLocalRect, updateSelectedNodeHalo, svgMountRef]
+    [getLocalRect, updateSelectedNodeHalo, svgMountRef, selectedStarKind]
   );
 
   const setSelectedEdgeId = useCallback(

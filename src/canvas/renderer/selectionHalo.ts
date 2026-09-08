@@ -6,7 +6,8 @@
 export function applySelectedNodeHalos(
   mountEl: HTMLElement | null,
   selectedNodeIds: Iterable<string>,
-  targets?: string | null | Set<string> | string[]
+  targets?: string | null | Set<string> | string[],
+  starKind?: 'start' | 'end' | null
 ): void {
   if (!mountEl) return;
 
@@ -34,14 +35,20 @@ export function applySelectedNodeHalos(
   if (activeIds.length === 0) return;
 
   for (const activeId of activeIds) {
-    // Several SVG elements can share one id (both [*] anchors map to "[*]"),
-    // so highlight every match instead of only the first.
-    const nodeEls = Array.from(
-      mountEl.querySelectorAll(`[data-mermaid-node-id="${activeId}"]`)
-    ) as SVGGraphicsElement[];
-    if (nodeEls.length === 0) continue;
+    // For [*] we keep start/end distinct via data-mermaid-start-end
+    let selector = `[data-mermaid-node-id="${activeId}"]`;
+    if (activeId === '[*]' && starKind) {
+      selector = `[data-mermaid-node-id="${activeId}"][data-mermaid-start-end="${starKind}"]`;
+    }
+    const nodeEls = Array.from(mountEl.querySelectorAll(selector)) as SVGGraphicsElement[];
+    // Fallback to any [*] element if kind-filtered query found nothing (e.g. re-render race)
+    const elsToUse =
+      nodeEls.length > 0
+        ? nodeEls
+        : (Array.from(mountEl.querySelectorAll(`[data-mermaid-node-id="${activeId}"]`) as unknown as SVGGraphicsElement[]) as SVGGraphicsElement[]);
+    if (elsToUse.length === 0) continue;
 
-    for (const nodeEl of nodeEls) {
+    for (const nodeEl of elsToUse) {
       nodeEl.classList.add('mermaid-node-selected');
 
     // 2. Identify shape elements representing the node's geometry

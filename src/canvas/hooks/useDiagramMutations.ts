@@ -82,6 +82,8 @@ export interface UseDiagramMutationsOptions {
   updateSelectedEdgeHalo: (targets: any) => void;
   selectedNodeIdsRef: React.MutableRefObject<Set<string>>;
   selectedEdgeIdsRef: React.MutableRefObject<Set<string>>;
+  selectedStarKind?: 'start' | 'end' | null;
+  setSelectedStarKind?: (k: 'start' | 'end' | null) => void;
 }
 
 export function useDiagramMutations({
@@ -112,6 +114,8 @@ export function useDiagramMutations({
   updateSelectedEdgeHalo,
   selectedNodeIdsRef,
   selectedEdgeIdsRef,
+  selectedStarKind,
+  setSelectedStarKind,
 }: UseDiagramMutationsOptions) {
   const isStateDiagram = diagramType === 'stateDiagram';
 
@@ -309,12 +313,26 @@ export function useDiagramMutations({
 
   const handleDeleteSelectedNode = useCallback(() => {
     if (!selectedNodeId) return;
-    if (isStateDiagram && selectedNodeId === '[*]') return;
     const targetId = selectedNodeId;
+    const starKind = selectedStarKind as 'start' | 'end' | null | undefined;
+    // Clear selection immediately (including star kind)
     setSelectedNodeId(null);
     setSelectedNodeRect(null);
     setActiveNodePopover(null);
     updateSelectedNodeHalo(new Set());
+    if (setSelectedStarKind) setSelectedStarKind(null);
+    if (isStateDiagram && targetId === '[*]') {
+      applyStateAstMutation((a) => {
+        if (starKind === 'start') stateMutations.deleteStartAnchor(a);
+        else if (starKind === 'end') stateMutations.deleteEndAnchor(a);
+        else {
+          // Fallback when kind unknown (e.g. programmatic) — remove both directions
+          a.transitions = a.transitions.filter((t) => t.from !== '[*]' && t.to !== '[*]');
+          stateMutations.pruneOrphanStartEnd(a);
+        }
+      });
+      return;
+    }
     if (isStateDiagram) {
       applyStateAstMutation((a) => {
         stateMutations.deleteState(a, targetId);
@@ -326,10 +344,12 @@ export function useDiagramMutations({
     }
   }, [
     selectedNodeId,
+    selectedStarKind,
     setSelectedNodeId,
     setSelectedNodeRect,
     setActiveNodePopover,
     updateSelectedNodeHalo,
+    setSelectedStarKind,
     isStateDiagram,
     applyStateAstMutation,
     applyAstMutation,
