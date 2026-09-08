@@ -16,6 +16,37 @@ export function ensureStartEndEntry(ast: MermaidStateAST): void {
   }
 }
 
+/**
+ * Checks if candidateNodeId is inside compositeId (directly or through nested composites).
+ * Also returns true if candidateNodeId === compositeId.
+ */
+export function isNodeInsideComposite(
+  ast: MermaidStateAST,
+  candidateNodeId: string,
+  compositeId: string
+): boolean {
+  if (candidateNodeId === compositeId) return true;
+
+  // 1. If candidate is a normal/pseudo state:
+  const state = ast.states.get(candidateNodeId);
+  if (state?.compositeId) {
+    if (state.compositeId === compositeId) return true;
+    return isNodeInsideComposite(ast, state.compositeId, compositeId);
+  }
+
+  // 2. If candidate is a composite state:
+  if (ast.compositeStates.has(candidateNodeId)) {
+    for (const [pId, parent] of ast.compositeStates.entries()) {
+      if (parent.compositeIds?.includes(candidateNodeId)) {
+        if (pId === compositeId) return true;
+        if (isNodeInsideComposite(ast, pId, compositeId)) return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 export function connectStates(
   ast: MermaidStateAST,
   fromId: string,
@@ -23,6 +54,11 @@ export function connectStates(
   label?: string
 ): MermaidTransitionDef | null {
   if (fromId === '[*]' && toId === '[*]') return null;
+
+  // Only outer nodes can point to composites; inner nodes cannot point to the outer composite.
+  if (ast.compositeStates.has(toId) && isNodeInsideComposite(ast, fromId, toId)) {
+    return null;
+  }
 
   // Same endpoints with the same label are duplicates; same endpoints with a
   // different label are distinct transitions (different events/conditions).
@@ -101,7 +137,29 @@ export function insertStateOnTransition(
 ): string | null {
   const tr = ast.transitions.find((t) => t.id === transitionId);
   if (!tr) return null;
-  const newStateId = addState(ast, label);
+
+  // Determine composite scope for the new state:
+  // If both endpoints are inside the same composite, or one endpoint is inside a composite
+  // and the other is an anchor [*] or the composite itself, place the state inside that composite.
+  const fromState = ast.states.get(tr.from);
+  const toState = ast.states.get(tr.to);
+  let targetCompositeId: string | undefined;
+
+  if (fromState?.compositeId && toState?.compositeId) {
+    if (fromState.compositeId === toState.compositeId) {
+      targetCompositeId = fromState.compositeId;
+    }
+  } else if (fromState?.compositeId && tr.to === '[*]') {
+    targetCompositeId = fromState.compositeId;
+  } else if (toState?.compositeId && tr.from === '[*]') {
+    targetCompositeId = toState.compositeId;
+  } else if (ast.compositeStates.has(tr.from) && toState?.compositeId) {
+    targetCompositeId = toState.compositeId;
+  } else if (ast.compositeStates.has(tr.to) && fromState?.compositeId) {
+    targetCompositeId = fromState.compositeId;
+  }
+
+  const newStateId = addState(ast, label, 'normal', targetCompositeId);
   const oldTo = tr.to;
   const oldLabel = tr.label;
   tr.to = newStateId;

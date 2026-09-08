@@ -275,6 +275,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     marquee,
     displayNodes: mutations.displayNodes,
     displayEdges: mutations.displayEdges,
+    displaySubgraphs: mutations.displaySubgraphs,
     driver,
     applyMutation: mutations.applyMutation,
     setSelectedNodeId: selection.setSelectedNodeId,

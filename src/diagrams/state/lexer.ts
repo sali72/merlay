@@ -54,12 +54,28 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
   const tokens: StateToken[] = [];
   const lines = input.split('\n');
 
+  let inMultiLineNote = false;
+
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const rawLine = lines[lineIdx];
     const trimmed = rawLine.trim();
 
     if (!trimmed) {
       tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: 1 });
+      continue;
+    }
+
+    if (inMultiLineNote) {
+      tokens.push({
+        type: 'RAW_LINE',
+        value: trimmed,
+        line: lineIdx + 1,
+        col: 1,
+      });
+      tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: rawLine.length + 1 });
+      if (/^end\s+note\b/i.test(trimmed)) {
+        inMultiLineNote = false;
+      }
       continue;
     }
 
@@ -78,9 +94,12 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
     // edits never corrupt or drop hand-written code.
     if (
       /^(note|classdef|class)\b/i.test(trimmed) ||
-      trimmed === '--' ||
+      /^--(\s.*)?$/.test(trimmed) ||
       containsInlineClassShorthand(trimmed)
     ) {
+      if (/^note\b/i.test(trimmed) && !trimmed.includes(':')) {
+        inMultiLineNote = true;
+      }
       tokens.push({
         type: 'RAW_LINE',
         value: trimmed,
@@ -229,7 +248,11 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
           tokens.push({ type: 'DIRECTIVE', value: word, line: lineIdx + 1, col: pos + 1 });
         } else if (lower === 'direction') {
           tokens.push({ type: 'DIRECTION_KEYWORD', value: word, line: lineIdx + 1, col: pos + 1 });
-        } else if (['TB', 'TD', 'BT', 'RL', 'LR'].includes(upper)) {
+        } else if (
+          ['TB', 'TD', 'BT', 'RL', 'LR'].includes(upper) &&
+          tokens.length > 0 &&
+          tokens[tokens.length - 1].type === 'DIRECTION_KEYWORD'
+        ) {
           tokens.push({ type: 'DIRECTION', value: upper, line: lineIdx + 1, col: pos + 1 });
         } else if (lower === 'state') {
           tokens.push({ type: 'STATE_KEYWORD', value: word, line: lineIdx + 1, col: pos + 1 });

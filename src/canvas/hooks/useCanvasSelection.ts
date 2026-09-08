@@ -39,7 +39,7 @@ export function useCanvasSelection({
   const [activeNodePopover, setActiveNodePopover] = useState<ActiveNodePopover>(null);
   const [activeEdgePopover, setActiveEdgePopover] = useState<ActiveEdgePopover>(null);
   const [activeMultiPopover, setActiveMultiPopover] = useState<ActiveMultiPopover>(null);
-  const [activeSubgraphPopover, setActiveSubgraphPopover] = useState<'style' | null>(null);
+  const [activeSubgraphPopover, setActiveSubgraphPopover] = useState<'style' | 'group' | null>(null);
 
   const [unmatchedSubgraphIds, setUnmatchedSubgraphIds] = useState<string[]>([]);
 

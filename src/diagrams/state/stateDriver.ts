@@ -111,7 +111,7 @@ export const StateDiagramDriver: DiagramDriver<MermaidStateAST> = {
         type: 'subgraph',
         id,
         label: comp.label,
-        direction: (comp.direction as FlowchartDirection) || 'TD',
+        direction: (comp.direction as FlowchartDirection) || (ast.direction as FlowchartDirection) || 'TD',
         nodeIds: comp.stateIds,
         subgraphIds: comp.compositeIds,
         style: comp.style,
@@ -153,6 +153,7 @@ export const StateDiagramDriver: DiagramDriver<MermaidStateAST> = {
     addNode: (ast, label) => st.addState(ast, label),
     addChildNode: (ast, parentId, label) => st.addChildState(ast, parentId, label),
     deleteNode: (ast, nodeId) => {
+      if (nodeId === '[*]') return;
       st.deleteState(ast, nodeId);
     },
     deleteNodes: (ast, nodeIds) => {
@@ -187,6 +188,10 @@ export const StateDiagramDriver: DiagramDriver<MermaidStateAST> = {
     reverseEdge: (ast, edgeId) => {
       const tr = ast.transitions.find((t) => t.id === edgeId);
       if (!tr) return null;
+      // Only outer nodes can point to composites; inner nodes cannot point to outer composite.
+      if (ast.compositeStates.has(tr.from) && st.isNodeInsideComposite(ast, tr.to, tr.from)) {
+        return null;
+      }
       const oldFrom = tr.from;
       tr.from = tr.to;
       tr.to = oldFrom;
@@ -238,6 +243,10 @@ export const StateDiagramDriver: DiagramDriver<MermaidStateAST> = {
       const compId = st.createCompositeState(ast, label);
       for (const nid of nodeIds) {
         st.moveStateToComposite(ast, nid, compId);
+      }
+      const comp = ast.compositeStates.get(compId);
+      if (comp && comp.stateIds.length === 0 && (!comp.compositeIds || comp.compositeIds.length === 0)) {
+        st.addState(ast, 'State 1', 'normal', compId);
       }
       return compId;
     },

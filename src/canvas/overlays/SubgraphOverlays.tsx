@@ -2,12 +2,13 @@
  * Overlays for Selected Subgraphs: Subgraph Action HUD, Style Popover, and Fallback Chips Bar.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { PopoverPos, Rect } from '../types';
 import { ThemePreset } from '../constants';
 import { MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { SubgraphActionHud } from '../components/SubgraphActionHud';
 import { NodeStylePopover } from '../components/NodeStylePopover';
+import { SubgraphPopover } from '../components/SubgraphPopover';
 
 export interface SubgraphOverlaysProps {
   selectedSubgraphRect: Rect | null;
@@ -15,8 +16,9 @@ export interface SubgraphOverlaysProps {
   isMultiSelect: boolean;
   displaySubgraphs: Map<string, MermaidSubgraphDef>;
   selectedSubgraphStyle: Record<string, string> | undefined;
-  activeSubgraphPopover: 'style' | null;
+  activeSubgraphPopover: 'style' | 'group' | null;
   onToggleSubgraphStyle: () => void;
+  onToggleSubgraphGroup?: () => void;
   onStartEditingSubgraph: (subId: string) => void;
   onDissolveSubgraph: () => void;
   onDeleteSubgraphAll: () => void;
@@ -26,6 +28,9 @@ export interface SubgraphOverlaysProps {
   onClearSubgraphStyle: () => void;
   unmatchedSubgraphIds: string[];
   onSelectUnmatchedSubgraph: (subId: string, idx: number) => void;
+  onMoveSubgraphToGroup?: (subId: string, targetParentId: string | null) => void;
+  onCreateParentGroupWithSubgraph?: (subId: string) => void;
+  onCloseSubgraphPopover?: () => void;
 }
 
 export const SubgraphOverlays: React.FC<SubgraphOverlaysProps> = ({
@@ -36,6 +41,7 @@ export const SubgraphOverlays: React.FC<SubgraphOverlaysProps> = ({
   selectedSubgraphStyle,
   activeSubgraphPopover,
   onToggleSubgraphStyle,
+  onToggleSubgraphGroup,
   onStartEditingSubgraph,
   onDissolveSubgraph,
   onDeleteSubgraphAll,
@@ -45,7 +51,40 @@ export const SubgraphOverlays: React.FC<SubgraphOverlaysProps> = ({
   onClearSubgraphStyle,
   unmatchedSubgraphIds,
   onSelectUnmatchedSubgraph,
+  onMoveSubgraphToGroup,
+  onCreateParentGroupWithSubgraph,
+  onCloseSubgraphPopover,
 }) => {
+  const currentParentSubgraphId = useMemo(() => {
+    if (!selectedSubgraphId) return undefined;
+    for (const [id, sub] of displaySubgraphs.entries()) {
+      if (sub.subgraphIds?.includes(selectedSubgraphId)) return id;
+    }
+    return undefined;
+  }, [selectedSubgraphId, displaySubgraphs]);
+
+  const availableParentSubgraphs = useMemo(() => {
+    if (!selectedSubgraphId) return [];
+    // Collect all descendant IDs to avoid circular nesting
+    const descendants = new Set<string>();
+    const queue = [selectedSubgraphId];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      const def = displaySubgraphs.get(curr);
+      if (def?.subgraphIds) {
+        for (const cid of def.subgraphIds) {
+          if (!descendants.has(cid)) {
+            descendants.add(cid);
+            queue.push(cid);
+          }
+        }
+      }
+    }
+    return Array.from(displaySubgraphs.values()).filter(
+      (sub) => sub.id !== selectedSubgraphId && !descendants.has(sub.id)
+    );
+  }, [selectedSubgraphId, displaySubgraphs]);
+
   return (
     <>
       {/* Subgraph Floating Action HUD */}
@@ -59,7 +98,9 @@ export const SubgraphOverlays: React.FC<SubgraphOverlaysProps> = ({
             topY={selectedSubgraphRect.y}
             currentStyle={selectedSubgraphStyle}
             isStyleActive={activeSubgraphPopover === 'style'}
+            isGroupActive={activeSubgraphPopover === 'group'}
             onToggleStyle={onToggleSubgraphStyle}
+            onToggleGroup={onToggleSubgraphGroup}
             onRename={() => onStartEditingSubgraph(selectedSubgraphId)}
             onDissolve={onDissolveSubgraph}
             onDeleteAll={onDeleteSubgraphAll}
@@ -80,6 +121,41 @@ export const SubgraphOverlays: React.FC<SubgraphOverlaysProps> = ({
             onUpdateCustomStyle={onUpdateSubgraphCustomStyle}
             onClearStyle={onClearSubgraphStyle}
           />
+        )}
+
+      {/* Subgraph Group Membership Popover (Nesting into another composite/group) */}
+      {activeSubgraphPopover === 'group' &&
+        subgraphPopoverPos &&
+        selectedSubgraphId &&
+        displaySubgraphs.has(selectedSubgraphId) &&
+        !isMultiSelect && (
+          <div
+            style={{
+              position: 'absolute',
+              left: subgraphPopoverPos.left,
+              top: subgraphPopoverPos.top,
+              transform: subgraphPopoverPos.transform,
+              zIndex: 200,
+            }}
+          >
+            <SubgraphPopover
+              currentSubgraphId={currentParentSubgraphId}
+              subgraphs={availableParentSubgraphs}
+              onSelectSubgraph={(targetParentId) => {
+                if (onMoveSubgraphToGroup) {
+                  onMoveSubgraphToGroup(selectedSubgraphId, targetParentId);
+                }
+              }}
+              onCreateNewGroup={() => {
+                if (onCreateParentGroupWithSubgraph) {
+                  onCreateParentGroupWithSubgraph(selectedSubgraphId);
+                }
+              }}
+              onClose={() => {
+                if (onCloseSubgraphPopover) onCloseSubgraphPopover();
+              }}
+            />
+          </div>
         )}
 
       {/* Fallback chips for groups with no rendered cluster element */}

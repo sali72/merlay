@@ -109,30 +109,45 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
     // - [*] --> StateA
     // - StateA --> [*]
     // - StateA : Label description
-    if (token.type === 'START_END' || token.type === 'IDENTIFIER') {
+    if (token.type === 'START_END' || token.type === 'IDENTIFIER' || token.type === 'STRING') {
       parseTransitionOrStateDescription();
       continue;
     }
 
-    // 6. Style statement: style StateA fill:...
+    // 6. Style statement: style StateA fill:... or style StateA, StateB fill:...
     if (token.type === 'STYLE') {
-      advance();
-      let targetId = '';
-      if (currentToken().type === 'IDENTIFIER') {
-        targetId = advance().value;
-      }
-      const styleTokens: string[] = [];
+      advance(); // consume 'style'
+      const lineTokens: StateToken[] = [];
       while (currentToken().type !== 'NEWLINE' && currentToken().type !== 'EOF') {
-        styleTokens.push(advance().value);
+        lineTokens.push(advance());
       }
-      if (targetId) {
-        const styleMap = parseStyleString(styleTokens.join(' '));
-        ast.styles.push({ targetId, styles: styleMap });
-        if (ast.states.has(targetId)) {
-          ast.states.get(targetId)!.style = {
-            ...(ast.states.get(targetId)!.style || {}),
-            ...styleMap,
-          };
+      const colonIdx = lineTokens.findIndex((t) => t.type === 'COLON' || t.value.includes(':'));
+      if (colonIdx > 0) {
+        const splitIdx = lineTokens[colonIdx].type === 'COLON' ? colonIdx - 1 : colonIdx;
+        const targetTokens = lineTokens.slice(0, splitIdx);
+        const stylePropTokens = lineTokens.slice(splitIdx);
+        const targets = targetTokens
+          .map((t) => t.value)
+          .join(' ')
+          .split(/[\s,]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const styleString = stylePropTokens.map((t) => t.value).join('');
+        const styleMap = parseStyleString(styleString);
+        for (const targetId of targets) {
+          ast.styles.push({ targetId, styles: styleMap });
+          if (ast.states.has(targetId)) {
+            ast.states.get(targetId)!.style = {
+              ...(ast.states.get(targetId)!.style || {}),
+              ...styleMap,
+            };
+          }
+          if (ast.compositeStates.has(targetId)) {
+            ast.compositeStates.get(targetId)!.style = {
+              ...(ast.compositeStates.get(targetId)!.style || {}),
+              ...styleMap,
+            };
+          }
         }
       }
       continue;
@@ -158,6 +173,22 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
     }
   }
 
+  // 8. Reconcile styles onto states and composites (handles forward style declarations)
+  for (const s of ast.styles) {
+    if (ast.states.has(s.targetId)) {
+      ast.states.get(s.targetId)!.style = {
+        ...(ast.states.get(s.targetId)!.style || {}),
+        ...s.styles,
+      };
+    }
+    if (ast.compositeStates.has(s.targetId)) {
+      ast.compositeStates.get(s.targetId)!.style = {
+        ...(ast.compositeStates.get(s.targetId)!.style || {}),
+        ...s.styles,
+      };
+    }
+  }
+
   return ast;
 
   function parseStateKeywordStatement() {
@@ -169,7 +200,7 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
       label = advance().value;
       if (currentToken().type === 'AS_KEYWORD') {
         advance(); // consume 'as'
-        if (currentToken().type === 'IDENTIFIER') {
+        if (currentToken().type === 'IDENTIFIER' || currentToken().type === 'STRING') {
           stateId = advance().value;
         }
       }
@@ -177,7 +208,7 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
       stateId = advance().value;
       if (currentToken().type === 'AS_KEYWORD') {
         advance(); // consume 'as'
-        if (currentToken().type === 'IDENTIFIER') {
+        if (currentToken().type === 'IDENTIFIER' || currentToken().type === 'STRING') {
           label = stateId;
           stateId = advance().value;
         }
@@ -185,6 +216,14 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
     }
 
     if (!stateId) return;
+
+    // Check for colon description: state S1 : This is my description
+    if (currentToken().type === 'COLON') {
+      advance(); // consume ':'
+      if (currentToken().type === 'STRING' || currentToken().type === 'IDENTIFIER') {
+        label = advance().value.trim();
+      }
+    }
 
     // Check for stereotype <<choice>>, <<fork>>, <<join>>
     let stateType: MermaidStateType = 'normal';
@@ -237,7 +276,11 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
       advance(); // consume '-->'
 
       let toId = '';
-      if (currentToken().type === 'START_END' || currentToken().type === 'IDENTIFIER') {
+      if (
+        currentToken().type === 'START_END' ||
+        currentToken().type === 'IDENTIFIER' ||
+        currentToken().type === 'STRING'
+      ) {
         toId = advance().value;
       }
       if (!toId) return;
@@ -297,6 +340,19 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
     // Composite states are valid transition endpoints — never shadow them
     // with a duplicate state of the same id.
     if (id !== '[*]' && ast.compositeStates.has(id)) {
+      return;
+    }
+
+    // [*] is an anchor pseudo-state — it is global and never belongs to a composite's stateIds
+    if (id === '[*]') {
+      if (!ast.states.has('[*]')) {
+        ast.states.set('[*]', {
+          type: 'state',
+          id: '[*]',
+          label: '[*]',
+          stateType,
+        });
+      }
       return;
     }
 

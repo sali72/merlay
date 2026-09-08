@@ -14,6 +14,10 @@ export function updateStateStyle(
   if (state) {
     state.style = { ...(state.style || {}), ...styles };
   }
+  const comp = ast.compositeStates.get(stateId);
+  if (comp) {
+    comp.style = { ...(comp.style || {}), ...styles };
+  }
   const existingIndex = ast.styles.findIndex((s) => s.targetId === stateId);
   if (existingIndex >= 0) {
     ast.styles[existingIndex].styles = {
@@ -40,6 +44,10 @@ export function clearStateStyle(ast: MermaidStateAST, stateId: string): void {
   if (state) {
     delete state.style;
   }
+  const comp = ast.compositeStates.get(stateId);
+  if (comp) {
+    delete comp.style;
+  }
   ast.styles = ast.styles.filter((s) => s.targetId !== stateId);
 }
 
@@ -53,6 +61,10 @@ export function clearStatesStyle(
     if (state) {
       delete state.style;
     }
+    const comp = ast.compositeStates.get(id);
+    if (comp) {
+      delete comp.style;
+    }
   }
   ast.styles = ast.styles.filter((s) => !idSet.has(s.targetId));
 }
@@ -61,7 +73,7 @@ export function getStateStyle(
   ast: MermaidStateAST,
   stateId: string
 ): Record<string, string> | undefined {
-  return ast.states.get(stateId)?.style;
+  return ast.states.get(stateId)?.style || ast.compositeStates.get(stateId)?.style;
 }
 
 export function updateCompositeStateStyle(

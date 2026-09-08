@@ -34,7 +34,9 @@ export function createSubgraph(
 
   if (nodeIds) {
     for (const nid of nodeIds) {
-      if (ast.nodes.has(nid)) {
+      if (ast.subgraphs.has(nid)) {
+        moveSubgraphToSubgraph(ast, nid, subId);
+      } else if (ast.nodes.has(nid)) {
         // Remove from any prior subgraph
         const node = ast.nodes.get(nid)!;
         if (node.subgraphId && ast.subgraphs.has(node.subgraphId)) {
@@ -112,6 +114,44 @@ export function renameSubgraph(
   return true;
 }
 
+function isSubgraphDescendant(
+  ast: MermaidFlowchartAST,
+  ancestorId: string,
+  candidateId: string
+): boolean {
+  const ancestor = ast.subgraphs.get(ancestorId);
+  if (!ancestor || !ancestor.subgraphIds) return false;
+  if (ancestor.subgraphIds.includes(candidateId)) return true;
+  return ancestor.subgraphIds.some((cid) => isSubgraphDescendant(ast, cid, candidateId));
+}
+
+export function moveSubgraphToSubgraph(
+  ast: MermaidFlowchartAST,
+  childSubId: string,
+  targetParentId: string | null
+): boolean {
+  if (!ast.subgraphs.has(childSubId)) return false;
+  if (childSubId === targetParentId) return false;
+  if (targetParentId && isSubgraphDescendant(ast, childSubId, targetParentId)) return false;
+
+  // Remove from old parent subgraph
+  for (const parent of ast.subgraphs.values()) {
+    if (parent.subgraphIds?.includes(childSubId)) {
+      parent.subgraphIds = parent.subgraphIds.filter((id) => id !== childSubId);
+    }
+  }
+
+  // Add to target parent
+  if (targetParentId && ast.subgraphs.has(targetParentId)) {
+    const target = ast.subgraphs.get(targetParentId)!;
+    if (!target.subgraphIds) target.subgraphIds = [];
+    if (!target.subgraphIds.includes(childSubId)) {
+      target.subgraphIds.push(childSubId);
+    }
+  }
+  return true;
+}
+
 /**
  * Move a single node to another subgraph, or unparent it if targetSubgraphId is null.
  */
@@ -120,6 +160,10 @@ export function moveNodeToSubgraph(
   nodeId: string,
   targetSubgraphId: string | null
 ): boolean {
+  if (ast.subgraphs.has(nodeId)) {
+    return moveSubgraphToSubgraph(ast, nodeId, targetSubgraphId);
+  }
+
   const node = ast.nodes.get(nodeId);
   if (!node) return false;
 

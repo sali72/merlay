@@ -189,6 +189,9 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         onToggleSubgraphStyle={() =>
           selection.setActiveSubgraphPopover((prev) => (prev === 'style' ? null : 'style'))
         }
+        onToggleSubgraphGroup={() =>
+          selection.setActiveSubgraphPopover((prev) => (prev === 'group' ? null : 'group'))
+        }
         onStartEditingSubgraph={(subId) => {
           const subEl = svgMountRef.current?.querySelector(`[data-mermaid-subgraph-id="${subId}"]`);
           if (subEl) {
@@ -213,6 +216,15 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
             height: 30,
           });
         }}
+        onMoveSubgraphToGroup={(subId, targetId) => {
+          mutations.handleMoveNodeToSubgraph(subId, targetId);
+          selection.setActiveSubgraphPopover(null);
+        }}
+        onCreateParentGroupWithSubgraph={(subId) => {
+          mutations.handleCreateGroupWithNode(subId);
+          selection.setActiveSubgraphPopover(null);
+        }}
+        onCloseSubgraphPopover={() => selection.setActiveSubgraphPopover(null)}
       />
 
       {/* Inline Text Editors Layer */}

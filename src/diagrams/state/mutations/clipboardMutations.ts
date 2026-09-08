@@ -19,14 +19,22 @@ export function duplicateStates(
     if (!oldState) continue;
 
     const baseName = oldState.label || sid;
-    const newId = `s_${Date.now().toString(36).slice(-4)}_${Math.floor(Math.random() * 1000)}`;
+    let newId = `s_${Date.now().toString(36).slice(-4)}_${Math.floor(Math.random() * 1000)}`;
+    while (ast.states.has(newId) || ast.compositeStates.has(newId)) {
+      newId = `s_${Date.now().toString(36).slice(-4)}_${Math.floor(Math.random() * 10000)}`;
+    }
     idMap.set(sid, newId);
     newCreatedStateIds.push(newId);
+
+    const isPseudo =
+      oldState.stateType === 'choice' ||
+      oldState.stateType === 'fork' ||
+      oldState.stateType === 'join';
 
     const clonedState: MermaidStateDef = {
       type: 'state',
       id: newId,
-      label: `${baseName} Copy`,
+      label: isPseudo ? newId : `${baseName} Copy`,
       stateType: oldState.stateType,
       compositeId: oldState.compositeId,
       style: oldState.style ? { ...oldState.style } : undefined,

@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { CursorMode, Rect } from '../types';
 import { DiagramDriver } from '../../diagrams/types';
-import { MermaidNodeDef, MermaidEdgeDef } from '../../diagrams/viewModel';
+import { MermaidNodeDef, MermaidEdgeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 
 export interface UseCanvasMouseInteractionsOptions {
   worldRef: React.RefObject<HTMLDivElement>;
@@ -32,6 +32,7 @@ export interface UseCanvasMouseInteractionsOptions {
   };
   displayNodes: Map<string, MermaidNodeDef>;
   displayEdges: MermaidEdgeDef[];
+  displaySubgraphs?: Map<string, MermaidSubgraphDef>;
   driver: DiagramDriver;
   applyMutation: (mutator: (currentAst: any) => void, keepNodeId?: string) => void;
   setSelectedNodeId: (id: string | null) => void;
@@ -49,6 +50,7 @@ export function useCanvasMouseInteractions({
   marquee,
   displayNodes,
   displayEdges,
+  displaySubgraphs,
   driver,
   applyMutation,
   setSelectedNodeId,
@@ -200,7 +202,38 @@ export function useCanvasMouseInteractions({
         (isAnchorId(targetNodeId) && !tgtIsEnd) ||
         (isAnchorId(connectingSourceId) && !srcIsStart);
 
-      if (targetNodeId && targetNodeId !== connectingSourceId && !isBlockedAnchorEdge) {
+      // Only outer nodes can point to composites; inner nodes cannot point to outer composite.
+      const isInnerToOuterBlocked = (() => {
+        if (!targetNodeId || !connectingSourceId || !displaySubgraphs) return false;
+        if (!displaySubgraphs.has(targetNodeId)) return false;
+        const subgraphs = displaySubgraphs;
+        const isSourceInsideTarget = (srcId: string, tgtSubId: string): boolean => {
+          if (srcId === tgtSubId) return true;
+          const node = displayNodes.get(srcId);
+          if (node?.subgraphId) {
+            if (node.subgraphId === tgtSubId) return true;
+            return isSourceInsideTarget(node.subgraphId, tgtSubId);
+          }
+          const sub = subgraphs.get(srcId);
+          if (sub) {
+            for (const parent of subgraphs.values()) {
+              if (parent.subgraphIds?.includes(srcId)) {
+                if (parent.id === tgtSubId) return true;
+                return isSourceInsideTarget(parent.id, tgtSubId);
+              }
+            }
+          }
+          return false;
+        };
+        return isSourceInsideTarget(connectingSourceId, targetNodeId);
+      })();
+
+      if (
+        targetNodeId &&
+        targetNodeId !== connectingSourceId &&
+        !isBlockedAnchorEdge &&
+        !isInnerToOuterBlocked
+      ) {
         applyMutation((a) => {
           m.connect(a, connectingSourceId, targetNodeId);
         }, connectingSourceId);

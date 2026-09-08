@@ -47,17 +47,21 @@ export function setupNodeInteractivity({
     const idAttr = htmlEl.getAttribute('id') || '';
     let matchedNodeId: string | null = null;
 
-    for (const nid of displayNodes.keys()) {
-      if (
-        prefixes.some(
-          (p) => idAttr.includes(`${p}${nid}-`) || idAttr === `${p}${nid}`
-        ) ||
-        idAttr.endsWith(`-${nid}`) ||
-        idAttr === nid ||
-        (isAnchorEl && isAnchorEl(htmlEl))
-      ) {
-        matchedNodeId = nid;
-        break;
+    if (isAnchorEl && isAnchorEl(htmlEl)) {
+      matchedNodeId = anchorNodeId || '[*]';
+    } else {
+      for (const nid of displayNodes.keys()) {
+        if (nid === anchorNodeId) continue;
+        if (
+          prefixes.some(
+            (p) => idAttr.includes(`${p}${nid}-`) || idAttr === `${p}${nid}`
+          ) ||
+          idAttr.endsWith(`-${nid}`) ||
+          idAttr === nid
+        ) {
+          matchedNodeId = nid;
+          break;
+        }
       }
     }
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { MermaidSubgraphDef } from '../../diagrams/viewModel';
-import { PencilIcon, PaletteIcon, TrashIcon, UngroupIcon } from '../icons/Icons';
+import { PencilIcon, PaletteIcon, TrashIcon, UngroupIcon, FolderIcon } from '../icons/Icons';
 
 export interface SubgraphActionHudProps {
   subgraph: MermaidSubgraphDef;
@@ -8,7 +8,9 @@ export interface SubgraphActionHudProps {
   topY: number;
   currentStyle: Record<string, string> | undefined;
   isStyleActive: boolean;
+  isGroupActive?: boolean;
   onToggleStyle: () => void;
+  onToggleGroup?: () => void;
   onRename: () => void;
   onDissolve: () => void;
   onDeleteAll: () => void;
@@ -20,7 +22,9 @@ export const SubgraphActionHud: React.FC<SubgraphActionHudProps> = ({
   topY,
   currentStyle,
   isStyleActive,
+  isGroupActive,
   onToggleStyle,
+  onToggleGroup,
   onRename,
   onDissolve,
   onDeleteAll,
@@ -64,6 +68,17 @@ export const SubgraphActionHud: React.FC<SubgraphActionHudProps> = ({
           />
         )}
       </button>
+
+      {onToggleGroup && (
+        <button
+          type="button"
+          className={`mermaid-hud-btn icon-only ${isGroupActive ? 'is-active' : ''}`}
+          onClick={onToggleGroup}
+          title="Nest into Group / Group Membership"
+        >
+          <FolderIcon size={14} />
+        </button>
+      )}
 
       <button
         type="button"
