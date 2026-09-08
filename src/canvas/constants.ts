@@ -1,5 +1,3 @@
-import { MermaidShapeType } from '../ast/types';
-
 // Node shape option labels now live in the flowchart driver
 // (src/diagrams/flowchart/flowchartDriver.ts) so every diagram owns its own
 // node-kind vocabulary.

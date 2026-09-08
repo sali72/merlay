@@ -3,7 +3,7 @@
  * Matches SVG cluster groups to AST subgraphs and attaches click/double-click handlers.
  */
 
-import { MermaidSubgraphDef } from '../../ast/types';
+import { MermaidSubgraphDef } from '../../diagrams/viewModel';
 
 export interface SetupClusterInteractivityOptions {
   mountEl: HTMLElement;

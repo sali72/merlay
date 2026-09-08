@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { CursorMode, Rect } from '../types';
 import { DiagramDriver } from '../../diagrams/types';
-import { MermaidNodeDef, MermaidEdgeDef } from '../../ast/types';
+import { MermaidNodeDef, MermaidEdgeDef } from '../../diagrams/viewModel';
 
 export interface UseCanvasMouseInteractionsOptions {
   worldRef: React.RefObject<HTMLDivElement>;

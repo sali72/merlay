@@ -3,7 +3,7 @@
  * Handles edge path hit-areas, stroke hovering, and edge label click/editing.
  */
 
-import { MermaidEdgeDef } from '../../ast/types';
+import { MermaidEdgeDef } from '../../diagrams/viewModel';
 import { matchSvgEdgeToAst } from '../../utils/edgeMatching';
 import { getDistanceToSvgPath } from '../../utils/edgeGeometry';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MermaidNodeDef } from '../../ast/types';
+import { MermaidNodeDef } from '../../diagrams/viewModel';
 import { ActiveNodePopover } from '../types';
 import {
   PlusIcon,

@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { MermaidEdgeDef, MermaidNodeDef, MermaidSubgraphDef } from '../../../ast/types';
+import { MermaidEdgeDef, MermaidNodeDef, MermaidSubgraphDef } from '../../../diagrams/viewModel';
 import { SupportedDiagramType } from '../../../diagrams/types';
 import { getDriver } from '../../../diagrams/registry';
 import { FlowchartDriver } from '../../../diagrams/flowchart/flowchartDriver';

@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMermaidFlowchart } from '../src/ast/parser';
-import { serializeMermaidFlowchart } from '../src/ast/serializer';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer';
 import {
   updateEdgeStyle,
   clearEdgeStyle,
   getEdgeStyle,
   deleteEdge,
-} from '../src/ast/mutations';
+} from '../src/diagrams/flowchart/mutations';
 
 test('Edge Styles Parser: parses linkStyle with single index', () => {
   const code = `flowchart TD

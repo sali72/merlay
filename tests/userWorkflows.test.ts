@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMermaidFlowchart } from '../src/ast/parser';
-import { serializeMermaidFlowchart } from '../src/ast/serializer';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer';
 import {
   addNode,
   addChildNode,
@@ -15,7 +15,7 @@ import {
   reverseEdgeDirection,
   insertNodeOnEdge,
   setDiagramDirection,
-} from '../src/ast/mutations';
+} from '../src/diagrams/flowchart/mutations';
 
 test('User Workflow: Sprouting child nodes in succession with unique IDs', () => {
   const initial = `flowchart TD\n    Root[Root Idea]\n`;

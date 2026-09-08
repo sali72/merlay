@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Rect } from '../types';
-import { MermaidEdgeDef, MermaidNodeDef, MermaidSubgraphDef } from '../../ast/types';
+import { MermaidEdgeDef, MermaidNodeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 
 export interface UseInlineEditingOptions {
   displayNodes: Map<string, MermaidNodeDef>;

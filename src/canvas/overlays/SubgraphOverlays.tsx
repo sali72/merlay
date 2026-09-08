@@ -5,7 +5,7 @@
 import React from 'react';
 import { PopoverPos, Rect } from '../types';
 import { ThemePreset } from '../constants';
-import { MermaidSubgraphDef } from '../../ast/types';
+import { MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { SubgraphActionHud } from '../components/SubgraphActionHud';
 import { NodeStylePopover } from '../components/NodeStylePopover';
 

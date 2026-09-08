@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowType } from '../../ast/types';
+import { ArrowType } from '../../diagrams/viewModel';
 import { PopoverPos } from '../types';
 import {
   ArrowSolidIcon,

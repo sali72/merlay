@@ -5,7 +5,7 @@
 import React from 'react';
 import { ActiveNodePopover, PopoverPos, Rect } from '../types';
 import { ThemePreset } from '../constants';
-import { MermaidNodeDef, MermaidSubgraphDef } from '../../ast/types';
+import { MermaidNodeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { DiagramDriver } from '../../diagrams/types';
 import { NodeActionHud } from '../components/NodeActionHud';
 import { KindPopover } from '../components/KindPopover';

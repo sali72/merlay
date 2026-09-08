@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { tokenize } from '../src/ast/lexer.ts';
-import { parseMermaidFlowchart } from '../src/ast/parser.ts';
-import { serializeMermaidFlowchart } from '../src/ast/serializer.ts';
+import { tokenize } from '../src/diagrams/flowchart/lexer.ts';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser.ts';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer.ts';
 
 import {
   addNode,
@@ -18,7 +18,7 @@ import {
   insertNodeOnEdge,
   insertNodeBetween,
   setDiagramDirection,
-} from '../src/ast/mutations.ts';
+} from '../src/diagrams/flowchart/mutations';
 
 test('Lexer tokenizes basic flowchart', () => {
   const code = 'flowchart LR\n    A[Start] --> B(End)';

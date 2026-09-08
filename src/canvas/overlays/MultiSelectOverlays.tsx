@@ -5,7 +5,7 @@
 import React from 'react';
 import { ActiveMultiPopover, PopoverPos } from '../types';
 import { ThemePreset } from '../constants';
-import { MermaidNodeDef } from '../../ast/types';
+import { MermaidNodeDef } from '../../diagrams/viewModel';
 import { DiagramDriver } from '../../diagrams/types';
 import { MultiSelectHud } from '../components/MultiSelectHud';
 import { EdgeTypePopover } from '../components/EdgeTypePopover';

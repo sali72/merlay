@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { App } from 'obsidian';
 import { Rect } from '../types';
-import { MermaidNodeDef, MermaidEdgeDef, MermaidSubgraphDef } from '../../ast/types';
+import { MermaidNodeDef, MermaidEdgeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { DiagramDriver } from '../../diagrams/types';
 import { renderMermaidSvg } from '../renderer/mermaidRenderer';
 import { applySelectedNodeHalos } from '../renderer/selectionHalo';

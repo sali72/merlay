@@ -34,31 +34,33 @@ The codebase is organized into modular single-responsibility units:
 ```
 src/
 ├── main.ts                     # Obsidian Plugin lifecycle entrypoint (clean, lightweight coordinator)
-├── ast/                        # Flowchart AST parser, serializer, and mutations
-│   ├── types.ts                # AST definitions (nodes, edges, styles, subgraphs)
-│   ├── lexer.ts                # Tokenizer for flowchart syntax
-│   ├── parser.ts               # Recursive descent flowchart parser
-│   ├── styleParser.ts          # Style declarations, classDef resolution, and arrow mapping
-│   ├── serializer.ts           # AST-to-Mermaid code emission
-│   ├── mutations.ts            # Facade re-exporting modular mutation functions
-│   └── mutations/              # Granular AST mutation modules (<300 LOC each)
-│       ├── nodeMutations.ts    # Add, sprout, morph shape, delete nodes
-│       ├── edgeMutations.ts    # Connect, reverse, relabel, split edge
-│       ├── styleMutations.ts   # Node, edge, and subgraph theme/color styles
-│       ├── subgraphMutations.ts# Group, ungroup, move, dissolve subgraphs
-│       ├── clipboardMutations.ts # Duplicate, copy, paste nodes/edges
-│       └── index.ts            # Barrel export
-├── diagrams/                   # Multi-diagram driver system
-│   ├── types.ts                # DiagramDriver interface & diagram detection types
-│   ├── registry.ts             # Registered diagram types (flowchart, stateDiagram)
-│   ├── flowchart/              # Flowchart driver implementation
-│   └── state/                  # State diagram implementation
+├── diagrams/                   # Multi-diagram driver system — each diagram is a self-contained package
+│   ├── types.ts                # DiagramDriver contract: capabilities, labels, mutation surface,
+│   │                           # view projection, anchor API, SVG DOM adapter, registry types
+│   ├── viewModel.ts            # Shared canvas view-model (MermaidNodeDef, MermaidEdgeDef,
+│   │                           # MermaidSubgraphDef, shapes, arrows, directions) — every driver
+│   │                           # projects onto these; the canvas never sees a native AST
+│   ├── registry.ts             # Driver registry + diagram detection + templates
+│   ├── flowchart/              # Flowchart package
+│   │   ├── types.ts            # Flowchart AST definitions (re-exports the view-model types)
+│   │   ├── lexer.ts            # Tokenizer for flowchart syntax
+│   │   ├── parser.ts           # Recursive descent flowchart parser
+│   │   ├── serializer.ts       # AST-to-Mermaid code emission
+│   │   ├── styleParser.ts      # Style declarations, classDef resolution, and arrow mapping
+│   │   ├── flowchartDriver.ts  # DiagramDriver implementation for Flowchart
+│   │   └── mutations/          # Flowchart AST mutations (<300 LOC each)
+│   │       ├── nodeMutations.ts    # Add, sprout, morph shape, delete nodes
+│   │       ├── edgeMutations.ts    # Connect, reverse, relabel, split edge
+│   │       ├── styleMutations.ts   # Node, edge, and subgraph theme/color styles
+│   │       ├── subgraphMutations.ts# Group, ungroup, move, dissolve subgraphs
+│   │       ├── clipboardMutations.ts # Duplicate, copy, paste nodes/edges
+│   │       └── index.ts            # Barrel export
+│   └── state/                  # State diagram package
 │       ├── types.ts            # State AST definitions
 │       ├── lexer.ts            # State diagram tokenizer
 │       ├── parser.ts           # State diagram parser
 │       ├── serializer.ts       # State diagram serializer
 │       ├── stateDriver.ts      # DiagramDriver implementation for State
-│       ├── mutations.ts        # Facade re-exporting state mutations
 │       └── mutations/          # Modular state mutations (<250 LOC each)
 │           ├── stateMutations.ts       # Add, label, delete, start/end states
 │           ├── transitionMutations.ts  # State transitions & edge connections
@@ -70,19 +72,20 @@ src/
 │   ├── buttonInjector.ts       # Injects "Visual Mode" button beside Obsidian's edit button
 │   ├── workspaceObserver.ts    # Monitors workspace leaves, preview mutations, and active file
 │   └── diagramOpener.ts        # Coordinates opening diagrams in modal or file tabs
-├── canvas/                     # Interactive visual canvas & overlays
+├── canvas/                     # Interactive visual canvas & overlays (driver-agnostic)
 │   ├── NativeMermaidView.tsx   # Primary React canvas coordinator component
 │   ├── types.ts                # Viewport, camera, selection, and overlay types
-│   ├── constants.ts            # Preset color themes, edge styles, shapes
+│   ├── constants.ts            # Preset color themes and edge styles
 │   ├── useHistory.ts           # Undo/redo stack hook
 │   ├── historyManager.ts       # Core history data structure
 │   ├── components/             # Reusable canvas UI components
 │   │   ├── CanvasTopBar.tsx    # Direction toggle, cursor mode, add step, undo/redo
 │   │   ├── CanvasOverlays.tsx  # Composed overlay container delegating to overlay layers
-│   │   ├── NodeActionHud.tsx   # Sprout, shape, color, delete floating HUD
+│   │   ├── NodeActionHud.tsx   # Sprout, kind, color, delete floating HUD
 │   │   ├── EdgeActionHud.tsx   # Edge type, reverse, label, delete HUD
 │   │   ├── SubgraphActionHud.tsx # Subgraph rename, style, dissolve HUD
 │   │   ├── MultiSelectHud.tsx  # Multi-element batch action HUD
+│   │   ├── KindPopover.tsx     # Generic node-kind picker (shapes / state types)
 │   │   └── SyntaxDrawer.tsx    # Slide-out live Mermaid code drawer
 │   ├── overlays/               # Focused overlay rendering layers (<180 LOC each)
 │   │   ├── NodeOverlays.tsx    # Selected node halo, sprout button, popovers
@@ -90,15 +93,15 @@ src/
 │   │   ├── SubgraphOverlays.tsx# Subgraph cluster selection, borders, actions
 │   │   ├── MultiSelectOverlays.tsx # Multi-selection bounding box & batch actions
 │   │   └── InlineEditOverlays.tsx  # Direct text editing inputs for nodes/edges/subgraphs
-│   ├── interaction/            # SVG DOM hit-testing & event setup
+│   ├── interaction/            # SVG DOM hit-testing & event setup (driver DOM adapter)
 │   │   ├── setupSvgInteractivity.ts # Orchestrator for SVG DOM listeners
-│   │   ├── nodeInteractivity.ts     # Node selection, hover, [*] anchors
+│   │   ├── nodeInteractivity.ts     # Node selection, hover, start/end anchors
 │   │   ├── edgeInteractivity.ts     # Edge hit-testing and hovering
 │   │   └── clusterInteractivity.ts  # Subgraph cluster selection & dblclick
 │   ├── renderer/               # SVG rendering & selection styling
 │   │   ├── mermaidRenderer.ts  # Obsidian native mermaid.render wrapper
 │   │   └── selectionHalo.ts    # SVG halo styling for active nodes and edges
-│   └── hooks/                  # Granular canvas state hooks
+│   └── hooks/                  # Granular canvas state hooks (driver-dispatched)
 │       ├── useCanvasCamera.ts  # Pan, zoom, wheel, fit-view, pinNodeForCamera
 │       ├── useCanvasSelection.ts # Selection state (single, multi, subgraphs)
 │       ├── useMarqueeSelection.ts # Drag-to-select box calculation
@@ -108,15 +111,15 @@ src/
 │       ├── useCanvasRenderer.ts# SVG rendering effect, camera stabilization, unmatched subgraphs
 │       ├── useDiagramMutations.ts # Composed diagram mutation coordinator
 │       └── mutations/          # Modular mutation sub-hooks (<300 LOC each)
-│           ├── useDiagramAst.ts        # AST caching, validation, error state
-│           ├── useNodeMutations.ts     # Sprouting, shape morphing, node deletion
+│           ├── useDiagramAst.ts        # Single active AST, driver projections, applyMutation
+│           ├── useNodeMutations.ts     # Sprouting, kind changes, node deletion
 │           ├── useEdgeMutations.ts     # Connecting, edge reversal, edge deletion
-│           ├── useSubgraphMutations.ts # Subgraph creation, renaming, dissolve
+│           ├── useSubgraphMutations.ts # Group creation, renaming, dissolve
 │           ├── useBatchMutations.ts    # Multi-node batch operations
 │           └── useClipboardMutations.ts# Copy, paste, duplicate
 └── utils/                      # Helper algorithms
     ├── markdownBlock.ts        # Scans and updates ```mermaid fences in markdown notes
-    ├── edgeMatching.ts         # Fuzzy maps SVG <path> elements to AST edge definitions
+    ├── edgeMatching.ts         # Fuzzy maps SVG <path> elements to view-model edge definitions
     └── edgeGeometry.ts         # Math for SVG bezier path hit distance
 ```
 

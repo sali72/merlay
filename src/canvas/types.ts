@@ -1,5 +1,5 @@
 import { App } from 'obsidian';
-import { ArrowType } from '../ast/types';
+import { ArrowType } from '../diagrams/viewModel';
 
 export type CursorMode = 'select' | 'hand';
 

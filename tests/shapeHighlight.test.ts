@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMermaidFlowchart } from '../src/ast/parser';
-import { MermaidShapeType } from '../src/ast/types';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser';
+import { MermaidShapeType } from '../src/diagrams/viewModel';
 
 /**
  * Unit tests for Shape-Matched Selection Highlight Logic

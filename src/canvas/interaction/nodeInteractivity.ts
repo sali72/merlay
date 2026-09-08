@@ -4,7 +4,7 @@
  * for nodes and start/end anchors, using the driver's SVG DOM adapter.
  */
 
-import { MermaidNodeDef, MermaidSubgraphDef } from '../../ast/types';
+import { MermaidNodeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { SvgDomAdapter } from '../../diagrams/types';
 import { Rect } from '../types';
 

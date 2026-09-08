@@ -12,7 +12,7 @@ import {
   MermaidEdgeDef,
   MermaidNodeDef,
   MermaidSubgraphDef,
-} from '../ast/types';
+} from './viewModel';
 
 export type SupportedDiagramType =
   | 'flowchart'

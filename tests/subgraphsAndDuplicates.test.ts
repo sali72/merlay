@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMermaidFlowchart } from '../src/ast/parser';
-import { serializeMermaidFlowchart } from '../src/ast/serializer';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer';
 import {
   createSubgraph,
   deleteSubgraph,
@@ -12,7 +12,7 @@ import {
   updateSubgraphStyle,
   clearSubgraphStyle,
   getSubgraphStyle,
-} from '../src/ast/mutations';
+} from '../src/diagrams/flowchart/mutations';
 
 test('Subgraph Mutations: createSubgraph, moveNode, renameSubgraph, dissolve', () => {
   const code = `flowchart TD

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { MermaidNodeDef } from '../../ast/types';
+import { MermaidNodeDef } from '../../diagrams/viewModel';
 import { NodeKindOption } from '../../diagrams/types';
 import { PopoverPos } from '../types';
 import { ShapeIcons, StateTypeIcons } from '../icons/Icons';

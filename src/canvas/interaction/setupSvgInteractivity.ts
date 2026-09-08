@@ -4,7 +4,7 @@
  * SVG DOM adapter.
  */
 
-import { MermaidEdgeDef, MermaidNodeDef, MermaidSubgraphDef } from '../../ast/types';
+import { MermaidEdgeDef, MermaidNodeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { SvgDomAdapter } from '../../diagrams/types';
 import { Rect } from '../types';
 import { setupNodeInteractivity, StartEndKind } from './nodeInteractivity';

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { Rect, SelectionBox } from '../types';
-import { MermaidEdgeDef, MermaidNodeDef } from '../../ast/types';
+import { MermaidEdgeDef, MermaidNodeDef } from '../../diagrams/viewModel';
 
 export interface UseMarqueeSelectionOptions {
   worldRef: React.RefObject<HTMLDivElement>;

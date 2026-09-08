@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { matchSvgEdgeToAst } from '../src/utils/edgeMatching';
-import { MermaidEdgeDef } from '../src/ast/types';
+import { MermaidEdgeDef } from '../src/diagrams/viewModel';
 
 const sampleEdges: MermaidEdgeDef[] = [
   {

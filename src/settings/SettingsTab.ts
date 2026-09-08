@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type VisualMermaidPlugin from '../main';
-import { FlowchartDirection } from '../ast/types';
+import { FlowchartDirection } from '../diagrams/viewModel';
 
 export interface VisualMermaidSettings {
   defaultDirection: FlowchartDirection;

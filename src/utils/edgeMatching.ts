@@ -1,4 +1,4 @@
-import { MermaidEdgeDef } from '../ast/types';
+import { MermaidEdgeDef } from '../diagrams/viewModel';
 
 export interface SvgElementMetadata {
   id?: string | null;

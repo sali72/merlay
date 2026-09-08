@@ -8,10 +8,10 @@ import {
   FlowchartDirection,
   MermaidFlowchartAST,
   MermaidShapeType,
-} from '../../ast/types';
-import { parseMermaidFlowchart } from '../../ast/parser';
-import { serializeMermaidFlowchart } from '../../ast/serializer';
-import * as fc from '../../ast/mutations';
+} from './types';
+import { parseMermaidFlowchart } from './parser';
+import { serializeMermaidFlowchart } from './serializer';
+import * as fc from './mutations';
 
 export const FLOWCHART_KIND_OPTIONS = [
   { kind: 'rectangle', label: 'Rectangle [ ]' },

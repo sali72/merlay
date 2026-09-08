@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseMermaidFlowchart } from '../src/ast/parser';
-import { serializeMermaidFlowchart } from '../src/ast/serializer';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer';
 
 test('Real-World Diagram: Microservices Architecture with Subgraphs & Shapes', () => {
   const code = `

@@ -1,14 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMermaidFlowchart } from '../src/ast/parser';
-import { serializeMermaidFlowchart } from '../src/ast/serializer';
-import { MermaidShapeType } from '../src/ast/types';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer';
+import { MermaidShapeType } from '../src/diagrams/viewModel';
 import {
   updateNodeShape,
   updateNodeStyle,
   clearNodeStyle,
   getNodeStyle,
-} from '../src/ast/mutations';
+} from '../src/diagrams/flowchart/mutations';
 
 test('Shapes: Exhaustive test of all 14 Mermaid flowchart shapes', () => {
   const code = `

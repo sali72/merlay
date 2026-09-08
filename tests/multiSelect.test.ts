@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMermaidFlowchart } from '../src/ast/parser';
-import { serializeMermaidFlowchart } from '../src/ast/serializer';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer';
 import {
   deleteNodes,
   updateNodesShape,
@@ -13,7 +13,7 @@ import {
   clearEdgesStyle,
   deleteEdges,
   getEdgeStyle,
-} from '../src/ast/mutations';
+} from '../src/diagrams/flowchart/mutations';
 
 test('Multi-Select Batch Mutations: deleteNodes removes multiple nodes and cascades edges', () => {
   const initial = `flowchart TD

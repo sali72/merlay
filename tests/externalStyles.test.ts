@@ -1,14 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMermaidFlowchart, parseStyleDeclarations } from '../src/ast/parser';
-import { serializeMermaidFlowchart } from '../src/ast/serializer';
+import { parseMermaidFlowchart, parseStyleDeclarations } from '../src/diagrams/flowchart/parser';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer';
 import {
   updateNodeStyle,
   clearNodeStyle,
   getNodeStyle,
   updateNodesStyle,
   clearNodesStyle,
-} from '../src/ast/mutations';
+} from '../src/diagrams/flowchart/mutations';
 
 test('parseStyleDeclarations: Handles complex CSS values, commas, rgb/rgba, and semicolons', () => {
   const css1 = 'fill:rgb(255, 128, 0),stroke:rgba(0, 0, 0, 0.5),stroke-width:2px';

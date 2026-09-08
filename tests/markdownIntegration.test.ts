@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { findMermaidBlockBounds, replaceMermaidBlock } from '../src/utils/markdownBlock';
-import { parseMermaidFlowchart } from '../src/ast/parser';
-import { serializeMermaidFlowchart } from '../src/ast/serializer';
-import { addChildNode, deleteNode } from '../src/ast/mutations';
+import { parseMermaidFlowchart } from '../src/diagrams/flowchart/parser';
+import { serializeMermaidFlowchart } from '../src/diagrams/flowchart/serializer';
+import { addChildNode, deleteNode } from '../src/diagrams/flowchart/mutations';
 
 test('Markdown Integration: Rapid successive deletions shrinking diagram across 5 saves', () => {
   let doc = `

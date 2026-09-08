@@ -10,7 +10,7 @@ import {
   MermaidNodeDef,
   MermaidShapeType,
   MermaidSubgraphDef,
-} from '../../ast/types';
+} from '../viewModel';
 import { MermaidStateAST, MermaidStateType, StateDirection } from './types';
 import { parseMermaidStateDiagram } from './parser';
 import { serializeMermaidStateDiagram } from './serializer';

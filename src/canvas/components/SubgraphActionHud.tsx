@@ -1,5 +1,5 @@
 import React from 'react';
-import { MermaidSubgraphDef } from '../../ast/types';
+import { MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { PencilIcon, PaletteIcon, TrashIcon, UngroupIcon } from '../icons/Icons';
 
 export interface SubgraphActionHudProps {
