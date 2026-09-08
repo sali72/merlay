@@ -1,21 +1,8 @@
 import { MermaidShapeType } from '../ast/types';
 
-export const SHAPE_OPTIONS: Array<{ type: MermaidShapeType; label: string }> = [
-  { type: 'rectangle', label: 'Rectangle [ ]' },
-  { type: 'rounded', label: 'Rounded ( )' },
-  { type: 'stadium', label: 'Stadium ([ ])' },
-  { type: 'subroutine', label: 'Subroutine [[ ]]' },
-  { type: 'cylinder', label: 'Database [( )]' },
-  { type: 'circle', label: 'Circle (( ))' },
-  { type: 'double_circle', label: 'Double Circle ((( )))' },
-  { type: 'diamond', label: 'Decision { }' },
-  { type: 'hexagon', label: 'Hexagon {{ }}' },
-  { type: 'parallelogram', label: 'Parallelogram [/ /]' },
-  { type: 'parallelogram_alt', label: 'Parallelogram [\\ \\]' },
-  { type: 'trapezoid', label: 'Trapezoid [/ \\]' },
-  { type: 'trapezoid_alt', label: 'Inv. Trapezoid [\\ /]' },
-  { type: 'asymmetric', label: 'Banner > ]' },
-];
+// Node shape option labels now live in the flowchart driver
+// (src/diagrams/flowchart/flowchartDriver.ts) so every diagram owns its own
+// node-kind vocabulary.
 
 export interface ThemePreset {
   name: string;

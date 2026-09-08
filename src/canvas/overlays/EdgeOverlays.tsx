@@ -5,7 +5,7 @@
 import React from 'react';
 import { ActiveEdgePopover, SelectedEdgePos } from '../types';
 import { EdgeThemePreset } from '../constants';
-import { ArrowType } from '../../ast/types';
+import { DiagramDriver } from '../../diagrams/types';
 import { EdgeActionHud } from '../components/EdgeActionHud';
 import { EdgeStylePopover } from '../components/EdgeStylePopover';
 
@@ -13,15 +13,15 @@ export interface EdgeOverlaysProps {
   selectedEdgePos: SelectedEdgePos | null;
   selectedEdgeId: string | null;
   isMultiSelect: boolean;
+  driver: DiagramDriver;
   selectedEdgeStyle: Record<string, string> | undefined;
   activeEdgePopover: ActiveEdgePopover;
-  onChangeEdgeType: (newType: ArrowType) => void;
+  onChangeEdgeType: (newType: string) => void;
   onReverseEdge: () => void;
   onInsertNodeOnEdge: (edgeId: string) => void;
   onUpdateEdgeLabel: (newLabel: string) => void;
   onToggleEdgeStyle: () => void;
   onDeleteEdge: () => void;
-  isStateDiagram: boolean;
   onApplyEdgePreset: (preset: EdgeThemePreset) => void;
   onUpdateEdgeCustomStyle: (prop: string, val: string) => void;
   onClearEdgeStyle: () => void;
@@ -31,6 +31,7 @@ export const EdgeOverlays: React.FC<EdgeOverlaysProps> = ({
   selectedEdgePos,
   selectedEdgeId,
   isMultiSelect,
+  driver,
   selectedEdgeStyle,
   activeEdgePopover,
   onChangeEdgeType,
@@ -39,7 +40,6 @@ export const EdgeOverlays: React.FC<EdgeOverlaysProps> = ({
   onUpdateEdgeLabel,
   onToggleEdgeStyle,
   onDeleteEdge,
-  isStateDiagram,
   onApplyEdgePreset,
   onUpdateEdgeCustomStyle,
   onClearEdgeStyle,
@@ -51,6 +51,7 @@ export const EdgeOverlays: React.FC<EdgeOverlaysProps> = ({
         <EdgeActionHud
           selectedEdgeId={selectedEdgeId}
           selectedEdgePos={selectedEdgePos}
+          driver={driver}
           selectedEdgeStyle={selectedEdgeStyle}
           activeEdgePopover={activeEdgePopover}
           onChangeEdgeType={onChangeEdgeType}
@@ -59,13 +60,12 @@ export const EdgeOverlays: React.FC<EdgeOverlaysProps> = ({
           onUpdateEdgeLabel={onUpdateEdgeLabel}
           onToggleStylePopover={onToggleEdgeStyle}
           onDeleteEdge={onDeleteEdge}
-          isStateDiagram={isStateDiagram}
         />
       )}
 
-      {/* Edge Style Popover (Only for flowchart linkStyles) */}
+      {/* Edge Style Popover (only when the diagram supports edge styling) */}
       {activeEdgePopover === 'style' &&
-        !isStateDiagram &&
+        driver.capabilities.supportsEdgeStyles &&
         selectedEdgePos &&
         selectedEdgeId &&
         !isMultiSelect && (

@@ -1,10 +1,9 @@
 /**
  * Diagram Mutations Coordinator Hook
- * Composes domain-specific mutation hooks: AST, Node, Edge, Subgraph, Batch, and Clipboard.
+ * Composes domain-specific mutation hooks behind the current diagram driver.
  */
 
 import React from 'react';
-import { SupportedDiagramType } from '../../diagrams/types';
 import { useDiagramAst } from './mutations/useDiagramAst';
 import { useNodeMutations } from './mutations/useNodeMutations';
 import { useEdgeMutations } from './mutations/useEdgeMutations';
@@ -13,12 +12,8 @@ import { useBatchMutations } from './mutations/useBatchMutations';
 import { useClipboardMutations } from './mutations/useClipboardMutations';
 
 export interface UseDiagramMutationsOptions {
-  code: string;
-  setCode: (code: string) => void;
-  onCodeChange: (code: string) => void;
-  pushHistoryState: (code: string) => void;
-  diagramType: SupportedDiagramType;
-  pinNodeForCamera: (nodeId: string) => void;
+  /** AST state created by the view via useDiagramAst (so the view can also read projections). */
+  astHook: ReturnType<typeof useDiagramAst>;
   selectedNodeId: string | null;
   selectedNodeIds: Set<string>;
   selectedEdgeId: string | null;
@@ -45,12 +40,7 @@ export interface UseDiagramMutationsOptions {
 }
 
 export function useDiagramMutations({
-  code,
-  setCode,
-  onCodeChange,
-  pushHistoryState,
-  diagramType,
-  pinNodeForCamera,
+  astHook,
   selectedNodeId,
   selectedNodeIds,
   selectedEdgeId,
@@ -75,39 +65,24 @@ export function useDiagramMutations({
   selectedStarKind,
   setSelectedStarKind,
 }: UseDiagramMutationsOptions) {
-  // 1. AST State & Projections
-  const astHook = useDiagramAst({
-    code,
-    setCode,
-    onCodeChange,
-    pushHistoryState,
-    diagramType,
-    pinNodeForCamera,
-  });
-
+  // 1. AST State & Driver Projections (owned by the view)
   const {
-    isStateDiagram,
+    driver,
     ast,
-    setAst,
-    stateAst,
-    setStateAst,
     syntaxError,
     setSyntaxError,
     displayNodes,
     displayEdges,
     displaySubgraphs,
     displayDirection,
-    applyAstMutation,
-    applyStateAstMutation,
+    applyMutation,
   } = astHook;
 
   // 2. Node Operations
   const nodeOps = useNodeMutations({
-    isStateDiagram,
+    driver,
     ast,
-    stateAst,
-    applyAstMutation,
-    applyStateAstMutation,
+    applyMutation,
     selectedNodeId,
     selectedNodeIds,
     setSelectedNodeId,
@@ -123,9 +98,8 @@ export function useDiagramMutations({
 
   // 3. Edge Operations
   const edgeOps = useEdgeMutations({
-    isStateDiagram,
-    applyAstMutation,
-    applyStateAstMutation,
+    driver,
+    applyMutation,
     selectedEdgeId,
     setSelectedEdgeId,
     setSelectedEdgeIds,
@@ -136,9 +110,8 @@ export function useDiagramMutations({
 
   // 4. Subgraph Operations
   const subgraphOps = useSubgraphMutations({
-    isStateDiagram,
-    applyAstMutation,
-    applyStateAstMutation,
+    driver,
+    applyMutation,
     selectedSubgraphId,
     setSelectedSubgraphId,
     setSelectedSubgraphRect,
@@ -147,9 +120,8 @@ export function useDiagramMutations({
 
   // 5. Batch Operations
   const batchOps = useBatchMutations({
-    isStateDiagram,
-    applyAstMutation,
-    applyStateAstMutation,
+    driver,
+    applyMutation,
     selectedSubgraphId,
     selectedNodeIds,
     selectedEdgeIds,
@@ -171,9 +143,8 @@ export function useDiagramMutations({
 
   // 6. Clipboard Operations
   const clipboardOps = useClipboardMutations({
-    isStateDiagram,
-    applyAstMutation,
-    applyStateAstMutation,
+    driver,
+    applyMutation,
     selectedNodeIds,
     selectedNodeIdsRef,
     selectedEdgeIdsRef,
@@ -185,18 +156,15 @@ export function useDiagramMutations({
 
   return {
     // Model state
+    driver,
     ast,
-    setAst,
-    stateAst,
-    setStateAst,
     displayNodes,
     displayEdges,
     displaySubgraphs,
     displayDirection,
     syntaxError,
     setSyntaxError,
-    applyAstMutation,
-    applyStateAstMutation,
+    applyMutation,
 
     // Composed operations
     ...nodeOps,

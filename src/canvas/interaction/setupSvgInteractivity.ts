@@ -1,19 +1,21 @@
 /**
  * Orchestrates SVG interactivity setup for Native Mermaid diagrams:
- * binds nodes, edge hit-areas/labels, and subgraph clusters.
+ * binds nodes, edge hit-areas/labels, and subgraph clusters via the driver's
+ * SVG DOM adapter.
  */
 
 import { MermaidEdgeDef, MermaidNodeDef, MermaidSubgraphDef } from '../../ast/types';
+import { SvgDomAdapter } from '../../diagrams/types';
 import { Rect } from '../types';
-import { setupNodeInteractivity, StartEndKind, getStartEndKind } from './nodeInteractivity';
+import { setupNodeInteractivity, StartEndKind } from './nodeInteractivity';
 import { setupEdgeInteractivity } from './edgeInteractivity';
 import { setupClusterInteractivity } from './clusterInteractivity';
 
 export type { StartEndKind };
-export { getStartEndKind };
 
 export interface SetupSvgInteractivityOptions {
   mountEl: HTMLElement;
+  dom: SvgDomAdapter;
   displayNodes: Map<string, MermaidNodeDef>;
   displayEdges: MermaidEdgeDef[];
   displaySubgraphs: Map<string, MermaidSubgraphDef>;
@@ -32,6 +34,7 @@ export interface SetupSvgInteractivityOptions {
 export function setupSvgInteractivity(options: SetupSvgInteractivityOptions): void {
   const {
     mountEl,
+    dom,
     displayNodes,
     displayEdges,
     displaySubgraphs,
@@ -45,9 +48,10 @@ export function setupSvgInteractivity(options: SetupSvgInteractivityOptions): vo
     onHoverNode,
   } = options;
 
-  // 1. Nodes & [*] anchors
+  // 1. Nodes & start/end anchors
   setupNodeInteractivity({
     mountEl,
+    dom,
     displayNodes,
     displaySubgraphs,
     getLocalRect,

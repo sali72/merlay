@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { App } from 'obsidian';
 import { Rect } from '../types';
 import { MermaidNodeDef, MermaidEdgeDef, MermaidSubgraphDef } from '../../ast/types';
+import { DiagramDriver } from '../../diagrams/types';
 import { renderMermaidSvg } from '../renderer/mermaidRenderer';
 import { applySelectedNodeHalos } from '../renderer/selectionHalo';
 import { setupSvgInteractivity } from '../interaction/setupSvgInteractivity';
@@ -14,6 +15,7 @@ import { setupSvgInteractivity } from '../interaction/setupSvgInteractivity';
 export interface UseCanvasRendererOptions {
   app: App;
   code: string;
+  driver: DiagramDriver;
   svgMountRef: React.RefObject<HTMLDivElement>;
   displayNodes: Map<string, MermaidNodeDef>;
   displayEdges: MermaidEdgeDef[];
@@ -55,6 +57,7 @@ export interface UseCanvasRendererOptions {
 export function useCanvasRenderer({
   app,
   code,
+  driver,
   svgMountRef,
   displayNodes,
   displayEdges,
@@ -72,6 +75,9 @@ export function useCanvasRenderer({
   setSyntaxError,
 }: UseCanvasRendererOptions) {
   const renderTicketRef = useRef<number>(0);
+  const anchors = driver.mutations.anchors;
+  const isAnchorId = (id: string | null | undefined): id is string =>
+    !!anchors && !!id && anchors.isAnchor(id);
 
   const setupSvg = useCallback(() => {
     const mountEl = svgMountRef.current;
@@ -79,6 +85,7 @@ export function useCanvasRenderer({
 
     setupSvgInteractivity({
       mountEl,
+      dom: driver.dom,
       displayNodes,
       displayEdges,
       displaySubgraphs,
@@ -93,28 +100,23 @@ export function useCanvasRenderer({
           c.classList.remove('mermaid-cluster-selected')
         );
 
-        // Track which [*] anchor (start vs end) was clicked — they share id "[*]" but have distinct visuals.
-        const starKindForTarget =
-          targetNodeId === '[*]'
-            ? ((htmlEl.getAttribute('data-mermaid-start-end') as 'start' | 'end' | null) ||
-               (htmlEl.getAttribute('id')?.includes('root_start')
-                 ? 'start'
-                 : htmlEl.getAttribute('id')?.includes('root_end')
-                 ? 'end'
-                 : null))
-            : null;
+        // Track which anchor (start vs end) was clicked — they share one node
+        // id but have distinct visuals.
+        const starKindForTarget = isAnchorId(targetNodeId)
+          ? driver.dom.getAnchorKind?.(htmlEl) ?? null
+          : null;
 
-        if (targetNodeId === '[*]' && starKindForTarget) {
+        if (isAnchorId(targetNodeId) && starKindForTarget) {
           selectedStarKindRef.current = starKindForTarget;
           setSelectedStarKind(starKindForTarget);
-        } else if (targetNodeId !== '[*]') {
+        } else if (!isAnchorId(targetNodeId)) {
           selectedStarKindRef.current = null;
           setSelectedStarKind(null);
         }
 
         if (isMulti) {
-          // Start/end anchors ([*]) are single-select only — never part of a multi-select group.
-          if (targetNodeId === '[*]') {
+          // Anchors are single-select only — never part of a multi-select group.
+          if (isAnchorId(targetNodeId)) {
             const nextNodes = new Set([targetNodeId]);
             selection.selectedNodeIdsRef.current = nextNodes;
             selection.setSelectedNodeIds(nextNodes);
@@ -128,8 +130,10 @@ export function useCanvasRenderer({
             return;
           }
           const prev = selection.selectedNodeIdsRef.current;
-          // Drop any existing [*] from the multi-set before toggling.
-          const next = new Set(Array.from(prev).filter((id) => id !== '[*]'));
+          // Drop any existing anchor from the multi-set before toggling.
+          const next = new Set(
+            Array.from(prev).filter((id) => !isAnchorId(id))
+          );
           if (next.has(targetNodeId)) next.delete(targetNodeId);
           else next.add(targetNodeId);
           selection.selectedNodeIdsRef.current = next;
@@ -146,7 +150,7 @@ export function useCanvasRenderer({
           selection.updateSelectedEdgeHalo(emptyEdges);
           const rect = getLocalRect(htmlEl);
           if (rect) selection.setSelectedNodeRect(rect);
-          if (targetNodeId === '[*]' && starKindForTarget) {
+          if (isAnchorId(targetNodeId) && starKindForTarget) {
             applySelectedNodeHalos(mountEl, nextNodes, undefined, starKindForTarget);
           } else {
             selection.updateSelectedNodeHalo(nextNodes);
@@ -234,6 +238,7 @@ export function useCanvasRenderer({
     });
   }, [
     svgMountRef,
+    driver,
     displayNodes,
     displayEdges,
     displaySubgraphs,

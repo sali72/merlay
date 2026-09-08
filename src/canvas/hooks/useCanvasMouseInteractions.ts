@@ -4,10 +4,8 @@
 
 import React, { useState } from 'react';
 import { CursorMode, Rect } from '../types';
-import { connectNodes, insertNodeOnEdge } from '../../ast/mutations';
-import * as stateMutations from '../../diagrams/state/mutations';
-import { MermaidFlowchartAST, MermaidNodeDef, MermaidEdgeDef } from '../../ast/types';
-import { MermaidStateAST } from '../../diagrams/state/types';
+import { DiagramDriver } from '../../diagrams/types';
+import { MermaidNodeDef, MermaidEdgeDef } from '../../ast/types';
 
 export interface UseCanvasMouseInteractionsOptions {
   worldRef: React.RefObject<HTMLDivElement>;
@@ -34,9 +32,8 @@ export interface UseCanvasMouseInteractionsOptions {
   };
   displayNodes: Map<string, MermaidNodeDef>;
   displayEdges: MermaidEdgeDef[];
-  isStateDiagram: boolean;
-  applyAstMutation: (mutator: (currentAst: MermaidFlowchartAST) => void, keepNodeId?: string) => void;
-  applyStateAstMutation: (mutator: (currentAst: MermaidStateAST) => void, keepNodeId?: string) => void;
+  driver: DiagramDriver;
+  applyMutation: (mutator: (currentAst: any) => void, keepNodeId?: string) => void;
   setSelectedNodeId: (id: string | null) => void;
 }
 
@@ -52,11 +49,13 @@ export function useCanvasMouseInteractions({
   marquee,
   displayNodes,
   displayEdges,
-  isStateDiagram,
-  applyAstMutation,
-  applyStateAstMutation,
+  driver,
+  applyMutation,
   setSelectedNodeId,
 }: UseCanvasMouseInteractionsOptions) {
+  const m = driver.mutations;
+  const anchors = m.anchors;
+
   const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
   const [connectingSourceKind, setConnectingSourceKind] = useState<'start' | 'end' | null>(null);
   const [dragLine, setDragLine] = useState<{
@@ -70,6 +69,9 @@ export function useCanvasMouseInteractions({
   const [hoveredNodeRect, setHoveredNodeRect] = useState<Rect | null>(null);
   const [hoveredNodeKind, setHoveredNodeKind] = useState<'start' | 'end' | null>(null);
 
+  const isAnchorId = (id: string | null | undefined): boolean =>
+    !!anchors && !!id && anchors.isAnchor(id);
+
   const handleStartConnect = (
     e: React.MouseEvent,
     startX: number,
@@ -79,7 +81,7 @@ export function useCanvasMouseInteractions({
     e.preventDefault();
     if (!hoveredNodeId) return;
     // End anchors have no outgoing transitions.
-    if (hoveredNodeId === '[*]' && hoveredNodeKind === 'end') return;
+    if (isAnchorId(hoveredNodeId) && hoveredNodeKind === 'end') return;
 
     setConnectingSourceId(hoveredNodeId);
     setConnectingSourceKind(hoveredNodeKind);
@@ -186,49 +188,27 @@ export function useCanvasMouseInteractions({
       const targetEdgeId = targetEdgeEl?.getAttribute('data-mermaid-edge-id');
 
       // Directional guard for start/end anchors.
-      const srcIsStart = connectingSourceId === '[*]' && connectingSourceKind === 'start';
-      const srcIsEnd = connectingSourceId === '[*]' && connectingSourceKind === 'end';
-      const tgtIsStart = targetNodeId === '[*]' && targetKind === 'start';
-      const tgtIsEnd = targetNodeId === '[*]' && targetKind === 'end';
+      const srcIsStart = isAnchorId(connectingSourceId) && connectingSourceKind === 'start';
+      const srcIsEnd = isAnchorId(connectingSourceId) && connectingSourceKind === 'end';
+      const tgtIsStart = isAnchorId(targetNodeId) && targetKind === 'start';
+      const tgtIsEnd = isAnchorId(targetNodeId) && targetKind === 'end';
 
       const isBlockedAnchorEdge =
-        (targetNodeId === '[*]' && connectingSourceId === '[*]') ||
+        (isAnchorId(targetNodeId) && isAnchorId(connectingSourceId)) ||
         srcIsEnd ||
         tgtIsStart ||
-        (isStateDiagram && targetNodeId === '[*]' && !tgtIsEnd) ||
-        (isStateDiagram && connectingSourceId === '[*]' && !srcIsStart);
+        (isAnchorId(targetNodeId) && !tgtIsEnd) ||
+        (isAnchorId(connectingSourceId) && !srcIsStart);
 
       if (targetNodeId && targetNodeId !== connectingSourceId && !isBlockedAnchorEdge) {
-        if (isStateDiagram) {
-          applyStateAstMutation((a) => {
-            stateMutations.connectStates(a, connectingSourceId, targetNodeId);
-          }, connectingSourceId);
-        } else {
-          applyAstMutation((a) => {
-            connectNodes(a, connectingSourceId, targetNodeId);
-          }, connectingSourceId);
-        }
+        applyMutation((a) => {
+          m.connect(a, connectingSourceId, targetNodeId);
+        }, connectingSourceId);
       } else if (targetEdgeId) {
         let createdNodeId: string | null = null;
-        if (isStateDiagram) {
-          applyStateAstMutation((a) => {
-            const tr = a.transitions.find((t) => t.id === targetEdgeId);
-            if (tr) {
-              const newStateId = stateMutations.addState(a, 'New State');
-              createdNodeId = newStateId;
-              const oldTo = tr.to;
-              const oldLabel = tr.label;
-              tr.to = newStateId;
-              delete tr.label;
-              stateMutations.connectStates(a, newStateId, oldTo, oldLabel);
-            }
-          });
-        } else {
-          applyAstMutation((a) => {
-            const res = insertNodeOnEdge(a, targetEdgeId, 'New Step');
-            if (res) createdNodeId = res.nodeId;
-          });
-        }
+        applyMutation((a) => {
+          createdNodeId = m.insertNodeOnEdge(a, targetEdgeId, `New ${driver.labels.node}`);
+        });
         if (createdNodeId) setSelectedNodeId(createdNodeId);
       }
 

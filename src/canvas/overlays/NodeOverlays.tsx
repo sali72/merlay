@@ -1,16 +1,14 @@
 /**
- * Overlays for Selected Nodes: HUD, Shape Popover, State Type Popover, Node Style Popover, Subgraph Membership.
+ * Overlays for Selected Nodes: HUD, Kind Popover, Node Style Popover, Group Membership.
  */
 
 import React from 'react';
 import { ActiveNodePopover, PopoverPos, Rect } from '../types';
 import { ThemePreset } from '../constants';
-import { MermaidNodeDef, MermaidShapeType, MermaidSubgraphDef } from '../../ast/types';
-import { MermaidStateDef, MermaidStateType } from '../../diagrams/state/types';
-import { SupportedDiagramType } from '../../diagrams/types';
+import { MermaidNodeDef, MermaidSubgraphDef } from '../../ast/types';
+import { DiagramDriver } from '../../diagrams/types';
 import { NodeActionHud } from '../components/NodeActionHud';
-import { ShapePopover } from '../components/ShapePopover';
-import { StateTypePopover } from '../components/StateTypePopover';
+import { KindPopover } from '../components/KindPopover';
 import { NodeStylePopover } from '../components/NodeStylePopover';
 import { SubgraphPopover } from '../components/SubgraphPopover';
 
@@ -21,8 +19,8 @@ export interface NodeOverlaysProps {
   sproutX: number;
   sproutY: number;
   isLR: boolean;
-  diagramType: SupportedDiagramType;
-  stateType: MermaidStateType | undefined;
+  driver: DiagramDriver;
+  viewNodes: Map<string, MermaidNodeDef>;
   currentNode: MermaidNodeDef | undefined;
   currentStyle: Record<string, string> | undefined;
   activeNodePopover: ActiveNodePopover;
@@ -30,13 +28,10 @@ export interface NodeOverlaysProps {
   onStartEditingNode: (nodeId: string) => void;
   onToggleNodePopover: (popover: 'shape' | 'style' | 'subgraph') => void;
   onDeleteNode: () => void;
-  canRenameState?: boolean;
+  canRenameNode?: boolean;
 
   popoverPos: PopoverPos | null;
-  astNodes: Map<string, MermaidNodeDef>;
-  onSelectShape: (shape: MermaidShapeType) => void;
-  currentState: MermaidStateDef | undefined;
-  onSelectStateType: (type: MermaidStateType) => void;
+  onSelectNodeKind: (kind: string) => void;
   onApplyNodePreset: (preset: ThemePreset) => void;
   onUpdateCustomStyle: (prop: string, val: string) => void;
   onClearNodeStyle: () => void;
@@ -55,8 +50,8 @@ export const NodeOverlays: React.FC<NodeOverlaysProps> = ({
   sproutX,
   sproutY,
   isLR,
-  diagramType,
-  stateType,
+  driver,
+  viewNodes,
   currentNode,
   currentStyle,
   activeNodePopover,
@@ -64,12 +59,9 @@ export const NodeOverlays: React.FC<NodeOverlaysProps> = ({
   onStartEditingNode,
   onToggleNodePopover,
   onDeleteNode,
-  canRenameState,
+  canRenameNode,
   popoverPos,
-  astNodes,
-  onSelectShape,
-  currentState,
-  onSelectStateType,
+  onSelectNodeKind,
   onApplyNodePreset,
   onUpdateCustomStyle,
   onClearNodeStyle,
@@ -79,8 +71,6 @@ export const NodeOverlays: React.FC<NodeOverlaysProps> = ({
   onCreateNewGroupMembership,
   onCloseSubgraphMembership,
 }) => {
-  const isStateDiagram = diagramType === 'stateDiagram';
-
   return (
     <>
       {/* Single Node Relational Sprout HUD */}
@@ -90,8 +80,7 @@ export const NodeOverlays: React.FC<NodeOverlaysProps> = ({
           sproutX={sproutX}
           sproutY={sproutY}
           isLR={isLR}
-          diagramType={diagramType}
-          stateType={stateType}
+          driver={driver}
           currentNode={currentNode}
           currentStyle={currentStyle}
           activeNodePopover={activeNodePopover}
@@ -99,32 +88,28 @@ export const NodeOverlays: React.FC<NodeOverlaysProps> = ({
           onRename={() => onStartEditingNode(selectedNodeId)}
           onTogglePopover={onToggleNodePopover}
           onDelete={onDeleteNode}
-          canRenameState={canRenameState}
-          hideSprout={isStateDiagram && selectedNodeId === '[*]'}
+          canRename={canRenameNode}
+          hideSprout={
+            !!driver.mutations.anchors?.isAnchor(selectedNodeId)
+          }
           hideDelete={false}
         />
       )}
 
-      {/* Shape Popover for flowchart */}
-      {activeNodePopover === 'shape' && !isStateDiagram && popoverPos && (
-        <ShapePopover
-          popoverPos={popoverPos}
-          selectedNodeId={selectedNodeId}
-          selectedNodeIds={new Set(selectedNodeId ? [selectedNodeId] : [])}
-          astNodes={astNodes}
-          onSelectShape={onSelectShape}
-        />
-      )}
-
-      {/* State Type Popover for state diagrams */}
-      {activeNodePopover === 'shape' && isStateDiagram && popoverPos && (
-        <StateTypePopover
-          popoverPos={popoverPos}
-          selectedStateId={selectedNodeId}
-          currentState={currentState}
-          onSelectStateType={onSelectStateType}
-        />
-      )}
+      {/* Kind Popover (shapes / state types) */}
+      {activeNodePopover === 'shape' &&
+        driver.capabilities.supportsNodeKinds &&
+        popoverPos && (
+          <KindPopover
+            popoverPos={popoverPos}
+            options={driver.nodeKindOptions}
+            title={`${driver.labels.node} Kind`}
+            selectedNodeId={selectedNodeId}
+            selectedNodeIds={new Set(selectedNodeId ? [selectedNodeId] : [])}
+            viewNodes={viewNodes}
+            onSelectKind={onSelectNodeKind}
+          />
+        )}
 
       {/* Visual Styling Popover for single node */}
       {activeNodePopover === 'style' && popoverPos && (
@@ -137,7 +122,7 @@ export const NodeOverlays: React.FC<NodeOverlaysProps> = ({
         />
       )}
 
-      {/* Subgraph Membership Popover */}
+      {/* Group Membership Popover */}
       {activeNodePopover === 'subgraph' && popoverPos && selectedNodeId && (
         <div
           style={{

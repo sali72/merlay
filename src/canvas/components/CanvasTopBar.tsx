@@ -1,5 +1,4 @@
 import React from 'react';
-import { FlowchartDirection } from '../../ast/types';
 import { CursorMode } from '../types';
 import {
   SelectModeIcon,
@@ -12,9 +11,10 @@ import {
   CodeIcon,
 } from '../icons/Icons';
 
-import { SupportedDiagramType } from '../../diagrams/types';
+import { DiagramDriver } from '../../diagrams/types';
 
 export interface CanvasTopBarProps {
+  driver: DiagramDriver;
   cursorMode: CursorMode;
   onSetCursorMode: (mode: CursorMode) => void;
   onAddStep: () => void;
@@ -23,7 +23,7 @@ export interface CanvasTopBarProps {
   canAddStart?: boolean;
   canAddEnd?: boolean;
   onAddGroup: () => void;
-  direction: FlowchartDirection;
+  direction: string;
   onToggleDirection: () => void;
   onFitView: () => void;
   showCodeDrawer: boolean;
@@ -32,12 +32,10 @@ export interface CanvasTopBarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  diagramType?: SupportedDiagramType;
-  diagramDisplayName?: string;
-  supportsDirection?: boolean;
 }
 
 export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
+  driver,
   cursorMode,
   onSetCursorMode,
   onAddStep,
@@ -55,14 +53,9 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
   canRedo,
   onUndo,
   onRedo,
-  diagramType = 'flowchart',
-  diagramDisplayName,
-  supportsDirection = true,
 }) => {
-  const isStateDiagram = diagramType === 'stateDiagram';
-  const addStepLabel = isStateDiagram ? 'Add State' : 'Add Step';
-  const addGroupLabel = isStateDiagram ? 'Add Composite' : 'Add Group';
-  const badgeName = diagramDisplayName || (isStateDiagram ? 'State Diagram' : 'Flowchart');
+  const { labels, capabilities } = driver;
+
   return (
     <div className="mermaid-native-top-bar nodrag">
       <div className="mermaid-top-bar-left">
@@ -116,13 +109,13 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
           type="button"
           className="mermaid-tool-btn mod-cta"
           onClick={onAddStep}
-          title={isStateDiagram ? 'Add new State' : 'Add new step'}
+          title={`Add new ${labels.node.toLowerCase()}`}
         >
           <PlusIcon size={14} />
-          <span>{addStepLabel}</span>
+          <span>{labels.addNode}</span>
         </button>
 
-        {isStateDiagram && onAddStart && (
+        {capabilities.hasAnchors && onAddStart && (
           <button
             type="button"
             className="mermaid-tool-btn"
@@ -134,7 +127,7 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
           </button>
         )}
 
-        {isStateDiagram && onAddEnd && (
+        {capabilities.hasAnchors && onAddEnd && (
           <button
             type="button"
             className="mermaid-tool-btn"
@@ -146,17 +139,19 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
           </button>
         )}
 
-        <button
-          type="button"
-          className="mermaid-tool-btn"
-          onClick={onAddGroup}
-          title={isStateDiagram ? 'Add new Composite State' : 'Add new Subgraph / Group'}
-        >
-          <FolderIcon size={14} />
-          <span>{addGroupLabel}</span>
-        </button>
+        {capabilities.supportsGroups && (
+          <button
+            type="button"
+            className="mermaid-tool-btn"
+            onClick={onAddGroup}
+            title={`Add new ${labels.group}`}
+          >
+            <FolderIcon size={14} />
+            <span>{labels.addGroup}</span>
+          </button>
+        )}
 
-        {supportsDirection && (
+        {capabilities.supportsDirection && (
           <button
             type="button"
             className="mermaid-tool-btn"
@@ -181,7 +176,7 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
 
       <div className="mermaid-top-bar-right">
         <span className="mermaid-diagram-badge" title="Diagram Type">
-          {badgeName}
+          {driver.displayName}
         </span>
         <button
           type="button"

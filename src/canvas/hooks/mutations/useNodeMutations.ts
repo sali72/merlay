@@ -1,32 +1,16 @@
 /**
- * Hook for single and batch Node operations (create, delete, shape, style, direction, start/end states).
+ * Hook for single and batch Node operations (create, delete, kind, style, direction),
+ * dispatched through the current diagram driver's mutation surface.
  */
 
 import { useCallback } from 'react';
-import {
-  addChildNode,
-  addNode,
-  clearNodeStyle,
-  clearNodesStyle,
-  deleteNode,
-  getNodeStyle,
-  setDiagramDirection,
-  updateNodeShape,
-  updateNodeStyle,
-  updateNodesShape,
-  updateNodesStyle,
-} from '../../../ast/mutations';
-import { MermaidFlowchartAST, MermaidShapeType } from '../../../ast/types';
-import { MermaidStateAST, MermaidStateType } from '../../../diagrams/state/types';
-import * as stateMutations from '../../../diagrams/state/mutations';
+import { DiagramDriver } from '../../../diagrams/types';
 import { ThemePreset } from '../../constants';
 
 export interface UseNodeMutationsOptions {
-  isStateDiagram: boolean;
-  ast: MermaidFlowchartAST;
-  stateAst: MermaidStateAST;
-  applyAstMutation: (mutator: (currentAst: MermaidFlowchartAST) => void, keepNodeId?: string) => void;
-  applyStateAstMutation: (mutator: (currentAst: MermaidStateAST) => void, keepNodeId?: string) => void;
+  driver: DiagramDriver;
+  ast: any;
+  applyMutation: (mutator: (currentAst: any) => void, keepNodeId?: string) => void;
   selectedNodeId: string | null;
   selectedNodeIds: Set<string>;
   setSelectedNodeId: (id: string | null) => void;
@@ -41,11 +25,9 @@ export interface UseNodeMutationsOptions {
 }
 
 export function useNodeMutations({
-  isStateDiagram,
+  driver,
   ast,
-  stateAst,
-  applyAstMutation,
-  applyStateAstMutation,
+  applyMutation,
   selectedNodeId,
   selectedNodeIds,
   setSelectedNodeId,
@@ -58,144 +40,84 @@ export function useNodeMutations({
   selectedStarKind,
   setSelectedStarKind,
 }: UseNodeMutationsOptions) {
+  const m = driver.mutations;
+  const anchors = m.anchors;
+
   const handleSproutNextStep = useCallback(
     (parentId: string) => {
       let createdChildId: string | null = null;
-      if (isStateDiagram) {
-        applyStateAstMutation((currentAst) => {
-          createdChildId = stateMutations.addChildState(currentAst, parentId, 'Next State');
-        }, parentId);
-      } else {
-        applyAstMutation((currentAst) => {
-          const res = addChildNode(currentAst, parentId, 'Next Step');
-          createdChildId = res.nodeId;
-        }, parentId);
-      }
+      applyMutation((currentAst) => {
+        createdChildId = m.addChildNode(currentAst, parentId, driver.labels.addChild);
+      }, parentId);
       if (createdChildId) {
         setSelectedNodeId(createdChildId);
       }
     },
-    [isStateDiagram, applyStateAstMutation, applyAstMutation, setSelectedNodeId]
+    [m, driver, applyMutation, setSelectedNodeId]
   );
 
   const handleDeleteSelectedNode = useCallback(() => {
     if (!selectedNodeId) return;
     const targetId = selectedNodeId;
     const starKind = selectedStarKind as 'start' | 'end' | null | undefined;
-    // Clear selection immediately (including star kind)
+    // Clear selection immediately (including anchor kind)
     setSelectedNodeId(null);
     setSelectedNodeRect(null);
     setActiveNodePopover(null);
     updateSelectedNodeHalo(new Set());
     if (setSelectedStarKind) setSelectedStarKind(null);
-    if (isStateDiagram && targetId === '[*]') {
-      applyStateAstMutation((a) => {
-        if (starKind === 'start') stateMutations.deleteStartAnchor(a);
-        else if (starKind === 'end') stateMutations.deleteEndAnchor(a);
-        else {
-          // Fallback when kind unknown (e.g. programmatic) — remove both directions
-          a.transitions = a.transitions.filter((t) => t.from !== '[*]' && t.to !== '[*]');
-          stateMutations.pruneOrphanStartEnd(a);
-        }
+    if (anchors?.isAnchor(targetId)) {
+      applyMutation((a) => {
+        anchors.delete(a, starKind ?? null);
       });
       return;
     }
-    if (isStateDiagram) {
-      applyStateAstMutation((a) => {
-        stateMutations.deleteState(a, targetId);
-      });
-    } else {
-      applyAstMutation((a) => {
-        deleteNode(a, targetId);
-      });
-    }
+    applyMutation((a) => {
+      m.deleteNode(a, targetId);
+    });
   }, [
     selectedNodeId,
     selectedStarKind,
+    anchors,
+    m,
     setSelectedNodeId,
     setSelectedNodeRect,
     setActiveNodePopover,
     updateSelectedNodeHalo,
     setSelectedStarKind,
-    isStateDiagram,
-    applyStateAstMutation,
-    applyAstMutation,
+    applyMutation,
   ]);
 
-  const handleUpdateNodeShape = useCallback(
-    (shape: MermaidShapeType, specificId?: string) => {
-      applyAstMutation((a) => {
-        if (specificId) {
-          updateNodeShape(a, specificId, shape);
-        } else if (selectedNodeIds.size > 1) {
-          updateNodesShape(a, selectedNodeIds, shape);
-        } else if (selectedNodeId) {
-          updateNodeShape(a, selectedNodeId, shape);
-        }
+  const handleUpdateNodeKind = useCallback(
+    (kind: string, specificId?: string) => {
+      const targets = specificId
+        ? [specificId]
+        : selectedNodeIds.size > 1
+        ? Array.from(selectedNodeIds)
+        : selectedNodeId
+        ? [selectedNodeId]
+        : [];
+      if (targets.length === 0) return;
+      applyMutation((a) => {
+        m.updateNodesKind(a, targets, kind);
       }, specificId || selectedNodeId || undefined);
       setActiveNodePopover(null);
     },
-    [applyAstMutation, selectedNodeIds, selectedNodeId, setActiveNodePopover]
+    [m, applyMutation, selectedNodeIds, selectedNodeId, setActiveNodePopover]
   );
 
-  const handleUpdateStateType = useCallback(
-    (type: MermaidStateType, specificId?: string) => {
-      const targetId = specificId || selectedNodeId;
-      if (!targetId) return;
-      applyStateAstMutation((a) => {
-        stateMutations.updateStateType(a, targetId, type);
-      }, type === 'start' || type === 'end' ? undefined : targetId);
-
-      if (type === 'start' || type === 'end') {
-        setSelectedNodeId(null);
-        setSelectedNodeRect(null);
-        setSelectedNodeIds(new Set());
-        selectedNodeIdsRef.current = new Set();
-        updateSelectedNodeHalo(null);
-      }
-      setActiveNodePopover(null);
-    },
-    [
-      selectedNodeId,
-      applyStateAstMutation,
-      setActiveNodePopover,
-      setSelectedNodeId,
-      setSelectedNodeRect,
-      setSelectedNodeIds,
-      selectedNodeIdsRef,
-      updateSelectedNodeHalo,
-    ]
-  );
-
-  const handleBatchUpdateStateType = useCallback(
-    (type: MermaidStateType) => {
-      const filtered = Array.from(selectedNodeIds).filter((id) => id !== '[*]');
+  const handleBatchUpdateNodeKind = useCallback(
+    (kind: string) => {
+      const filtered = Array.from(selectedNodeIds).filter(
+        (id) => !(anchors && anchors.isAnchor(id))
+      );
       if (filtered.length === 0) return;
-      applyStateAstMutation((a) => {
-        for (const nid of filtered) {
-          stateMutations.updateStateType(a, nid, type);
-        }
+      applyMutation((a) => {
+        m.updateNodesKind(a, filtered, kind);
       });
-
-      if (type === 'start' || type === 'end') {
-        setSelectedNodeId(null);
-        setSelectedNodeRect(null);
-        setSelectedNodeIds(new Set());
-        selectedNodeIdsRef.current = new Set();
-        updateSelectedNodeHalo(null);
-      }
       setActiveMultiPopover(null);
     },
-    [
-      selectedNodeIds,
-      applyStateAstMutation,
-      setActiveMultiPopover,
-      setSelectedNodeId,
-      setSelectedNodeRect,
-      setSelectedNodeIds,
-      selectedNodeIdsRef,
-      updateSelectedNodeHalo,
-    ]
+    [selectedNodeIds, anchors, m, applyMutation, setActiveMultiPopover]
   );
 
   const handleApplyNodePreset = useCallback(
@@ -208,34 +130,19 @@ export function useNodeMutations({
         ? [selectedNodeId]
         : [];
 
-      if (isStateDiagram) {
-        applyStateAstMutation((a) => {
-          if (!preset.fill && !preset.stroke && !preset.color) {
-            stateMutations.clearStatesStyle(a, targets);
-          } else {
-            const styles: Record<string, string> = {};
-            if (preset.fill) styles['fill'] = preset.fill;
-            if (preset.stroke) styles['stroke'] = preset.stroke;
-            if (preset.color) styles['color'] = preset.color;
-            stateMutations.updateStatesStyle(a, targets, styles);
-          }
-        }, specificId || selectedNodeId || undefined);
-        return;
-      }
-
-      applyAstMutation((a) => {
+      applyMutation((a) => {
         if (!preset.fill && !preset.stroke && !preset.color) {
-          clearNodesStyle(a, targets);
+          m.clearNodesStyle(a, targets);
         } else {
           const styles: Record<string, string> = {};
           if (preset.fill) styles['fill'] = preset.fill;
           if (preset.stroke) styles['stroke'] = preset.stroke;
           if (preset.color) styles['color'] = preset.color;
-          updateNodesStyle(a, targets, styles);
+          m.updateNodesStyle(a, targets, styles);
         }
       }, specificId || selectedNodeId || undefined);
     },
-    [isStateDiagram, applyStateAstMutation, applyAstMutation, selectedNodeIds, selectedNodeId]
+    [m, applyMutation, selectedNodeIds, selectedNodeId]
   );
 
   const handleUpdateCustomStyle = useCallback(
@@ -243,32 +150,18 @@ export function useNodeMutations({
       const target = specificId || selectedNodeId;
       if (!target) return;
 
-      if (isStateDiagram) {
-        applyStateAstMutation((a) => {
-          const currentStyle = stateMutations.getStateStyle(a, target) || {};
-          const updated = { ...currentStyle };
-          if (value) {
-            updated[property] = value;
-          } else {
-            delete updated[property];
-          }
-          stateMutations.updateStateStyle(a, target, updated);
-        }, specificId || selectedNodeId || undefined);
-        return;
-      }
-
-      applyAstMutation((a) => {
-        const currentStyle = getNodeStyle(a, target) || {};
+      applyMutation((a) => {
+        const currentStyle = m.getNodeStyle(a, target) || {};
         const updated = { ...currentStyle };
         if (value) {
           updated[property] = value;
         } else {
           delete updated[property];
         }
-        updateNodeStyle(a, target, updated);
+        m.updateNodeStyle(a, target, Object.keys(updated).length > 0 ? updated : null);
       }, specificId || selectedNodeId || undefined);
     },
-    [isStateDiagram, applyStateAstMutation, applyAstMutation, selectedNodeId]
+    [m, applyMutation, selectedNodeId]
   );
 
   const handleClearNodeStyle = useCallback(
@@ -276,87 +169,68 @@ export function useNodeMutations({
       const target = specificId || selectedNodeId;
       if (!target) return;
 
-      if (isStateDiagram) {
-        applyStateAstMutation((a) => {
-          stateMutations.clearStateStyle(a, target);
-        }, specificId || selectedNodeId || undefined);
-        return;
-      }
-
-      applyAstMutation((a) => {
-        clearNodeStyle(a, target);
+      applyMutation((a) => {
+        m.clearNodeStyle(a, target);
       }, specificId || selectedNodeId || undefined);
     },
-    [isStateDiagram, applyStateAstMutation, applyAstMutation, selectedNodeId]
+    [m, applyMutation, selectedNodeId]
   );
 
   const handleAddStandaloneStep = useCallback(() => {
     let createdNodeId: string | null = null;
-    if (isStateDiagram) {
-      applyStateAstMutation((a) => {
-        createdNodeId = stateMutations.addState(a, 'New State');
-      });
-    } else {
-      applyAstMutation((a) => {
-        createdNodeId = addNode(a, 'New Step');
-      });
-    }
+    applyMutation((a) => {
+      createdNodeId = m.addNode(a, `New ${driver.labels.node}`);
+    });
     if (createdNodeId) {
       setSelectedNodeId(createdNodeId);
     }
-  }, [isStateDiagram, applyStateAstMutation, applyAstMutation, setSelectedNodeId]);
+  }, [m, driver, applyMutation, setSelectedNodeId]);
 
   const handleToggleDirection = useCallback(() => {
-    if (isStateDiagram) {
-      const currentDir = stateAst.direction || 'TD';
-      const nextDir = currentDir === 'LR' ? 'TD' : 'LR';
-      applyStateAstMutation((a) => {
-        stateMutations.setStateDiagramDirection(a, nextDir);
-      });
-    } else {
-      const currentDir = ast.direction || 'TD';
-      const nextDir = currentDir === 'LR' ? 'TD' : 'LR';
-      applyAstMutation((a) => {
-        setDiagramDirection(a, nextDir);
-      });
-    }
-  }, [isStateDiagram, stateAst.direction, ast.direction, applyStateAstMutation, applyAstMutation]);
+    if (!driver.capabilities.supportsDirection) return;
+    const currentDir = m.getDirection(ast) || 'TD';
+    const nextDir = currentDir === 'LR' ? 'TD' : 'LR';
+    applyMutation((a) => {
+      m.setDirection(a, nextDir);
+    });
+  }, [driver, m, ast, applyMutation]);
 
   const handleAddStartState = useCallback(() => {
-    if (!isStateDiagram) return;
+    if (!anchors) return null;
     let createdId: string | null = null;
-    applyStateAstMutation((a) => {
-      createdId = stateMutations.addStartState(a, 'New State');
+    applyMutation((a) => {
+      createdId = anchors.add(a, 'start');
     });
     if (createdId) {
       setSelectedNodeId(createdId);
     }
-  }, [isStateDiagram, applyStateAstMutation, setSelectedNodeId]);
+    return createdId;
+  }, [anchors, applyMutation, setSelectedNodeId]);
 
   const handleAddEndState = useCallback(() => {
-    if (!isStateDiagram) return;
+    if (!anchors) return null;
     let createdId: string | null = null;
-    applyStateAstMutation((a) => {
-      createdId = stateMutations.addEndState(a, 'New State');
+    applyMutation((a) => {
+      createdId = anchors.add(a, 'end');
     });
     if (createdId) {
       setSelectedNodeId(createdId);
     }
-  }, [isStateDiagram, applyStateAstMutation, setSelectedNodeId]);
+    return createdId;
+  }, [anchors, applyMutation, setSelectedNodeId]);
 
   const handleConnectToEnd = useCallback(() => {
-    if (!selectedNodeId || !isStateDiagram) return;
-    applyStateAstMutation((a) => {
-      stateMutations.connectToEndState(a, selectedNodeId);
+    if (!selectedNodeId || !anchors) return;
+    applyMutation((a) => {
+      anchors.connectToEnd(a, selectedNodeId);
     });
-  }, [selectedNodeId, isStateDiagram, applyStateAstMutation]);
+  }, [selectedNodeId, anchors, applyMutation]);
 
   return {
     handleSproutNextStep,
     handleDeleteSelectedNode,
-    handleUpdateNodeShape,
-    handleUpdateStateType,
-    handleBatchUpdateStateType,
+    handleUpdateNodeKind,
+    handleBatchUpdateNodeKind,
     handleApplyNodePreset,
     handleUpdateCustomStyle,
     handleClearNodeStyle,
@@ -365,7 +239,7 @@ export function useNodeMutations({
     handleAddStartState,
     handleAddEndState,
     handleConnectToEnd,
-    hasStartState: isStateDiagram ? stateMutations.hasStartState(stateAst) : false,
-    hasEndState: isStateDiagram ? stateMutations.hasEndState(stateAst) : false,
+    hasStartState: anchors ? anchors.has(ast, 'start') : false,
+    hasEndState: anchors ? anchors.has(ast, 'end') : false,
   };
 }

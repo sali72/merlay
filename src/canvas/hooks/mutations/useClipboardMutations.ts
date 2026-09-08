@@ -1,17 +1,14 @@
 /**
- * Hook for Clipboard and Duplication operations (duplicate, copy, paste).
+ * Hook for Clipboard and Duplication operations (duplicate, copy, paste),
+ * dispatched through the current diagram driver's mutation surface.
  */
 
 import { useCallback, useRef } from 'react';
-import { duplicateNodes } from '../../../ast/mutations';
-import { MermaidFlowchartAST } from '../../../ast/types';
-import { MermaidStateAST } from '../../../diagrams/state/types';
-import * as stateMutations from '../../../diagrams/state/mutations';
+import { DiagramDriver } from '../../../diagrams/types';
 
 export interface UseClipboardMutationsOptions {
-  isStateDiagram: boolean;
-  applyAstMutation: (mutator: (currentAst: MermaidFlowchartAST) => void, keepNodeId?: string) => void;
-  applyStateAstMutation: (mutator: (currentAst: MermaidStateAST) => void, keepNodeId?: string) => void;
+  driver: DiagramDriver;
+  applyMutation: (mutator: (currentAst: any) => void, keepNodeId?: string) => void;
   selectedNodeIds: Set<string>;
   selectedNodeIdsRef: React.MutableRefObject<Set<string>>;
   selectedEdgeIdsRef: React.MutableRefObject<Set<string>>;
@@ -22,9 +19,8 @@ export interface UseClipboardMutationsOptions {
 }
 
 export function useClipboardMutations({
-  isStateDiagram,
-  applyAstMutation,
-  applyStateAstMutation,
+  driver,
+  applyMutation,
   selectedNodeIds,
   selectedNodeIdsRef,
   selectedEdgeIdsRef,
@@ -33,107 +29,60 @@ export function useClipboardMutations({
   updateSelectedNodeHalo,
   updateSelectedEdgeHalo,
 }: UseClipboardMutationsOptions) {
+  const m = driver.mutations;
+  const anchors = m.anchors;
   const clipboardNodesRef = useRef<string[]>([]);
+
+  const applyDuplication = useCallback(
+    (nodeIds: Iterable<string>) => {
+      applyMutation((currentAst) => {
+        const result = m.duplicateNodes(currentAst, nodeIds);
+        if (result.nodeIds.length > 0) {
+          const newSet = new Set(result.nodeIds);
+          const newEdges = new Set(result.edgeIds);
+          if (selectedNodeIdsRef.current) selectedNodeIdsRef.current = newSet;
+          if (selectedEdgeIdsRef.current) selectedEdgeIdsRef.current = newEdges;
+          setSelectedNodeIds(newSet);
+          setSelectedEdgeIds(newEdges);
+          updateSelectedNodeHalo(newSet);
+          updateSelectedEdgeHalo(newEdges);
+        }
+      });
+    },
+    [
+      m,
+      applyMutation,
+      selectedNodeIdsRef,
+      selectedEdgeIdsRef,
+      setSelectedNodeIds,
+      setSelectedEdgeIds,
+      updateSelectedNodeHalo,
+      updateSelectedEdgeHalo,
+    ]
+  );
 
   const handleDuplicateSelected = useCallback(() => {
     if (selectedNodeIds.size === 0) return;
-    const filteredIds = isStateDiagram
-      ? new Set(Array.from(selectedNodeIds).filter((id) => id !== '[*]'))
-      : selectedNodeIds;
-    if (filteredIds.size === 0) return;
-    if (isStateDiagram) {
-      applyStateAstMutation((currentAst) => {
-        const result = stateMutations.duplicateStates(currentAst, filteredIds);
-        if (result.stateIds.length > 0) {
-          const newSet = new Set(result.stateIds);
-          const newEdges = new Set(result.transitionIds);
-          if (selectedNodeIdsRef.current) selectedNodeIdsRef.current = newSet;
-          if (selectedEdgeIdsRef.current) selectedEdgeIdsRef.current = newEdges;
-          setSelectedNodeIds(newSet);
-          setSelectedEdgeIds(newEdges);
-          updateSelectedNodeHalo(newSet);
-          updateSelectedEdgeHalo(newEdges);
-        }
-      });
-      return;
-    }
-
-    applyAstMutation((currentAst) => {
-      const result = duplicateNodes(currentAst, selectedNodeIds);
-      if (result.nodeIds.length > 0) {
-        const newSet = new Set(result.nodeIds);
-        const newEdges = new Set(result.edgeIds);
-        if (selectedNodeIdsRef.current) selectedNodeIdsRef.current = newSet;
-        if (selectedEdgeIdsRef.current) selectedEdgeIdsRef.current = newEdges;
-        setSelectedNodeIds(newSet);
-        setSelectedEdgeIds(newEdges);
-        updateSelectedNodeHalo(newSet);
-        updateSelectedEdgeHalo(newEdges);
-      }
-    });
-  }, [
-    isStateDiagram,
-    applyStateAstMutation,
-    selectedNodeIds,
-    applyAstMutation,
-    selectedNodeIdsRef,
-    selectedEdgeIdsRef,
-    setSelectedNodeIds,
-    setSelectedEdgeIds,
-    updateSelectedNodeHalo,
-    updateSelectedEdgeHalo,
-  ]);
+    const filteredIds = Array.from(selectedNodeIds).filter(
+      (id) => !(anchors && anchors.isAnchor(id))
+    );
+    if (filteredIds.length === 0) return;
+    applyDuplication(filteredIds);
+  }, [selectedNodeIds, anchors, applyDuplication]);
 
   const handleCopySelected = useCallback(() => {
     if (selectedNodeIds.size > 0) {
-      const filtered = Array.from(selectedNodeIds).filter((id) => !(isStateDiagram && id === '[*]'));
+      const filtered = Array.from(selectedNodeIds).filter(
+        (id) => !(anchors && anchors.isAnchor(id))
+      );
       if (filtered.length > 0) clipboardNodesRef.current = filtered;
     }
-  }, [selectedNodeIds, isStateDiagram]);
+  }, [selectedNodeIds, anchors]);
 
   const handlePasteSelected = useCallback(() => {
     if (clipboardNodesRef.current.length === 0) return;
-    if (isStateDiagram) {
-      applyStateAstMutation((currentAst) => {
-        const result = stateMutations.duplicateStates(currentAst, clipboardNodesRef.current);
-        if (result.stateIds.length > 0) {
-          const newSet = new Set(result.stateIds);
-          const newEdges = new Set(result.transitionIds);
-          if (selectedNodeIdsRef.current) selectedNodeIdsRef.current = newSet;
-          if (selectedEdgeIdsRef.current) selectedEdgeIdsRef.current = newEdges;
-          setSelectedNodeIds(newSet);
-          setSelectedEdgeIds(newEdges);
-          updateSelectedNodeHalo(newSet);
-          updateSelectedEdgeHalo(newEdges);
-        }
-      });
-      return;
-    }
-
-    applyAstMutation((currentAst) => {
-      const result = duplicateNodes(currentAst, clipboardNodesRef.current);
-      if (result.nodeIds.length > 0) {
-        const newSet = new Set(result.nodeIds);
-        const newEdges = new Set(result.edgeIds);
-        if (selectedNodeIdsRef.current) selectedNodeIdsRef.current = newSet;
-        if (selectedEdgeIdsRef.current) selectedEdgeIdsRef.current = newEdges;
-        setSelectedNodeIds(newSet);
-        setSelectedEdgeIds(newEdges);
-        updateSelectedNodeHalo(newSet);
-        updateSelectedEdgeHalo(newEdges);
-      }
-    });
-  }, [
-    isStateDiagram,
-    applyStateAstMutation,
-    applyAstMutation,
-    selectedNodeIdsRef,
-    selectedEdgeIdsRef,
-    setSelectedNodeIds,
-    setSelectedEdgeIds,
-    updateSelectedNodeHalo,
-    updateSelectedEdgeHalo,
-  ]);
+    applyDuplication(clipboardNodesRef.current);
+  }, [applyDuplication]);
 
   return {
     handleDuplicateSelected,

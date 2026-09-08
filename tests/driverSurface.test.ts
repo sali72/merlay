@@ -1,0 +1,146 @@
+import test from 'node:test';
+import assert from 'node:assert';
+import { getDriver } from '../src/diagrams/registry';
+import { DiagramDriver } from '../src/diagrams/types';
+
+const flowchartDriver = getDriver('flowchart')!;
+const stateDriver = getDriver('stateDiagram')!;
+
+function roundTrip(driver: DiagramDriver, code: string) {
+  const ast = driver.parse(code);
+  return { ast, code: driver.serialize(ast) };
+}
+
+test('Driver surface: flowchart capabilities, labels, and projection', () => {
+  assert.deepEqual(flowchartDriver.capabilities, {
+    supportsDirection: true,
+    supportsNodeKinds: true,
+    supportsEdgeTypes: true,
+    supportsEdgeStyles: true,
+    supportsGroups: true,
+    hasAnchors: false,
+  });
+  assert.strictEqual(flowchartDriver.labels.node, 'Step');
+  assert.strictEqual(flowchartDriver.mutations.anchors, undefined);
+  assert.ok(flowchartDriver.nodeKindOptions.length > 0);
+
+  const { ast, code } = roundTrip(
+    flowchartDriver,
+    'flowchart TD\n    A[Start] --> B{Choice}\n'
+  );
+  const projection = flowchartDriver.project(ast);
+  assert.strictEqual(projection.nodes.size, 2);
+  assert.strictEqual(projection.edges.length, 1);
+  assert.strictEqual(projection.direction, 'TD');
+  assert.ok(code.includes('flowchart TD'));
+});
+
+test('Driver surface: state capabilities, labels, and projection', () => {
+  assert.deepEqual(stateDriver.capabilities, {
+    supportsDirection: true,
+    supportsNodeKinds: true,
+    supportsEdgeTypes: false,
+    supportsEdgeStyles: false,
+    supportsGroups: true,
+    hasAnchors: true,
+  });
+  assert.strictEqual(stateDriver.labels.node, 'State');
+  assert.strictEqual(stateDriver.mutations.updateEdgeType, undefined);
+
+  const { ast } = roundTrip(
+    stateDriver,
+    'stateDiagram-v2\n    direction LR\n    [*] --> Idle\n    Idle --> Done : finish\n    Done --> [*]\n'
+  );
+  const projection = stateDriver.project(ast);
+  assert.strictEqual(projection.nodes.size, 3); // [*], Idle, Done
+  assert.strictEqual(projection.edges.length, 3);
+  assert.strictEqual(projection.direction, 'LR');
+  // [*] anchors project as circles; their start/end kind is resolved by the
+  // DOM adapter, not the projection
+  const anchor = projection.nodes.get('[*]')!;
+  assert.strictEqual(anchor.shape, 'circle');
+  // transitions carry their label through the projection
+  const labeled = projection.edges.find((e) => e.label === 'finish');
+  assert.ok(labeled);
+});
+
+test('Driver surface: state mutations work through the unified interface', () => {
+  const driver = stateDriver;
+  const ast = driver.parse('stateDiagram-v2\n    [*] --> Idle\n');
+
+  const childId = driver.mutations.addChildNode(ast, 'Idle', 'Next State');
+  assert.ok(ast.states.has(childId));
+  assert.ok(ast.transitions.some((t) => t.from === 'Idle' && t.to === childId));
+
+  const code = driver.serialize(ast);
+  assert.ok(code.includes('Idle -->'));
+  // round-trip the mutated code
+  const reparsed = driver.parse(code);
+  assert.strictEqual(reparsed.states.size, ast.states.size);
+});
+
+test('Driver surface: flowchart mutations work through the unified interface', () => {
+  const driver = flowchartDriver;
+  const ast = driver.parse('flowchart TD\n    A --> B\n');
+
+  const nodeId = driver.mutations.addNode(ast, 'New Step');
+  assert.ok(ast.nodes.has(nodeId));
+  driver.mutations.updateNodeKind(ast, nodeId, 'diamond');
+  assert.strictEqual(ast.nodes.get(nodeId)!.shape, 'diamond');
+
+  const childId = driver.mutations.addChildNode(ast, 'B', 'Next Step');
+  assert.ok(ast.edges.some((e) => e.from === 'B' && e.to === childId));
+
+  const edgeId = ast.edges[0].id;
+  const insertedId = driver.mutations.insertNodeOnEdge(ast, edgeId, 'Mid');
+  assert.ok(insertedId);
+  assert.strictEqual(ast.edges.length, 3); // split into two
+
+  const reversedId = driver.mutations.reverseEdge(ast, ast.edges[0].id);
+  assert.ok(reversedId);
+});
+
+test('Driver surface: anchors API for state diagrams', () => {
+  const driver = stateDriver;
+  const ast = driver.parse('stateDiagram-v2\n    [*] --> Idle\n');
+  const anchors = driver.mutations.anchors!;
+  assert.ok(anchors);
+  assert.ok(anchors.isAnchor('[*]'));
+  assert.ok(!anchors.isAnchor('Idle'));
+  assert.ok(anchors.has(ast, 'start'));
+  assert.ok(!anchors.has(ast, 'end'));
+
+  const endStateId = anchors.add(ast, 'end');
+  assert.ok(endStateId);
+  assert.ok(anchors.has(ast, 'end'));
+
+  anchors.delete(ast, 'start');
+  assert.ok(!anchors.has(ast, 'start'));
+});
+
+test('Driver surface: clone never aliases committed AST state', () => {
+  for (const driver of [flowchartDriver, stateDriver]) {
+    const ast = driver.parse(driver.createDefault('TD'));
+    const cloned = driver.clone(ast);
+    assert.notEqual(cloned, ast);
+    driver.mutations.addNode(cloned, 'Clone Probe');
+    const serializedOriginal = driver.serialize(ast);
+    assert.ok(!serializedOriginal.includes('Clone Probe'));
+  }
+});
+
+test('Driver surface: groups through the unified interface', () => {
+  const fcAst = flowchartDriver.parse('flowchart TD\n    A --> B\n');
+  const fcGroupId = flowchartDriver.mutations.createGroupWithMembers(
+    fcAst,
+    'New Group',
+    ['A', 'B']
+  );
+  assert.ok(fcAst.subgraphs.has(fcGroupId));
+  assert.strictEqual(fcAst.nodes.get('A')!.subgraphId, fcGroupId);
+
+  const stAst = stateDriver.parse('stateDiagram-v2\n    [*] --> Idle\n');
+  const stGroupId = stateDriver.mutations.createGroup(stAst, 'Composite');
+  assert.ok(stAst.compositeStates.has(stGroupId));
+  assert.ok(stAst.compositeStates.get(stGroupId)!.stateIds.length > 0);
+});

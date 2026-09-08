@@ -1,5 +1,4 @@
 import React from 'react';
-import { ArrowType } from '../../ast/types';
 import { ActiveEdgePopover, SelectedEdgePos } from '../types';
 import {
   ArrowBidirectionalIcon,
@@ -12,24 +11,26 @@ import {
   ReverseIcon,
   TrashIcon,
 } from '../icons/Icons';
+import { DiagramDriver } from '../../diagrams/types';
 
 export interface EdgeActionHudProps {
   selectedEdgeId: string;
   selectedEdgePos: SelectedEdgePos;
+  driver: DiagramDriver;
   selectedEdgeStyle: Record<string, string> | undefined;
   activeEdgePopover: ActiveEdgePopover;
-  onChangeEdgeType: (newType: ArrowType) => void;
+  onChangeEdgeType: (newType: string) => void;
   onReverseEdge: () => void;
   onInsertNodeOnEdge: () => void;
   onUpdateEdgeLabel: (label: string) => void;
   onToggleStylePopover: () => void;
   onDeleteEdge: () => void;
-  isStateDiagram?: boolean;
 }
 
 export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
   selectedEdgeId,
   selectedEdgePos,
+  driver,
   selectedEdgeStyle,
   activeEdgePopover,
   onChangeEdgeType,
@@ -38,8 +39,9 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
   onUpdateEdgeLabel,
   onToggleStylePopover,
   onDeleteEdge,
-  isStateDiagram = false,
 }) => {
+  const { labels, capabilities } = driver;
+
   return (
     <div
       className="mermaid-edge-hud nodrag"
@@ -52,8 +54,8 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Arrow Shape Pickers (Only for flowcharts, state transitions are always -->) */}
-      {!isStateDiagram && (
+      {/* Arrow Shape Pickers (only when the diagram supports edge types) */}
+      {capabilities.supportsEdgeTypes && (
         <>
           <button
             type="button"
@@ -124,19 +126,15 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
         <ReverseIcon size={14} />
       </button>
 
-      {/* Insert State / Step Between */}
+      {/* Insert Node Between */}
       <button
         type="button"
         className="mermaid-hud-btn insert-step-btn"
         onClick={onInsertNodeOnEdge}
-        title={
-          isStateDiagram
-            ? 'Insert State Between (splits transition)'
-            : 'Insert Step Between (splits connection)'
-        }
+        title={`${labels.insertNodeOnEdge} (splits ${labels.edge.toLowerCase()})`}
       >
         <InsertStepIcon size={13} />
-        <span>{isStateDiagram ? 'Insert State' : 'Insert Step'}</span>
+        <span>{labels.insertNodeOnEdge}</span>
       </button>
 
       <div className="mermaid-hud-divider" />
@@ -145,9 +143,7 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
       <input
         type="text"
         className="mermaid-edge-input"
-        placeholder={
-          isStateDiagram ? 'Event / Condition (e.g. onClick)...' : 'Caption (e.g. Yes/No)...'
-        }
+        placeholder={labels.edgeLabelPlaceholder}
         defaultValue={selectedEdgePos.label || ''}
         key={selectedEdgeId + (selectedEdgePos.label || '')}
         onBlur={(e) => onUpdateEdgeLabel(e.target.value)}
@@ -159,8 +155,8 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
         }}
       />
 
-      {/* Arrow Colors & Themes Button (Only for flowcharts) */}
-      {!isStateDiagram && (
+      {/* Colors & Themes Button (only when the diagram supports edge styles) */}
+      {capabilities.supportsEdgeStyles && (
         <>
           <div className="mermaid-hud-divider" />
           <button
@@ -189,7 +185,7 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
         type="button"
         className="mermaid-hud-btn delete-btn icon-only"
         onClick={onDeleteEdge}
-        title={isStateDiagram ? 'Delete Transition' : 'Delete Connection'}
+        title={`Delete ${labels.edge}`}
       >
         <TrashIcon size={13} />
       </button>

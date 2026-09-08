@@ -1,11 +1,11 @@
 /**
  * Canvas Overlays Manager
  * Composes dedicated overlay layers: Connection, MultiSelect, Node, Edge, Subgraph, and Inline Editing.
+ * All layers consume the driver contract — no diagram-type branching here.
  */
 
 import React from 'react';
 import { CursorMode, SelectionBox } from '../types';
-import { SupportedDiagramType } from '../../diagrams/types';
 import { useCanvasSelection } from '../hooks/useCanvasSelection';
 import { useDiagramMutations } from '../hooks/useDiagramMutations';
 import { useInlineEditing } from '../hooks/useInlineEditing';
@@ -28,9 +28,7 @@ export interface CanvasOverlaysProps {
   inlineEditing: ReturnType<typeof useInlineEditing>;
   cursorMode: CursorMode;
   isSpacePressed: boolean;
-  diagramType: SupportedDiagramType;
-  isStateDiagram: boolean;
-  canRenameSelectedState?: boolean;
+  canRenameSelectedNode?: boolean;
   svgMountRef: React.RefObject<HTMLDivElement>;
   handleStartEditingNode: (nodeId: string, nodeEl: Element) => void;
 }
@@ -43,38 +41,27 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
   inlineEditing,
   cursorMode,
   isSpacePressed,
-  diagramType,
-  isStateDiagram,
-  canRenameSelectedState,
+  canRenameSelectedNode,
   svgMountRef,
   handleStartEditingNode,
 }) => {
   const { selectedNodeId, selectedEdgeId, selectedSubgraphId } = selection;
+  const driver = mutations.driver;
 
-  const canUngroup = isStateDiagram
-    ? Array.from(selection.selectedNodeIds).some(
-        (nid) => !!mutations.stateAst.states.get(nid)?.compositeId
-      )
-    : Array.from(selection.selectedNodeIds).some(
-        (nid) => !!mutations.ast.nodes.get(nid)?.subgraphId
-      );
+  const canUngroup = Array.from(selection.selectedNodeIds).some(
+    (nid) => !!mutations.displayNodes.get(nid)?.subgraphId
+  );
 
   const selectedNodeStyle = selectedNodeId
-    ? isStateDiagram
-      ? mutations.stateAst.states.get(selectedNodeId)?.style
-      : mutations.ast.nodes.get(selectedNodeId)?.style
+    ? mutations.displayNodes.get(selectedNodeId)?.style
     : undefined;
 
   const selectedEdgeStyle = selectedEdgeId
-    ? isStateDiagram
-      ? mutations.stateAst.transitions.find((t) => t.id === selectedEdgeId)?.style
-      : mutations.ast.edges.find((e) => e.id === selectedEdgeId)?.style
+    ? mutations.displayEdges.find((e) => e.id === selectedEdgeId)?.style
     : undefined;
 
   const selectedSubgraphStyle = selectedSubgraphId
-    ? isStateDiagram
-      ? mutations.stateAst.compositeStates.get(selectedSubgraphId)?.style
-      : mutations.ast.subgraphs.get(selectedSubgraphId)?.style
+    ? mutations.displaySubgraphs.get(selectedSubgraphId)?.style
     : undefined;
 
   return (
@@ -91,7 +78,11 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         isLR={selection.isLR}
         cursorMode={cursorMode}
         isSpacePressed={isSpacePressed}
-        hidden={mouse.hoveredNodeId === '[*]' && mouse.hoveredNodeKind === 'end'}
+        hidden={
+          !!mouse.hoveredNodeId &&
+          !!driver.mutations.anchors?.isAnchor(mouse.hoveredNodeId) &&
+          mouse.hoveredNodeKind === 'end'
+        }
         onStartConnect={mouse.handleStartConnect}
       />
 
@@ -99,6 +90,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
       <MultiSelectOverlays
         multiSelectBounds={selection.multiSelectBounds}
         isMultiSelect={selection.isMultiSelect}
+        driver={driver}
         selectedNodeIds={selection.selectedNodeIds}
         selectedEdgeIds={selection.selectedEdgeIds}
         activeMultiPopover={selection.activeMultiPopover}
@@ -109,12 +101,10 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         onBatchGroup={mutations.handleBatchGroupSelected}
         canUngroup={canUngroup}
         onBatchUngroup={mutations.handleBatchUngroupSelected}
-        isStateDiagram={isStateDiagram}
         popoverPos={selection.popoverPos}
         onBatchUpdateEdgeType={mutations.handleBatchUpdateEdgeType}
-        astNodes={mutations.ast.nodes}
-        onSelectShape={mutations.handleBatchUpdateShape}
-        onSelectStateType={mutations.handleBatchUpdateStateType}
+        viewNodes={mutations.displayNodes}
+        onBatchSelectNodeKind={mutations.handleBatchUpdateNodeKind}
         onApplyPreset={mutations.handleBatchApplyThemePreset}
         onUpdateCustomStyle={mutations.handleBatchUpdateCustomStyle}
         onClearStyle={mutations.handleBatchClearStyle}
@@ -128,12 +118,8 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         sproutX={selection.sproutX}
         sproutY={selection.sproutY}
         isLR={selection.isLR}
-        diagramType={diagramType}
-        stateType={
-          selectedNodeId && isStateDiagram
-            ? mutations.stateAst.states.get(selectedNodeId)?.stateType
-            : undefined
-        }
+        driver={driver}
+        viewNodes={mutations.displayNodes}
         currentNode={selectedNodeId ? mutations.displayNodes.get(selectedNodeId) : undefined}
         currentStyle={selectedNodeStyle}
         activeNodePopover={selection.activeNodePopover}
@@ -146,25 +132,14 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
           selection.setActiveNodePopover((prev) => (prev === popover ? null : popover))
         }
         onDeleteNode={mutations.handleDeleteSelectedNode}
-        canRenameState={canRenameSelectedState}
+        canRenameNode={canRenameSelectedNode}
         popoverPos={selection.popoverPos}
-        astNodes={mutations.ast.nodes}
-        onSelectShape={mutations.handleUpdateNodeShape}
-        currentState={
-          selectedNodeId && isStateDiagram
-            ? mutations.stateAst.states.get(selectedNodeId)
-            : undefined
-        }
-        onSelectStateType={mutations.handleUpdateStateType}
+        onSelectNodeKind={mutations.handleUpdateNodeKind}
         onApplyNodePreset={mutations.handleApplyNodePreset}
         onUpdateCustomStyle={mutations.handleUpdateCustomStyle}
         onClearNodeStyle={mutations.handleClearNodeStyle}
         currentSubgraphId={
-          selectedNodeId
-            ? isStateDiagram
-              ? mutations.stateAst.states.get(selectedNodeId)?.compositeId
-              : mutations.ast.nodes.get(selectedNodeId)?.subgraphId
-            : undefined
+          selectedNodeId ? mutations.displayNodes.get(selectedNodeId)?.subgraphId : undefined
         }
         displaySubgraphs={mutations.displaySubgraphs}
         onSelectSubgraphMembership={(subId) => {
@@ -187,6 +162,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         selectedEdgePos={selection.selectedEdgePos}
         selectedEdgeId={selectedEdgeId}
         isMultiSelect={selection.isMultiSelect}
+        driver={driver}
         selectedEdgeStyle={selectedEdgeStyle}
         activeEdgePopover={selection.activeEdgePopover}
         onChangeEdgeType={mutations.handleChangeEdgeType}
@@ -197,7 +173,6 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
           selection.setActiveEdgePopover((prev) => (prev === 'style' ? null : 'style'))
         }
         onDeleteEdge={mutations.handleDeleteSelectedEdge}
-        isStateDiagram={isStateDiagram}
         onApplyEdgePreset={mutations.handleApplyEdgePreset}
         onUpdateEdgeCustomStyle={mutations.handleUpdateEdgeCustomStyle}
         onClearEdgeStyle={mutations.handleClearEdgeStyle}

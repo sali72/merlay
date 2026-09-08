@@ -2,14 +2,11 @@
  * Native Mermaid View with Direct Structural Manipulation Overlay
  * Renders Obsidian's exact native Mermaid SVG (100% parity, zero layout simulation)
  * with direct-manipulation node sprouting, drag-to-connect, inline label editing, and camera stabilization.
+ * All diagram-specific behavior comes from the DiagramDriver — no type branching here.
  */
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { parseMermaidFlowchart } from '../ast/parser';
 import { detectDiagramType } from '../diagrams/registry';
-import { SupportedDiagramType } from '../diagrams/types';
-import { parseMermaidStateDiagram } from '../diagrams/state/parser';
-import * as stateMutations from '../diagrams/state/mutations';
 import { CursorMode, NativeMermaidViewProps } from './types';
 import { useHistory } from './useHistory';
 
@@ -17,6 +14,7 @@ import { useCanvasCamera } from './hooks/useCanvasCamera';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
 import { useMarqueeSelection } from './hooks/useMarqueeSelection';
 import { useInlineEditing } from './hooks/useInlineEditing';
+import { useDiagramAst } from './hooks/mutations/useDiagramAst';
 import { useDiagramMutations } from './hooks/useDiagramMutations';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts';
 import { useCanvasMouseInteractions } from './hooks/useCanvasMouseInteractions';
@@ -36,11 +34,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   const [code, setCode] = useState<string>(
     initialCode || 'flowchart LR\n    A["Start"] --> B["Process"]\n    B --> C["End"]'
   );
-  const diagramType = useMemo<SupportedDiagramType>(
+  const diagramType = useMemo<ReturnType<typeof detectDiagramType>>(
     () => detectDiagramType(code),
     [code]
   );
-  const isStateDiagram = diagramType === 'stateDiagram';
 
   // History Stack
   const history = useHistory(code);
@@ -69,28 +66,34 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     endPan,
   } = useCanvasCamera({ worldRef, svgMountRef });
 
-  const [selectedStarKind, setSelectedStarKind] = useState<'start' | 'end' | null>(null);
-  const selectedStarKindRef = useRef<'start' | 'end' | null>(null);
-  useEffect(() => {
-    selectedStarKindRef.current = selectedStarKind;
-  }, [selectedStarKind]);
-
-  // 2. Selection & Halos
-  const selection = useCanvasSelection({
-    svgMountRef,
-    getLocalRect,
-    displayDirection: isStateDiagram ? 'LR' : 'TD',
-    selectedStarKind,
-  });
-
-  // 3. Diagram Mutations & AST State
-  const mutations = useDiagramMutations({
+  // 2. AST State & Driver Projections (single active AST owned by the driver)
+  const astHook = useDiagramAst({
     code,
     setCode,
     onCodeChange,
     pushHistoryState,
     diagramType,
     pinNodeForCamera,
+  });
+  const driver = astHook.driver;
+
+  const [selectedStarKind, setSelectedStarKind] = useState<'start' | 'end' | null>(null);
+  const selectedStarKindRef = useRef<'start' | 'end' | null>(null);
+  useEffect(() => {
+    selectedStarKindRef.current = selectedStarKind;
+  }, [selectedStarKind]);
+
+  // 3. Selection & Halos
+  const selection = useCanvasSelection({
+    svgMountRef,
+    getLocalRect,
+    displayDirection: astHook.displayDirection,
+    selectedStarKind,
+  });
+
+  // 4. Diagram Mutations (driver-dispatched)
+  const mutations = useDiagramMutations({
+    astHook,
     selectedNodeId: selection.selectedNodeId,
     selectedNodeIds: selection.selectedNodeIds,
     selectedEdgeId: selection.selectedEdgeId,
@@ -116,7 +119,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     setSelectedStarKind,
   });
 
-  // 4. Marquee Selection
+  // 5. Marquee Selection
   const marquee = useMarqueeSelection({
     worldRef,
     svgMountRef,
@@ -138,106 +141,77 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     selectedEdgeIdsRef: selection.selectedEdgeIdsRef,
   });
 
-  // 5. Inline Text Editing
+  // 6. Inline Text Editing
   const inlineEditing = useInlineEditing({
     displayNodes: mutations.displayNodes,
     displayEdges: mutations.displayEdges,
     displaySubgraphs: mutations.displaySubgraphs,
     getLocalRect,
     onCommitNodeLabel: (nodeId, newLabel) => {
-      if (isStateDiagram) {
-        mutations.applyStateAstMutation((a) => {
-          stateMutations.updateStateLabel(a, nodeId, newLabel);
-        }, nodeId);
-      } else {
-        mutations.applyAstMutation(() => {
-          mutations.handleUpdateNodeShape(
-            mutations.displayNodes.get(nodeId)?.shape || 'rectangle',
-            nodeId
-          );
-        }, nodeId);
-      }
+      mutations.applyMutation(
+        (a) => {
+          driver.mutations.updateNodeLabel(a, nodeId, newLabel);
+        },
+        nodeId
+      );
     },
     onCommitEdgeLabel: mutations.handleUpdateEdgeLabel,
     onCommitSubgraphLabel: mutations.handleRenameSubgraph,
     onClearOtherSelections: selection.isolateSelection,
   });
 
-  // 6. Viewport Modes & State
+  // 7. Viewport Modes & State
   const [cursorMode, setCursorMode] = useState<CursorMode>('select');
   const [showCodeDrawer, setShowCodeDrawer] = useState<boolean>(false);
 
   const handleStartEditingNode = useCallback(
     (nodeId: string, nodeEl: Element) => {
-      if (isStateDiagram) {
-        if (!stateMutations.isStateTextEditable(mutations.stateAst.states.get(nodeId))) {
-          return;
-        }
+      if (!driver.mutations.isNodeTextEditable(astHook.ast, nodeId)) {
+        return;
       }
       inlineEditing.startEditingNode(nodeId, nodeEl);
     },
-    [isStateDiagram, mutations.stateAst, inlineEditing]
+    [driver, astHook.ast, inlineEditing]
   );
 
-  const canRenameSelectedState =
-    !isStateDiagram ||
-    (selection.selectedNodeId
-      ? stateMutations.isStateTextEditable(mutations.stateAst.states.get(selection.selectedNodeId))
-      : false);
+  const canRenameSelectedNode = selection.selectedNodeId
+    ? driver.mutations.isNodeTextEditable(astHook.ast, selection.selectedNodeId)
+    : false;
+
+  const resetTransientUiState = useCallback(() => {
+    selection.clearSelection();
+    selectedStarKindRef.current = null;
+    setSelectedStarKind(null);
+    inlineEditing.setEditingNodeId(null);
+    inlineEditing.setEditingEdgeId(null);
+    inlineEditing.setEditingSubgraphId(null);
+  }, [selection, inlineEditing]);
 
   const handleUndo = useCallback(() => {
     const prevCode = undoHistory();
-    if (prevCode !== null) {
-      try {
-        const isPrevState = detectDiagramType(prevCode) === 'stateDiagram';
-        if (isPrevState) {
-          mutations.setStateAst(parseMermaidStateDiagram(prevCode));
-        } else {
-          mutations.setAst(parseMermaidFlowchart(prevCode));
-        }
-        setCode(prevCode);
-        mutations.setSyntaxError(null);
-        onCodeChange(prevCode);
-        selection.clearSelection();
-        selectedStarKindRef.current = null;
-        setSelectedStarKind(null);
-        inlineEditing.setEditingNodeId(null);
-        inlineEditing.setEditingEdgeId(null);
-        inlineEditing.setEditingSubgraphId(null);
-      } catch (err) {
-        console.error('Failed to parse undo state:', err);
-      }
-    }
-  }, [undoHistory, onCodeChange, mutations, selection, inlineEditing]);
+    if (prevCode === null) return;
+    // setCode triggers the re-parse effect inside useDiagramAst
+    setCode(prevCode);
+    mutations.setSyntaxError(null);
+    onCodeChange(prevCode);
+    resetTransientUiState();
+  }, [undoHistory, onCodeChange, mutations, resetTransientUiState]);
 
   const handleRedo = useCallback(() => {
     const nextCode = redoHistory();
-    if (nextCode !== null) {
-      try {
-        const isNextState = detectDiagramType(nextCode) === 'stateDiagram';
-        if (isNextState) {
-          mutations.setStateAst(parseMermaidStateDiagram(nextCode));
-        } else {
-          mutations.setAst(parseMermaidFlowchart(nextCode));
-        }
-        setCode(nextCode);
-        mutations.setSyntaxError(null);
-        onCodeChange(nextCode);
-        selection.clearSelection();
-        selectedStarKindRef.current = null;
-        setSelectedStarKind(null);
-        inlineEditing.setEditingNodeId(null);
-        inlineEditing.setEditingEdgeId(null);
-        inlineEditing.setEditingSubgraphId(null);
-      } catch (err) {
-        console.error('Failed to parse redo state:', err);
-      }
-    }
-  }, [redoHistory, onCodeChange, mutations, selection, inlineEditing]);
+    if (nextCode === null) return;
+    setCode(nextCode);
+    mutations.setSyntaxError(null);
+    onCodeChange(nextCode);
+    resetTransientUiState();
+  }, [redoHistory, onCodeChange, mutations, resetTransientUiState]);
 
   const handleSelectAll = useCallback(() => {
+    const anchors = driver.mutations.anchors;
     const allNodeIds = new Set(
-      Array.from(mutations.displayNodes.keys()).filter((id) => id !== '[*]')
+      Array.from(mutations.displayNodes.keys()).filter(
+        (id) => !(anchors && anchors.isAnchor(id))
+      )
     );
     const allEdgeIds = new Set(mutations.displayEdges.map((e) => e.id));
     selectedStarKindRef.current = null;
@@ -253,9 +227,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     selection.setActiveSubgraphPopover(null);
     selection.updateSelectedNodeHalo(allNodeIds);
     selection.updateSelectedEdgeHalo(allEdgeIds);
-  }, [mutations.displayNodes, mutations.displayEdges, selection]);
+  }, [driver, mutations.displayNodes, mutations.displayEdges, selection]);
 
-  // 7. Keyboard Shortcuts
+  // 8. Keyboard Shortcuts
   const hasActivePopovers = !!(
     selection.activeNodePopover ||
     selection.activeEdgePopover ||
@@ -288,7 +262,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     canCopy: selection.selectedNodeIds.size > 0,
   });
 
-  // 8. Mouse Interactions (Panning, Connecting, Hover)
+  // 9. Mouse Interactions (Panning, Connecting, Hover)
   const mouse = useCanvasMouseInteractions({
     worldRef,
     zoom,
@@ -301,16 +275,16 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     marquee,
     displayNodes: mutations.displayNodes,
     displayEdges: mutations.displayEdges,
-    isStateDiagram,
-    applyAstMutation: mutations.applyAstMutation,
-    applyStateAstMutation: mutations.applyStateAstMutation,
+    driver,
+    applyMutation: mutations.applyMutation,
     setSelectedNodeId: selection.setSelectedNodeId,
   });
 
-  // 9. Mermaid Native SVG Mount & Renderer
+  // 10. Mermaid Native SVG Mount & Renderer
   useCanvasRenderer({
     app,
     code,
+    driver,
     svgMountRef,
     displayNodes: mutations.displayNodes,
     displayEdges: mutations.displayEdges,
@@ -357,15 +331,14 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     >
       {/* Top Controls Bar */}
       <CanvasTopBar
-        diagramType={diagramType}
-        diagramDisplayName={isStateDiagram ? 'State Diagram' : 'Flowchart'}
+        driver={driver}
         cursorMode={cursorMode}
         onSetCursorMode={setCursorMode}
         onAddStep={mutations.handleAddStandaloneStep}
-        onAddStart={isStateDiagram ? mutations.handleAddStartState : undefined}
-        onAddEnd={isStateDiagram ? mutations.handleAddEndState : undefined}
-        canAddStart={isStateDiagram ? !mutations.hasStartState : true}
-        canAddEnd={isStateDiagram ? !mutations.hasEndState : true}
+        onAddStart={mutations.handleAddStartState}
+        onAddEnd={mutations.handleAddEndState}
+        canAddStart={!mutations.hasStartState}
+        canAddEnd={!mutations.hasEndState}
         onAddGroup={mutations.handleAddGroup}
         direction={mutations.displayDirection}
         onToggleDirection={mutations.handleToggleDirection}
@@ -399,9 +372,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           inlineEditing={inlineEditing}
           cursorMode={cursorMode}
           isSpacePressed={isSpacePressed}
-          diagramType={diagramType}
-          isStateDiagram={isStateDiagram}
-          canRenameSelectedState={canRenameSelectedState}
+          canRenameSelectedNode={canRenameSelectedNode}
           svgMountRef={svgMountRef}
           handleStartEditingNode={handleStartEditingNode}
         />
@@ -414,21 +385,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         syntaxError={mutations.syntaxError}
         onClose={() => setShowCodeDrawer(false)}
         onChangeCode={(newCode) => {
+          // setCode triggers the re-parse effect inside useDiagramAst,
+          // which also surfaces syntax errors.
           setCode(newCode);
           onCodeChange(newCode);
-          try {
-            const detected = detectDiagramType(newCode);
-            if (detected === 'stateDiagram') {
-              const parsed = parseMermaidStateDiagram(newCode);
-              mutations.setStateAst(parsed);
-            } else {
-              const parsed = parseMermaidFlowchart(newCode);
-              mutations.setAst(parsed);
-            }
-            mutations.setSyntaxError(null);
-          } catch (err: any) {
-            mutations.setSyntaxError(err.message || 'Syntax Error');
-          }
         }}
       />
     </div>

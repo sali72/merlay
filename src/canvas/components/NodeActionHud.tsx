@@ -8,17 +8,24 @@ import {
   FolderIcon,
   TrashIcon,
   ShapeIcons,
+  StateTypeIcons,
 } from '../icons/Icons';
 
-import { SupportedDiagramType } from '../../diagrams/types';
-import { MermaidStateType } from '../../diagrams/state/types';
-import { StateTypeIcons } from '../icons/Icons';
+import { DiagramDriver } from '../../diagrams/types';
+
+function kindIcon(kind: string | undefined): React.FC<{ size?: number }> {
+  const shapes = ShapeIcons as Record<string, any>;
+  const stateTypes = StateTypeIcons as Record<string, any>;
+  const key = kind || 'rectangle';
+  return shapes[key] || stateTypes[key] || ShapeIcons.rectangle;
+}
 
 export interface NodeActionHudProps {
   selectedNodeId: string;
   sproutX: number;
   sproutY: number;
   isLR: boolean;
+  driver: DiagramDriver;
   currentNode: MermaidNodeDef | undefined;
   currentStyle: Record<string, string> | undefined;
   activeNodePopover: ActiveNodePopover;
@@ -26,9 +33,7 @@ export interface NodeActionHudProps {
   onRename: () => void;
   onTogglePopover: (popover: 'shape' | 'style' | 'subgraph') => void;
   onDelete: () => void;
-  diagramType?: SupportedDiagramType;
-  stateType?: MermaidStateType;
-  canRenameState?: boolean;
+  canRename?: boolean;
   hideSprout?: boolean;
   hideDelete?: boolean;
 }
@@ -38,6 +43,7 @@ export const NodeActionHud: React.FC<NodeActionHudProps> = ({
   sproutX,
   sproutY,
   isLR,
+  driver,
   currentNode,
   currentStyle,
   activeNodePopover,
@@ -45,28 +51,14 @@ export const NodeActionHud: React.FC<NodeActionHudProps> = ({
   onRename,
   onTogglePopover,
   onDelete,
-  diagramType = 'flowchart',
-  stateType,
-  canRenameState,
+  canRename,
   hideSprout = false,
   hideDelete = false,
 }) => {
-  const isStateDiagram = diagramType === 'stateDiagram';
-  const isStartEndAnchor = isStateDiagram && selectedNodeId === '[*]';
-  const canRename = isStateDiagram ? (canRenameState ?? !isStartEndAnchor) : !isStartEndAnchor;
-  const ShapeComp = isStateDiagram
-    ? StateTypeIcons[stateType || 'normal'] || StateTypeIcons.normal
-    : currentNode && ShapeIcons[currentNode.shape as keyof typeof ShapeIcons]
-    ? ShapeIcons[currentNode.shape as keyof typeof ShapeIcons]
-    : ShapeIcons.rectangle;
-
-  const sproutLabel = isStateDiagram ? 'Next State' : 'Next Step';
-  const sproutTitle = isStateDiagram
-    ? 'Sprout Next State (creates connected child)'
-    : 'Sprout Next Step (creates connected child)';
-  const deleteTitle = isStateDiagram
-    ? 'Delete State (and transitions)'
-    : 'Delete Step (and connections)';
+  const { labels, capabilities } = driver;
+  const isAnchor = !!driver.mutations.anchors?.isAnchor(selectedNodeId);
+  const supportsKinds = capabilities.supportsNodeKinds && driver.nodeKindOptions.length > 0;
+  const ShapeComp = kindIcon(currentNode?.kind || currentNode?.shape);
 
   return (
     <div
@@ -85,41 +77,41 @@ export const NodeActionHud: React.FC<NodeActionHudProps> = ({
           type="button"
           className="mermaid-hud-btn sprout-btn"
           onClick={onSproutNextStep}
-          title={sproutTitle}
+          title={`Sprout ${labels.addChild} (creates connected child)`}
         >
           <PlusIcon size={13} />
-          <span>{sproutLabel}</span>
+          <span>{labels.addChild}</span>
         </button>
       )}
 
-      {/* Rename Button (only normal states carry text) */}
-      {(!isStateDiagram && !isStartEndAnchor) || (isStateDiagram && canRename) ? (
+      {/* Rename Button (only nodes that carry text) */}
+      {(canRename ?? !isAnchor) && (
         <button
           type="button"
           className="mermaid-hud-btn icon-only"
           onClick={onRename}
-          title={isStateDiagram ? 'Rename State' : 'Rename Step'}
+          title={`Rename ${labels.node}`}
         >
           <PencilIcon size={13} />
         </button>
-      ) : null}
+      )}
 
-      {/* Shape / Type Picker Button (Hidden for [*]) */}
-      {!isStartEndAnchor && (
+      {/* Kind Picker Button (shapes / state types; hidden for anchors) */}
+      {supportsKinds && !isAnchor && (
         <button
           type="button"
           className={`mermaid-hud-btn icon-only ${
             activeNodePopover === 'shape' ? 'is-active' : ''
           }`}
           onClick={() => onTogglePopover('shape')}
-          title={isStateDiagram ? 'Change State Type (Choice, Fork, Join, etc.)' : 'Change Shape'}
+          title={`Change ${labels.node} Kind`}
         >
           <ShapeComp size={14} />
         </button>
       )}
 
-      {/* Visual Style & Color Button (Hidden for [*]) */}
-      {!isStartEndAnchor && (
+      {/* Visual Style & Color Button (hidden for anchors) */}
+      {!isAnchor && (
         <button
           type="button"
           className={`mermaid-hud-btn icon-only ${
@@ -138,8 +130,8 @@ export const NodeActionHud: React.FC<NodeActionHudProps> = ({
         </button>
       )}
 
-      {/* Subgraph / Composite Assignment Button (Hidden for [*]) */}
-      {!isStartEndAnchor && (
+      {/* Group Assignment Button (hidden for anchors) */}
+      {capabilities.supportsGroups && !isAnchor && (
         <button
           type="button"
           className={`mermaid-hud-btn icon-only ${
@@ -148,10 +140,8 @@ export const NodeActionHud: React.FC<NodeActionHudProps> = ({
           onClick={() => onTogglePopover('subgraph')}
           title={
             currentNode?.subgraphId
-              ? `${isStateDiagram ? 'Composite' : 'Group'}: ${currentNode.subgraphId} (Click to change)`
-              : isStateDiagram
-              ? 'Assign to Composite State'
-              : 'Assign to Group / Subgraph'
+              ? `${labels.group}: ${currentNode.subgraphId} (Click to change)`
+              : `Assign to ${labels.group}`
           }
         >
           <FolderIcon size={14} />
@@ -166,7 +156,7 @@ export const NodeActionHud: React.FC<NodeActionHudProps> = ({
             type="button"
             className="mermaid-hud-btn delete-btn icon-only"
             onClick={onDelete}
-            title={deleteTitle}
+            title={`Delete ${labels.node} (and ${labels.edges.toLowerCase()})`}
           >
             <TrashIcon size={13} />
           </button>

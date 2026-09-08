@@ -36,6 +36,8 @@ export interface MermaidNodeDef {
   id: string;
   label: string;
   shape: MermaidShapeType;
+  /** Driver-specific node kind carried through the view projection (e.g. stateType). */
+  kind?: string;
   subgraphId?: string;
   style?: Record<string, string>;
   classes?: string[];

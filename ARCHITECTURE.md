@@ -144,10 +144,19 @@ src/
 - Do **not** inject synthetic comment coordinates (e.g. `%% mv: x=100,y=200 %%`).
 
 ### 5. Multi-Diagram Architecture (Driver Pattern)
-- Flowchart and State diagrams share the same canvas view and UI interactions through the `DiagramDriver` interface.
+- **The `DiagramDriver` interface (`src/diagrams/types.ts`) is the only contract the canvas layer talks to.** The canvas never branches on diagram type — adding a diagram means adding one package and registering its driver.
+- A driver provides:
+  - `parse` / `serialize` / `createDefault` / `clone` / `createEmpty` — code ⇄ AST round-trip.
+  - `project(ast)` — read-only projection onto the shared flowchart-shaped view-model (`MermaidNodeDef` / `MermaidEdgeDef` / `MermaidSubgraphDef`) used by all overlays. **Never edit the projection**; mutations go through `driver.mutations`.
+  - `mutations` — the full mutation surface (nodes, connections, styles, groups, duplication, direction). Optional members (e.g. `updateEdgeType`, edge styles) are gated by capabilities.
+  - `anchors` (optional) — start/end pseudo-node API (`[*]`).
+  - `capabilities` — what the UI offers (`supportsEdgeTypes`, `supportsNodeKinds`, `hasAnchors`, ...). Popovers and HUDs render from capabilities.
+  - `labels` — UI vocabulary (`node` = "Step" / "State", ...). Components never hard-code diagram-specific nouns.
+  - `dom` — SVG DOM adapter (node id prefixes, anchor selectors, anchor-kind resolution) so hit-testing is per-diagram.
+- **Single active AST**: `useDiagramAst` holds one AST owned by the current driver. Mutations clone (`driver.clone`), mutate the clone, then serialize and emit. External code changes (undo/redo, syntax drawer) re-parse through an effect — there are no dual AST states to keep in sync.
 - State diagrams have unique syntax requirements:
   - Pseudo-states (`<<choice>>`, `<<fork>>`, `<<join>>`) must not have aliases (`state "label" as id`).
-  - Start/end anchors are denoted by `[*]` and cannot be multi-selected or converted to normal states via morphing.
+  - Start/end anchors are denoted by `[*]`, share one node id, and cannot be multi-selected or converted to normal states via morphing.
   - Directional transitions to/from `[*]` must be strictly preserved.
 
 ---
@@ -173,7 +182,9 @@ To add support for a new Mermaid diagram type (e.g., Class Diagram, ER Diagram):
 1. **Define AST & Types**: In `src/diagrams/<name>/types.ts`.
 2. **Implement Lexer & Parser**: In `src/diagrams/<name>/lexer.ts` and `parser.ts`.
 3. **Implement Serializer**: In `src/diagrams/<name>/serializer.ts`.
-4. **Implement Mutations**: In `src/diagrams/<name>/mutations/`.
-5. **Implement Driver**: Implement the `DiagramDriver<T>` interface in `src/diagrams/<name>/<name>Driver.ts`.
-6. **Register Driver**: Add to `src/diagrams/registry.ts`.
-7. **Verify**: Add unit tests under `tests/<name>.test.ts` and ensure `npm test` passes.
+4. **Implement Mutations**: In `src/diagrams/<name>/mutations/`, then wire them into the `DiagramMutations` surface.
+5. **Implement Driver**: Implement the full `DiagramDriver<T>` interface in `src/diagrams/<name>/<name>Driver.ts` — including `project`, `capabilities`, `labels`, `nodeKindOptions`, `mutations`, and the `dom` adapter. Unsupported features are simply omitted from `capabilities` (the UI hides them automatically).
+6. **Register Driver**: Add to `src/diagrams/registry.ts` and add a `DiagramTemplate` entry.
+7. **Verify**: Add unit tests under `tests/<name>.test.ts` (see `tests/driverSurface.test.ts` for the driver-contract test pattern) and ensure `npm test` passes.
+
+**No canvas, hook, overlay, or component files need to change** — if they do, the driver contract has a gap that should be fixed in `src/diagrams/types.ts` instead.

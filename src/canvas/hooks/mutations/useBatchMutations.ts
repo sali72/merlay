@@ -1,34 +1,15 @@
 /**
- * Hook for Multi-Select Batch operations (batch delete, shape, type, styles, grouping, ungrouping).
+ * Hook for Multi-Select Batch operations (batch delete, kind, styles, grouping, ungrouping),
+ * dispatched through the current diagram driver's mutation surface.
  */
 
 import { useCallback } from 'react';
-import {
-  clearEdgesStyle,
-  clearNodesStyle,
-  createSubgraph,
-  deleteEdges,
-  deleteNodes,
-  deleteSubgraph,
-  getEdgeStyle,
-  getNodeStyle,
-  moveNodesToSubgraph,
-  updateEdgeStyle,
-  updateEdgesStyle,
-  updateEdgesType,
-  updateNodeStyle,
-  updateNodesShape,
-  updateNodesStyle,
-} from '../../../ast/mutations';
-import { ArrowType, MermaidFlowchartAST, MermaidShapeType } from '../../../ast/types';
-import { MermaidStateAST } from '../../../diagrams/state/types';
-import * as stateMutations from '../../../diagrams/state/mutations';
+import { DiagramDriver } from '../../../diagrams/types';
 import { ThemePreset } from '../../constants';
 
 export interface UseBatchMutationsOptions {
-  isStateDiagram: boolean;
-  applyAstMutation: (mutator: (currentAst: MermaidFlowchartAST) => void, keepNodeId?: string) => void;
-  applyStateAstMutation: (mutator: (currentAst: MermaidStateAST) => void, keepNodeId?: string) => void;
+  driver: DiagramDriver;
+  applyMutation: (mutator: (currentAst: any) => void, keepNodeId?: string) => void;
   selectedSubgraphId: string | null;
   selectedNodeIds: Set<string>;
   selectedEdgeIds: Set<string>;
@@ -49,9 +30,8 @@ export interface UseBatchMutationsOptions {
 }
 
 export function useBatchMutations({
-  isStateDiagram,
-  applyAstMutation,
-  applyStateAstMutation,
+  driver,
+  applyMutation,
   selectedSubgraphId,
   selectedNodeIds,
   selectedEdgeIds,
@@ -70,17 +50,14 @@ export function useBatchMutations({
   updateSelectedNodeHalo,
   updateSelectedEdgeHalo,
 }: UseBatchMutationsOptions) {
+  const m = driver.mutations;
+  const anchors = m.anchors;
+
   const handleBatchDeleteSelected = useCallback(() => {
     if (selectedSubgraphId) {
-      if (isStateDiagram) {
-        applyStateAstMutation((a) => {
-          stateMutations.deleteCompositeState(a, selectedSubgraphId, false);
-        });
-      } else {
-        applyAstMutation((a) => {
-          deleteSubgraph(a, selectedSubgraphId, false);
-        });
-      }
+      applyMutation((a) => {
+        m.deleteGroup(a, selectedSubgraphId, false);
+      });
       setSelectedSubgraphId(null);
       setSelectedSubgraphRect(null);
       setActiveSubgraphPopover(null);
@@ -88,7 +65,7 @@ export function useBatchMutations({
     }
 
     if (selectedNodeIds.size === 0 && selectedEdgeIds.size === 0) return;
-    const nodesToDelete = Array.from(selectedNodeIds).filter((id) => !(isStateDiagram && id === '[*]'));
+    const nodesToDelete = Array.from(selectedNodeIds);
     const edgesToDelete = Array.from(selectedEdgeIds);
 
     const empty = new Set<string>();
@@ -104,31 +81,22 @@ export function useBatchMutations({
     updateSelectedNodeHalo(new Set());
     updateSelectedEdgeHalo(new Set());
 
-    if (isStateDiagram) {
-      applyStateAstMutation((a) => {
-        if (nodesToDelete.length > 0) {
-          stateMutations.deleteStates(a, nodesToDelete);
-        }
-        if (edgesToDelete.length > 0) {
-          stateMutations.deleteTransitions(a, edgesToDelete);
-        }
-      });
-    } else {
-      applyAstMutation((a) => {
-        if (nodesToDelete.length > 0) {
-          deleteNodes(a, nodesToDelete);
-        }
-        if (edgesToDelete.length > 0) {
-          deleteEdges(a, edgesToDelete);
-        }
-      });
-    }
+    applyMutation((a) => {
+      if (nodesToDelete.length > 0) {
+        m.deleteNodes(a, nodesToDelete);
+      }
+      if (edgesToDelete.length > 0) {
+        m.deleteEdges(a, edgesToDelete);
+      }
+    });
   }, [
     selectedSubgraphId,
     selectedNodeIds,
     selectedEdgeIds,
     selectedNodeIdsRef,
     selectedEdgeIdsRef,
+    m,
+    applyMutation,
     setSelectedNodeIds,
     setSelectedEdgeIds,
     setSelectedNodeRect,
@@ -138,176 +106,119 @@ export function useBatchMutations({
     setActiveMultiPopover,
     updateSelectedNodeHalo,
     updateSelectedEdgeHalo,
-    isStateDiagram,
-    applyStateAstMutation,
-    applyAstMutation,
     setSelectedSubgraphId,
     setSelectedSubgraphRect,
     setActiveSubgraphPopover,
   ]);
 
-  const handleBatchUpdateShape = useCallback(
-    (shape: MermaidShapeType) => {
+  const handleBatchUpdateNodeKind = useCallback(
+    (kind: string) => {
       if (selectedNodeIds.size === 0) return;
-      applyAstMutation((a) => {
-        updateNodesShape(a, selectedNodeIds, shape);
+      applyMutation((a) => {
+        m.updateNodesKind(a, selectedNodeIds, kind);
       });
       setActiveMultiPopover(null);
     },
-    [selectedNodeIds, applyAstMutation, setActiveMultiPopover]
+    [selectedNodeIds, m, applyMutation, setActiveMultiPopover]
   );
 
   const handleBatchUpdateEdgeType = useCallback(
-    (newType: ArrowType) => {
-      if (selectedEdgeIds.size === 0) return;
-      applyAstMutation((a) => {
-        updateEdgesType(a, selectedEdgeIds, newType);
+    (newType: string) => {
+      if (selectedEdgeIds.size === 0 || !m.updateEdgesType) return;
+      applyMutation((a) => {
+        m.updateEdgesType!(a, selectedEdgeIds, newType);
       });
       setActiveMultiPopover(null);
     },
-    [selectedEdgeIds, applyAstMutation, setActiveMultiPopover]
+    [selectedEdgeIds, m, applyMutation, setActiveMultiPopover]
   );
 
   const handleBatchApplyThemePreset = useCallback(
     (preset: ThemePreset) => {
-      if (isStateDiagram) {
-        applyStateAstMutation((a) => {
-          if (selectedNodeIds.size > 0) {
-            if (!preset.fill && !preset.stroke && !preset.color) {
-              stateMutations.clearStatesStyle(a, selectedNodeIds);
-            } else {
-              const styles: Record<string, string> = {};
-              if (preset.fill) styles['fill'] = preset.fill;
-              if (preset.stroke) styles['stroke'] = preset.stroke;
-              if (preset.color) styles['color'] = preset.color;
-              stateMutations.updateStatesStyle(a, selectedNodeIds, styles);
-            }
-          }
-        });
-        return;
-      }
-
-      applyAstMutation((a) => {
+      applyMutation((a) => {
         if (selectedNodeIds.size > 0) {
           if (!preset.fill && !preset.stroke && !preset.color) {
-            clearNodesStyle(a, selectedNodeIds);
+            m.clearNodesStyle(a, selectedNodeIds);
           } else {
             const styles: Record<string, string> = {};
             if (preset.fill) styles['fill'] = preset.fill;
             if (preset.stroke) styles['stroke'] = preset.stroke;
             if (preset.color) styles['color'] = preset.color;
-            updateNodesStyle(a, selectedNodeIds, styles);
+            m.updateNodesStyle(a, selectedNodeIds, styles);
           }
         }
-        if (selectedEdgeIds.size > 0) {
+        if (selectedEdgeIds.size > 0 && m.updateEdgesStyle) {
           if (!preset.stroke) {
-            clearEdgesStyle(a, selectedEdgeIds);
+            m.clearEdgesStyle!(a, selectedEdgeIds);
           } else {
-            updateEdgesStyle(a, selectedEdgeIds, { stroke: preset.stroke });
+            m.updateEdgesStyle!(a, selectedEdgeIds, { stroke: preset.stroke });
           }
         }
       });
     },
-    [isStateDiagram, applyStateAstMutation, applyAstMutation, selectedNodeIds, selectedEdgeIds]
+    [selectedNodeIds, selectedEdgeIds, m, applyMutation]
   );
 
   const handleBatchUpdateCustomStyle = useCallback(
     (property: string, value: string) => {
-      if (isStateDiagram) {
-        applyStateAstMutation((a) => {
-          if (selectedNodeIds.size > 0) {
-            for (const nid of selectedNodeIds) {
-              const currentStyle = stateMutations.getStateStyle(a, nid) || {};
-              const updated = { ...currentStyle };
-              if (value) updated[property] = value;
-              else delete updated[property];
-              stateMutations.updateStateStyle(a, nid, updated);
-            }
-          }
-        });
-        return;
-      }
-
-      applyAstMutation((a) => {
+      applyMutation((a) => {
         if (selectedNodeIds.size > 0) {
           for (const nid of selectedNodeIds) {
-            const currentStyle = getNodeStyle(a, nid) || {};
+            const currentStyle = m.getNodeStyle(a, nid) || {};
             const updated = { ...currentStyle };
             if (value) updated[property] = value;
             else delete updated[property];
-            updateNodeStyle(a, nid, updated);
+            m.updateNodeStyle(a, nid, Object.keys(updated).length > 0 ? updated : null);
           }
         }
-        if (selectedEdgeIds.size > 0) {
+        if (selectedEdgeIds.size > 0 && m.updateEdgeStyle) {
           for (const eid of selectedEdgeIds) {
-            const currentStyle = getEdgeStyle(a, eid) || {};
+            const currentStyle = m.getEdgeStyle?.(a, eid) || {};
             const updated = { ...currentStyle };
             if (value) updated[property] = value;
             else delete updated[property];
-            updateEdgeStyle(a, eid, updated);
+            m.updateEdgeStyle!(a, eid, Object.keys(updated).length > 0 ? updated : null);
           }
         }
       });
     },
-    [isStateDiagram, applyStateAstMutation, applyAstMutation, selectedNodeIds, selectedEdgeIds]
+    [selectedNodeIds, selectedEdgeIds, m, applyMutation]
   );
 
   const handleBatchClearStyle = useCallback(() => {
-    if (isStateDiagram) {
-      applyStateAstMutation((a) => {
-        if (selectedNodeIds.size > 0) {
-          stateMutations.clearStatesStyle(a, selectedNodeIds);
-        }
-      });
-      return;
-    }
-
-    applyAstMutation((a) => {
+    applyMutation((a) => {
       if (selectedNodeIds.size > 0) {
-        clearNodesStyle(a, selectedNodeIds);
+        m.clearNodesStyle(a, selectedNodeIds);
       }
-      if (selectedEdgeIds.size > 0) {
-        clearEdgesStyle(a, selectedEdgeIds);
+      if (selectedEdgeIds.size > 0 && m.clearEdgesStyle) {
+        m.clearEdgesStyle!(a, selectedEdgeIds);
       }
     });
-  }, [isStateDiagram, applyStateAstMutation, applyAstMutation, selectedNodeIds, selectedEdgeIds]);
+  }, [selectedNodeIds, selectedEdgeIds, m, applyMutation]);
 
   const handleBatchGroupSelected = useCallback(() => {
-    if (isStateDiagram) {
-      const filtered = Array.from(selectedNodeIds).filter((id) => id !== '[*]');
-      if (filtered.length === 0) return;
-      applyStateAstMutation((currentAst) => {
-        const compId = stateMutations.createCompositeState(currentAst, 'Composite State');
-        for (const nid of filtered) {
-          stateMutations.moveStateToComposite(currentAst, nid, compId);
-        }
-      });
-    } else {
-      applyAstMutation((currentAst) => {
-        createSubgraph(currentAst, 'New Group', selectedNodeIds);
-      });
-    }
-  }, [isStateDiagram, applyStateAstMutation, applyAstMutation, selectedNodeIds]);
+    const filtered = Array.from(selectedNodeIds).filter(
+      (id) => !(anchors && anchors.isAnchor(id))
+    );
+    if (filtered.length === 0) return;
+    applyMutation((a) => {
+      m.createGroupWithMembers(a, `New ${driver.labels.group}`, filtered);
+    });
+  }, [selectedNodeIds, anchors, m, driver, applyMutation]);
 
   const handleBatchUngroupSelected = useCallback(() => {
-    if (isStateDiagram) {
-      const filtered = Array.from(selectedNodeIds).filter((id) => id !== '[*]');
-      if (filtered.length === 0) return;
-      applyStateAstMutation((currentAst) => {
-        for (const nid of filtered) {
-          stateMutations.moveStateToComposite(currentAst, nid, undefined);
-        }
-      });
-    } else {
-      applyAstMutation((currentAst) => {
-        moveNodesToSubgraph(currentAst, selectedNodeIds, null);
-      });
-    }
-  }, [isStateDiagram, applyStateAstMutation, applyAstMutation, selectedNodeIds]);
+    const filtered = Array.from(selectedNodeIds).filter(
+      (id) => !(anchors && anchors.isAnchor(id))
+    );
+    if (filtered.length === 0) return;
+    applyMutation((a) => {
+      m.moveNodesToGroup(a, filtered, null);
+    });
+  }, [selectedNodeIds, anchors, m, applyMutation]);
 
   return {
     handleBatchDeleteSelected,
-    handleBatchUpdateShape,
+    handleBatchUpdateNodeKind,
     handleBatchUpdateEdgeType,
     handleBatchApplyThemePreset,
     handleBatchUpdateCustomStyle,

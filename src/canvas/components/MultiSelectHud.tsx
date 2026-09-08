@@ -9,8 +9,10 @@ import {
   FolderIcon,
   UngroupIcon,
 } from '../icons/Icons';
+import { DiagramDriver } from '../../diagrams/types';
 
 export interface MultiSelectHudProps {
+  driver: DiagramDriver;
   selectedNodeCount: number;
   selectedEdgeCount: number;
   centerX: number;
@@ -21,10 +23,10 @@ export interface MultiSelectHudProps {
   onGroupSelected?: () => void;
   onUngroupSelected?: () => void;
   canUngroup?: boolean;
-  isStateDiagram?: boolean;
 }
 
 export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
+  driver,
   selectedNodeCount,
   selectedEdgeCount,
   centerX,
@@ -35,27 +37,18 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
   onGroupSelected,
   onUngroupSelected,
   canUngroup,
-  isStateDiagram = false,
 }) => {
+  const { labels, capabilities } = driver;
   const totalCount = selectedNodeCount + selectedEdgeCount;
 
   const renderBadgeText = () => {
-    if (isStateDiagram) {
-      if (selectedNodeCount > 0 && selectedEdgeCount > 0) {
-        return `${selectedNodeCount} States, ${selectedEdgeCount} Transitions`;
-      }
-      if (selectedNodeCount > 0) {
-        return `${selectedNodeCount} States Selected`;
-      }
-      return `${selectedEdgeCount} Transitions Selected`;
-    }
     if (selectedNodeCount > 0 && selectedEdgeCount > 0) {
-      return `${selectedNodeCount} Steps, ${selectedEdgeCount} Arrows`;
+      return `${selectedNodeCount} ${labels.nodes}, ${selectedEdgeCount} ${labels.edges}`;
     }
     if (selectedNodeCount > 0) {
-      return `${selectedNodeCount} Steps Selected`;
+      return `${selectedNodeCount} ${labels.nodes} Selected`;
     }
-    return `${selectedEdgeCount} Arrows Selected`;
+    return `${selectedEdgeCount} ${labels.edges} Selected`;
   };
 
   return (
@@ -77,33 +70,29 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
 
       <div className="mermaid-hud-divider" />
 
-      {/* Batch Shape / State Type Picker (visible if any nodes selected) */}
-      {selectedNodeCount > 0 && (
+      {/* Batch Kind Picker (visible if any nodes selected) */}
+      {capabilities.supportsNodeKinds && selectedNodeCount > 0 && (
         <button
           type="button"
           className={`mermaid-hud-btn icon-only ${
             activePopover === 'shape' ? 'is-active' : ''
           }`}
           onClick={() => onTogglePopover('shape')}
-          title={
-            isStateDiagram
-              ? 'Change State Type (All Selected States)'
-              : 'Change Shape (All Selected Nodes)'
-          }
+          title={`Change ${labels.node} Kind (All Selected ${labels.nodes})`}
         >
           <ShapesIcon size={14} />
         </button>
       )}
 
-      {/* Batch Arrow Type Picker (Only for flowcharts) */}
-      {!isStateDiagram && selectedEdgeCount > 0 && (
+      {/* Batch Edge Type Picker */}
+      {capabilities.supportsEdgeTypes && selectedEdgeCount > 0 && (
         <button
           type="button"
           className={`mermaid-hud-btn icon-only ${
             activePopover === 'edgeType' ? 'is-active' : ''
           }`}
           onClick={() => onTogglePopover('edgeType')}
-          title="Change Arrow Type (All Selected Arrows)"
+          title={`Change Edge Type (All Selected ${labels.edges})`}
         >
           <ArrowSolidIcon size={14} />
         </button>
@@ -121,33 +110,25 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
         <PaletteIcon size={14} />
       </button>
 
-      {/* Group selected nodes into new subgraph / composite */}
-      {selectedNodeCount > 0 && onGroupSelected && (
+      {/* Group selected nodes into new group */}
+      {capabilities.supportsGroups && selectedNodeCount > 0 && onGroupSelected && (
         <button
           type="button"
           className="mermaid-hud-btn icon-only"
           onClick={onGroupSelected}
-          title={
-            isStateDiagram
-              ? 'Group Selected States into Composite State'
-              : 'Group Selected Nodes into New Subgraph'
-          }
+          title={`Group Selected ${labels.nodes} into New ${labels.group}`}
         >
           <FolderIcon size={14} />
         </button>
       )}
 
-      {/* Ungroup selected nodes from their current subgraphs */}
-      {selectedNodeCount > 0 && canUngroup && onUngroupSelected && (
+      {/* Ungroup selected nodes from their current groups */}
+      {capabilities.supportsGroups && selectedNodeCount > 0 && canUngroup && onUngroupSelected && (
         <button
           type="button"
           className="mermaid-hud-btn icon-only"
           onClick={onUngroupSelected}
-          title={
-            isStateDiagram
-              ? 'Remove Selected States from Composite State'
-              : 'Ungroup Selected Nodes'
-          }
+          title={`Remove Selected ${labels.nodes} from ${labels.group}`}
         >
           <UngroupIcon size={14} />
         </button>

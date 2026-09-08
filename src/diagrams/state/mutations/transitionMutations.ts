@@ -3,6 +3,7 @@
  */
 
 import { MermaidStateAST, MermaidTransitionDef } from '../types';
+import { addState } from './stateMutations';
 
 export function ensureStartEndEntry(ast: MermaidStateAST): void {
   if (!ast.states.has('[*]')) {
@@ -87,4 +88,24 @@ export function updateTransitionLabel(
   if (tr) {
     tr.label = newLabel.trim() || undefined;
   }
+}
+
+/**
+ * Split a transition with a new state: from -> to becomes from -> new -> to,
+ * with the original label moved to the second leg. Returns the new state id.
+ */
+export function insertStateOnTransition(
+  ast: MermaidStateAST,
+  transitionId: string,
+  label = 'New State'
+): string | null {
+  const tr = ast.transitions.find((t) => t.id === transitionId);
+  if (!tr) return null;
+  const newStateId = addState(ast, label);
+  const oldTo = tr.to;
+  const oldLabel = tr.label;
+  tr.to = newStateId;
+  delete tr.label;
+  connectStates(ast, newStateId, oldTo, oldLabel);
+  return newStateId;
 }

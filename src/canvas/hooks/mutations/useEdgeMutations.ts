@@ -1,27 +1,15 @@
 /**
- * Hook for Edge operations (type, reversal, split with intermediate node, label, style, deletion).
+ * Hook for Edge operations (type, reversal, split with intermediate node, label, style, deletion),
+ * dispatched through the current diagram driver's mutation surface.
  */
 
 import { useCallback } from 'react';
-import {
-  clearEdgeStyle,
-  deleteEdge,
-  getEdgeStyle,
-  insertNodeOnEdge,
-  reverseEdgeDirection,
-  updateEdgeLabel,
-  updateEdgeStyle,
-  updateEdgeType,
-} from '../../../ast/mutations';
-import { ArrowType, MermaidFlowchartAST } from '../../../ast/types';
-import { MermaidStateAST } from '../../../diagrams/state/types';
-import * as stateMutations from '../../../diagrams/state/mutations';
+import { DiagramDriver } from '../../../diagrams/types';
 import { EdgeThemePreset } from '../../constants';
 
 export interface UseEdgeMutationsOptions {
-  isStateDiagram: boolean;
-  applyAstMutation: (mutator: (currentAst: MermaidFlowchartAST) => void, keepNodeId?: string) => void;
-  applyStateAstMutation: (mutator: (currentAst: MermaidStateAST) => void, keepNodeId?: string) => void;
+  driver: DiagramDriver;
+  applyMutation: (mutator: (currentAst: any) => void, keepNodeId?: string) => void;
   selectedEdgeId: string | null;
   setSelectedEdgeId: (id: string | null) => void;
   setSelectedEdgeIds: (ids: Set<string>) => void;
@@ -31,9 +19,8 @@ export interface UseEdgeMutationsOptions {
 }
 
 export function useEdgeMutations({
-  isStateDiagram,
-  applyAstMutation,
-  applyStateAstMutation,
+  driver,
+  applyMutation,
   selectedEdgeId,
   setSelectedEdgeId,
   setSelectedEdgeIds,
@@ -41,37 +28,27 @@ export function useEdgeMutations({
   setSelectedNodeId,
   updateSelectedEdgeHalo,
 }: UseEdgeMutationsOptions) {
+  const m = driver.mutations;
+
   const handleChangeEdgeType = useCallback(
-    (newType: ArrowType) => {
-      if (!selectedEdgeId) return;
-      applyAstMutation((a) => {
-        updateEdgeType(a, selectedEdgeId, newType);
+    (newType: string) => {
+      if (!selectedEdgeId || !m.updateEdgeType) return;
+      applyMutation((a) => {
+        m.updateEdgeType!(a, selectedEdgeId, newType);
       });
       setSelectedEdgePos((prev: any) =>
         prev ? { ...prev, arrowType: newType } : null
       );
     },
-    [selectedEdgeId, applyAstMutation, setSelectedEdgePos]
+    [selectedEdgeId, m, applyMutation, setSelectedEdgePos]
   );
 
   const handleReverseEdge = useCallback(() => {
     if (!selectedEdgeId) return;
     let newEdgeId: string | null = null;
-    if (isStateDiagram) {
-      applyStateAstMutation((a) => {
-        const tr = a.transitions.find((t) => t.id === selectedEdgeId);
-        if (tr) {
-          const oldFrom = tr.from;
-          tr.from = tr.to;
-          tr.to = oldFrom;
-          newEdgeId = tr.id;
-        }
-      });
-    } else {
-      applyAstMutation((a) => {
-        newEdgeId = reverseEdgeDirection(a, selectedEdgeId);
-      });
-    }
+    applyMutation((a) => {
+      newEdgeId = m.reverseEdge(a, selectedEdgeId);
+    });
     if (newEdgeId) {
       setSelectedEdgeId(newEdgeId);
       setSelectedEdgePos((prev: any) =>
@@ -84,51 +61,21 @@ export function useEdgeMutations({
           : null
       );
     }
-  }, [
-    selectedEdgeId,
-    isStateDiagram,
-    applyStateAstMutation,
-    applyAstMutation,
-    setSelectedEdgeId,
-    setSelectedEdgePos,
-  ]);
+  }, [selectedEdgeId, m, applyMutation, setSelectedEdgeId, setSelectedEdgePos]);
 
   const handleInsertNodeOnEdge = useCallback(
     (edgeId: string) => {
       let createdNodeId: string | null = null;
-      if (isStateDiagram) {
-        applyStateAstMutation((a) => {
-          const tr = a.transitions.find((t) => t.id === edgeId);
-          if (tr) {
-            const newStateId = stateMutations.addState(a, 'New State');
-            createdNodeId = newStateId;
-            const oldTo = tr.to;
-            const oldLabel = tr.label;
-            tr.to = newStateId;
-            delete tr.label;
-            stateMutations.connectStates(a, newStateId, oldTo, oldLabel);
-          }
-        });
-      } else {
-        applyAstMutation((a) => {
-          const res = insertNodeOnEdge(a, edgeId, 'New Step');
-          if (res) createdNodeId = res.nodeId;
-        });
-      }
+      applyMutation((a) => {
+        createdNodeId = m.insertNodeOnEdge(a, edgeId, `New ${driver.labels.node}`);
+      });
       setSelectedEdgeId(null);
       setSelectedEdgePos(null);
       if (createdNodeId) {
         setSelectedNodeId(createdNodeId);
       }
     },
-    [
-      isStateDiagram,
-      applyStateAstMutation,
-      applyAstMutation,
-      setSelectedEdgeId,
-      setSelectedEdgePos,
-      setSelectedNodeId,
-    ]
+    [m, driver, applyMutation, setSelectedEdgeId, setSelectedEdgePos, setSelectedNodeId]
   );
 
   const handleDeleteSelectedEdge = useCallback(() => {
@@ -137,85 +84,72 @@ export function useEdgeMutations({
     setSelectedEdgeIds(new Set());
     setSelectedEdgePos(null);
     updateSelectedEdgeHalo(new Set());
-    if (isStateDiagram) {
-      applyStateAstMutation((a) => {
-        stateMutations.deleteTransition(a, targetEdgeId);
-      });
-    } else {
-      applyAstMutation((a) => {
-        deleteEdge(a, targetEdgeId);
-      });
-    }
+    applyMutation((a) => {
+      m.deleteEdge(a, targetEdgeId);
+    });
   }, [
     selectedEdgeId,
+    m,
     setSelectedEdgeIds,
     setSelectedEdgePos,
     updateSelectedEdgeHalo,
-    isStateDiagram,
-    applyStateAstMutation,
-    applyAstMutation,
+    applyMutation,
   ]);
 
   const handleUpdateEdgeLabel = useCallback(
     (newLabel: string) => {
       if (!selectedEdgeId) return;
-      if (isStateDiagram) {
-        applyStateAstMutation((a) => {
-          stateMutations.updateTransitionLabel(a, selectedEdgeId, newLabel);
-        });
-      } else {
-        applyAstMutation((a) => {
-          updateEdgeLabel(a, selectedEdgeId, newLabel);
-        });
-      }
+      applyMutation((a) => {
+        m.updateEdgeLabel(a, selectedEdgeId, newLabel);
+      });
       setSelectedEdgePos((prev: any) =>
         prev ? { ...prev, label: newLabel } : null
       );
     },
-    [selectedEdgeId, isStateDiagram, applyStateAstMutation, applyAstMutation, setSelectedEdgePos]
+    [selectedEdgeId, m, applyMutation, setSelectedEdgePos]
   );
 
   const handleApplyEdgePreset = useCallback(
     (preset: EdgeThemePreset) => {
-      if (!selectedEdgeId) return;
-      applyAstMutation((a) => {
+      if (!selectedEdgeId || !m.updateEdgeStyle || !m.clearEdgeStyle) return;
+      applyMutation((a) => {
         if (!preset.stroke) {
-          clearEdgeStyle(a, selectedEdgeId);
+          m.clearEdgeStyle!(a, selectedEdgeId);
         } else {
-          const current = getEdgeStyle(a, selectedEdgeId) || {};
-          updateEdgeStyle(a, selectedEdgeId, {
+          const current = m.getEdgeStyle?.(a, selectedEdgeId) || {};
+          m.updateEdgeStyle!(a, selectedEdgeId, {
             ...current,
             stroke: preset.stroke,
           });
         }
       });
     },
-    [selectedEdgeId, applyAstMutation]
+    [selectedEdgeId, m, applyMutation]
   );
 
   const handleUpdateEdgeCustomStyle = useCallback(
     (property: string, value: string) => {
-      if (!selectedEdgeId) return;
-      applyAstMutation((a) => {
-        const current = getEdgeStyle(a, selectedEdgeId) || {};
+      if (!selectedEdgeId || !m.updateEdgeStyle) return;
+      applyMutation((a) => {
+        const current = m.getEdgeStyle?.(a, selectedEdgeId) || {};
         const updated = { ...current };
         if (value) {
           updated[property] = value;
         } else {
           delete updated[property];
         }
-        updateEdgeStyle(a, selectedEdgeId, updated);
+        m.updateEdgeStyle!(a, selectedEdgeId, Object.keys(updated).length > 0 ? updated : null);
       });
     },
-    [selectedEdgeId, applyAstMutation]
+    [selectedEdgeId, m, applyMutation]
   );
 
   const handleClearEdgeStyle = useCallback(() => {
-    if (!selectedEdgeId) return;
-    applyAstMutation((a) => {
-      clearEdgeStyle(a, selectedEdgeId);
+    if (!selectedEdgeId || !m.clearEdgeStyle) return;
+    applyMutation((a) => {
+      m.clearEdgeStyle!(a, selectedEdgeId);
     });
-  }, [selectedEdgeId, applyAstMutation]);
+  }, [selectedEdgeId, m, applyMutation]);
 
   return {
     handleChangeEdgeType,
