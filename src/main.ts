@@ -1,12 +1,8 @@
 import {
   Plugin,
   WorkspaceLeaf,
-  Notice,
   MarkdownView,
-  MarkdownRenderChild,
   MarkdownPostProcessorContext,
-  TFile,
-  setIcon,
 } from 'obsidian';
 import {
   DEFAULT_SETTINGS,
@@ -17,23 +13,18 @@ import {
   MermaidFileView,
   VIEW_TYPE_MERMAID_FILE,
 } from './views/MermaidFileView';
-import { MermaidBlockModal } from './views/MermaidBlockModal';
-import { detectDiagramType } from './diagrams/registry';
-import { DiagramTemplateModal } from './views/DiagramTemplateModal';
-import { findTargetMermaidBlock } from './utils/markdownBlock';
-
-class MermaidObserverChild extends MarkdownRenderChild {
-  private observer: MutationObserver;
-
-  constructor(containerEl: HTMLElement, observer: MutationObserver) {
-    super(containerEl);
-    this.observer = observer;
-  }
-
-  onunload(): void {
-    this.observer.disconnect();
-  }
-}
+import {
+  MermaidObserverChild,
+  setupGlobalWorkspaceObserver,
+  scanAndAttachToElement,
+  scanActiveWorkspace,
+  scanActiveView,
+} from './obsidian/workspaceObserver';
+import {
+  createNewDiagram,
+  createDiagramFileWithTemplate,
+  openVisualModeForActiveFile,
+} from './obsidian/diagramOpener';
 
 export default class VisualMermaidPlugin extends Plugin {
   public settings: VisualMermaidSettings = DEFAULT_SETTINGS;
@@ -55,11 +46,11 @@ export default class VisualMermaidPlugin extends Plugin {
         element.setAttribute('data-mermaid-line-start', String(info.lineStart));
         element.setAttribute('data-mermaid-line-end', String(info.lineEnd));
       }
-      this.scanAndAttachToElement(element, context.sourcePath, context);
+      scanAndAttachToElement(element, this, context.sourcePath, context);
 
       // MutationObserver to catch asynchronous Mermaid SVG rendering
       const observer = new MutationObserver(() => {
-        this.scanAndAttachToElement(element, context.sourcePath, context);
+        scanAndAttachToElement(element, this, context.sourcePath, context);
       });
       observer.observe(element, { childList: true, subtree: true });
 
@@ -68,7 +59,7 @@ export default class VisualMermaidPlugin extends Plugin {
 
     // 3. Global workspace DOM observer for Live Preview & Reading View
     this.app.workspace.onLayoutReady(() => {
-      this.setupGlobalWorkspaceObserver();
+      setupGlobalWorkspaceObserver(this);
     });
 
     // 4. Ribbon Icon
@@ -104,431 +95,40 @@ export default class VisualMermaidPlugin extends Plugin {
     this.addSettingTab(new VisualMermaidSettingTab(this.app, this));
   }
 
-  setupGlobalWorkspaceObserver() {
-    let scanTimer: number | null = null;
-    const scheduleScan = (delay = 100) => {
-      if (scanTimer !== null) window.clearTimeout(scanTimer);
-      scanTimer = window.setTimeout(() => {
-        scanTimer = null;
-        this.scanActiveWorkspace();
-      }, delay);
-    };
-
-    const target = this.app.workspace.containerEl || document.body;
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.addedNodes.length > 0) {
-          scheduleScan(120);
-          return;
-        }
-      }
-    });
-
-    observer.observe(target, {
-      childList: true,
-      subtree: true,
-    });
-
-    this.register(() => {
-      observer.disconnect();
-      if (scanTimer !== null) window.clearTimeout(scanTimer);
-    });
-
-    // Initial staggered scans to catch asynchronously rendered diagrams
-    scheduleScan(50);
-    scheduleScan(250);
-    scheduleScan(600);
-    scheduleScan(1200);
-
-    // Also re-scan on workspace layout and leaf changes
-    this.registerEvent(
-      this.app.workspace.on('layout-change', () => scheduleScan(100))
-    );
-    this.registerEvent(
-      this.app.workspace.on('active-leaf-change', () => scheduleScan(100))
-    );
-    this.registerEvent(
-      this.app.workspace.on('editor-change', () => scheduleScan(150))
-    );
+  // Delegated helpers for backward compatibility
+  scanActiveWorkspace(): void {
+    scanActiveWorkspace(this);
   }
 
-  scanActiveWorkspace() {
-    const root = this.app.workspace.containerEl || document.body;
-    this.scanAndAttachToElement(root);
-  }
-
-  scanActiveView() {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) return;
-    this.scanAndAttachToElement(view.contentEl, view.file?.path);
+  scanActiveView(): void {
+    scanActiveView(this);
   }
 
   scanAndAttachToElement(
     container: HTMLElement,
     sourcePath?: string,
     context?: MarkdownPostProcessorContext
-  ) {
-    // Never scan inside our own editor modal or standalone view
-    if (
-      container.closest('.mod-mermaid-block-modal') ||
-      container.closest('.mermaid-block-modal-root') ||
-      container.closest('.mermaid-file-view-root') ||
-      container.closest('.mermaid-native-container') ||
-      container.closest('.mermaid-native-view') ||
-      container.closest('.mermaid-native-editor-root') ||
-      container.closest('.mermaid-studio-leaf-root') ||
-      container.closest('.mermaid-native-world') ||
-      container.closest('.mermaid-native-svg-mount')
-    ) {
-      return;
-    }
-
-    const mermaidSelectors = [
-      '.block-language-mermaid',
-      '.mermaid',
-      'pre.language-mermaid',
-      'svg[id*="mermaid"]',
-      'svg .flowchart-link',
-    ];
-
-    const targets: HTMLElement[] = [];
-    for (const sel of mermaidSelectors) {
-      if (container.matches?.(sel)) {
-        targets.push(container);
-      }
-      container.querySelectorAll(sel).forEach((el) => {
-        targets.push(el as HTMLElement);
-      });
-    }
-
-    const seenContainers = new Set<HTMLElement>();
-    for (const el of targets) {
-      const parent = this.findMermaidContainer(el);
-      if (parent && !seenContainers.has(parent)) {
-        seenContainers.add(parent);
-        this.attachButtonToTarget(parent, sourcePath, context);
-      }
-    }
+  ): void {
+    scanAndAttachToElement(container, this, sourcePath, context);
   }
 
-  findMermaidContainer(el: HTMLElement): HTMLElement | null {
-    // 1. STRICT: Never attach button inside Visual Mermaid modals or editor views
-    if (
-      el.closest('.mod-mermaid-block-modal') ||
-      el.closest('.mermaid-block-modal-root') ||
-      el.closest('.mermaid-file-view-root') ||
-      el.closest('.mermaid-native-container') ||
-      el.closest('.mermaid-native-view') ||
-      el.closest('.mermaid-native-editor-root') ||
-      el.closest('.mermaid-studio-leaf-root') ||
-      el.closest('.mermaid-native-world') ||
-      el.closest('.mermaid-native-svg-mount')
-    ) {
-      return null;
-    }
-
-    // 2. In Live Preview (CodeMirror 6), find the embed container
-    const cmBlock =
-      el.closest('.cm-preview-code-block') || el.closest('.cm-embed-block');
-    if (cmBlock) return cmBlock as HTMLElement;
-
-    // 3. In Reading View, find .block-language-mermaid
-    const blockLang = el.classList?.contains('block-language-mermaid')
-      ? el
-      : el.closest('.block-language-mermaid');
-    if (blockLang) return blockLang as HTMLElement;
-
-    const mermaidDiv = el.classList?.contains('mermaid')
-      ? el
-      : el.closest('.mermaid');
-    if (mermaidDiv) return mermaidDiv as HTMLElement;
-
-    return el.parentElement || el;
+  openVisualModeForActiveFile(view: MarkdownView): Promise<void> {
+    return openVisualModeForActiveFile(this, view);
   }
 
-  attachButtonToTarget(
-    parent: HTMLElement,
-    sourcePath?: string,
-    context?: MarkdownPostProcessorContext
-  ) {
-    if (
-      !parent ||
-      parent.closest('.mod-mermaid-block-modal') ||
-      parent.closest('.mermaid-block-modal-root') ||
-      parent.closest('.mermaid-file-view-root') ||
-      parent.closest('.mermaid-native-container') ||
-      parent.closest('.mermaid-native-view')
-    ) {
-      return;
-    }
-
-    if (parent.querySelector(':scope > .mermaid-studio-edit-btn')) return;
-
-    if (context) {
-      const info = context.getSectionInfo(parent);
-      if (info) {
-        parent.setAttribute('data-mermaid-line-start', String(info.lineStart));
-        parent.setAttribute('data-mermaid-line-end', String(info.lineEnd));
-      }
-    }
-
-    parent.style.position = 'relative';
-
-    const editBtn = createEl('button', {
-      cls: 'mermaid-studio-edit-btn clickable-icon',
-      attr: {
-        'aria-label': 'Edit in visual mode',
-      },
-    });
-    setIcon(editBtn, 'git-pull-request');
-
-    // Dynamic positioning: match dimensions and place cleanly to the left of Obsidian's "Edit this block"
-    const adjustPosition = () => {
-      const editBlockBtn = parent.querySelector(
-        '.edit-block-button'
-      ) as HTMLElement;
-
-      if (editBlockBtn) {
-        const parentRect = parent.getBoundingClientRect();
-        const ebRect = editBlockBtn.getBoundingClientRect();
-
-        if (ebRect.width > 0 && parentRect.width > 0) {
-          // Exactly match Obsidian's button dimensions
-          editBtn.style.width = `${Math.round(ebRect.width)}px`;
-          editBtn.style.height = `${Math.round(ebRect.height)}px`;
-
-          // Position immediately to the left with 4px gap
-          const offsetRight = Math.max(
-            4,
-            Math.round(parentRect.right - ebRect.left + 4)
-          );
-          editBtn.style.right = `${offsetRight}px`;
-          editBtn.style.left = 'auto';
-
-          // Match exact vertical top offset
-          const topDiff = Math.round(ebRect.top - parentRect.top);
-          if (topDiff >= 0) {
-            editBtn.style.top = `${topDiff}px`;
-          }
-          return;
-        }
-      }
-
-      // Default fallback
-      editBtn.style.width = '28px';
-      editBtn.style.height = '28px';
-      editBtn.style.right = '36px';
-      editBtn.style.top = 'var(--size-2-2, 8px)';
-      editBtn.style.left = 'auto';
-    };
-
-    adjustPosition();
-    parent.addEventListener('mouseenter', adjustPosition);
-    editBtn.addEventListener('mouseenter', adjustPosition);
-
-    editBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-
-      // Resolve file path and target leaf
-      let filePath = sourcePath;
-      let targetLeaf: WorkspaceLeaf | null = null;
-      const leaves = this.app.workspace.getLeavesOfType('markdown');
-      for (const leaf of leaves) {
-        if (
-          leaf.view instanceof MarkdownView &&
-          leaf.view.containerEl.contains(parent)
-        ) {
-          targetLeaf = leaf;
-          filePath = leaf.view.file?.path;
-          break;
-        }
-      }
-      if (!filePath) {
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        targetLeaf = activeView?.leaf || null;
-        filePath = activeView?.file?.path || this.app.workspace.getActiveFile()?.path;
-      }
-
-      if (!filePath) {
-        new Notice('Could not determine note file path.');
-        return;
-      }
-
-      const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof TFile)) {
-        new Notice('File not found in vault.');
-        return;
-      }
-
-      const content = await this.app.vault.read(file);
-
-      // 1. Line number hint from CodeMirror 6 posAtDOM (Live Preview)
-      let hintLine: number | undefined;
-      if (targetLeaf?.view instanceof MarkdownView) {
-        try {
-          const editor = targetLeaf.view.editor;
-          const cm = (editor as any)?.cm;
-          if (cm && typeof cm.posAtDOM === 'function') {
-            let pos: number | null = null;
-            try {
-              pos = cm.posAtDOM(parent);
-            } catch {
-              pos = cm.posAtDOM(editBtn);
-            }
-            if (pos !== null && typeof pos === 'number' && pos >= 0) {
-              hintLine = editor.offsetToPos(pos).line;
-            }
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-
-      // 2. DOM index of this button among all mermaid buttons in the view
-      let domIndex: number | undefined;
-      if (targetLeaf?.view instanceof MarkdownView) {
-        try {
-          const viewEl = targetLeaf.view.containerEl;
-          const allBtns = Array.from(
-            viewEl.querySelectorAll('.mermaid-studio-edit-btn')
-          );
-          const idx = allBtns.indexOf(editBtn);
-          if (idx >= 0) domIndex = idx;
-        } catch {
-          /* ignore */
-        }
-      }
-
-      // 3. Section line start from context or dataset attribute
-      let sectionLineStart: number | undefined;
-      const directInfo = context ? context.getSectionInfo(parent) : null;
-      if (directInfo) {
-        sectionLineStart = directInfo.lineStart;
-      } else {
-        const stamped =
-          parent.getAttribute('data-mermaid-line-start') ||
-          parent
-            .closest('[data-mermaid-line-start]')
-            ?.getAttribute('data-mermaid-line-start');
-        if (stamped) {
-          const parsed = parseInt(stamped, 10);
-          if (!isNaN(parsed)) sectionLineStart = parsed;
-        }
-      }
-
-      // 4. Resolve exact target block
-      const blockMatch = findTargetMermaidBlock({
-        content,
-        hintLine,
-        domIndex,
-        domText: parent.textContent || '',
-        sectionLineStart,
-      });
-
-      if (!blockMatch) {
-        new Notice('No Mermaid diagram block found in note.');
-        return;
-      }
-
-      const rawCode = blockMatch.rawCode;
-      const sectionInfo = {
-        lineStart: blockMatch.lineStart,
-        lineEnd: blockMatch.lineEnd,
-        text: content,
-      };
-
-      // Scope Check: allow any supported diagram (Flowchart, State Diagram)
-      const diagramType = detectDiagramType(rawCode);
-      if (diagramType === 'unknown') {
-        new Notice(
-          'Visual Mode currently supports Flowcharts and State Diagrams.'
-        );
-        return;
-      }
-
-      new MermaidBlockModal(
-        this.app,
-        this,
-        filePath,
-        sectionInfo,
-        rawCode
-      ).open();
-    });
-
-    parent.appendChild(editBtn);
+  createNewDiagram(): Promise<void> {
+    return createNewDiagram(this);
   }
 
-  async openVisualModeForActiveFile(view: MarkdownView) {
-    const file = view.file;
-    if (!file) return;
-    const content = await this.app.vault.read(file);
-    const cursorLine = view.editor.getCursor().line;
-
-    const blockMatch = findTargetMermaidBlock({
-      content,
-      hintLine: cursorLine,
-    });
-
-    if (!blockMatch) {
-      new Notice('No Mermaid code block found in active note.');
-      return;
-    }
-
-    const rawCode = blockMatch.rawCode;
-    const sectionInfo = {
-      lineStart: blockMatch.lineStart,
-      lineEnd: blockMatch.lineEnd,
-      text: content,
-    };
-
-    new MermaidBlockModal(
-      this.app,
-      this,
-      file.path,
-      sectionInfo,
-      rawCode
-    ).open();
+  createDiagramFileWithTemplate(initialCode: string): Promise<void> {
+    return createDiagramFileWithTemplate(this, initialCode);
   }
 
-  async createNewDiagram() {
-    new DiagramTemplateModal(this.app, (template) => {
-      this.createDiagramFileWithTemplate(template.defaultCode);
-    }).open();
-  }
-
-  async createDiagramFileWithTemplate(initialCode: string) {
-    try {
-      const activeFile = this.app.workspace.getActiveFile();
-      const parentDir = activeFile?.parent ? activeFile.parent.path : '';
-      const baseName = 'New Diagram';
-      let fileName = `${baseName}.mmd`;
-      let counter = 1;
-
-      while (
-        this.app.vault.getAbstractFileByPath(
-          parentDir ? `${parentDir}/${fileName}` : fileName
-        )
-      ) {
-        fileName = `${baseName} ${counter++}.mmd`;
-      }
-
-      const fullPath = parentDir ? `${parentDir}/${fileName}` : fileName;
-      const createdFile = await this.app.vault.create(fullPath, initialCode);
-      const leaf = this.app.workspace.getLeaf('tab');
-      await leaf.openFile(createdFile);
-
-      new Notice(`Created diagram: ${fileName}`);
-    } catch (e: any) {
-      new Notice(`Error creating diagram: ${e.message}`);
-    }
-  }
-
-  async loadSettings() {
+  async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
 
-  async saveSettings() {
+  async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
   }
 }
