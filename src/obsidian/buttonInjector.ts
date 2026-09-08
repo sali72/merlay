@@ -12,8 +12,7 @@ import {
 } from 'obsidian';
 import type VisualMermaidPlugin from '../main';
 import { findTargetMermaidBlock } from '../utils/markdownBlock';
-import { detectDiagramType } from '../diagrams/registry';
-import { MermaidBlockModal } from '../views/MermaidBlockModal';
+import { openDiagramModal } from './diagramOpener';
 
 export function attachEditButton(
   parent: HTMLElement,
@@ -201,29 +200,7 @@ export function attachEditButton(
       return;
     }
 
-    const rawCode = blockMatch.rawCode;
-    const sectionInfo = {
-      lineStart: blockMatch.lineStart,
-      lineEnd: blockMatch.lineEnd,
-      text: content,
-    };
-
-    // Scope Check: allow any supported diagram (Flowchart, State Diagram)
-    const diagramType = detectDiagramType(rawCode);
-    if (diagramType === 'unknown') {
-      new Notice(
-        'Visual Mode currently supports Flowcharts and State Diagrams.'
-      );
-      return;
-    }
-
-    new MermaidBlockModal(
-      plugin.app,
-      plugin,
-      filePath,
-      sectionInfo,
-      rawCode
-    ).open();
+    openDiagramModal(plugin, filePath, blockMatch, content);
   });
 
   parent.appendChild(editBtn);

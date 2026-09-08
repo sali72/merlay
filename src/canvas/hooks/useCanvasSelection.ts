@@ -315,6 +315,40 @@ export function useCanvasSelection({
     };
   }, [selectedSubgraphRect, selectedSubgraphId]);
 
+  const isolateSelection = useCallback(
+    (keepType: 'node' | 'edge' | 'subgraph', id: string) => {
+      const empty = new Set<string>();
+      if (keepType === 'node') {
+        selectedEdgeIdsRef.current = empty;
+        setSelectedEdgeIds(empty);
+        setSelectedEdgePos(null);
+        updateSelectedEdgeHalo(empty);
+      } else if (keepType === 'edge') {
+        selectedNodeIdsRef.current = empty;
+        setSelectedNodeIds(empty);
+        setSelectedNodeRect(null);
+        updateSelectedNodeHalo(empty);
+        setSelectedEdgeId(id);
+        updateSelectedEdgeHalo(new Set([id]));
+      } else if (keepType === 'subgraph') {
+        selectedNodeIdsRef.current = empty;
+        selectedEdgeIdsRef.current = empty;
+        setSelectedNodeIds(empty);
+        setSelectedEdgeIds(empty);
+        setSelectedNodeRect(null);
+        setSelectedEdgePos(null);
+        setActiveNodePopover(null);
+        setActiveEdgePopover(null);
+        setActiveMultiPopover(null);
+        setActiveSubgraphPopover(null);
+        updateSelectedNodeHalo(empty);
+        updateSelectedEdgeHalo(empty);
+        setSelectedSubgraphId(id);
+      }
+    },
+    [updateSelectedNodeHalo, updateSelectedEdgeHalo, setSelectedEdgeId]
+  );
+
   return {
     selectedNodeIds,
     setSelectedNodeIds,
@@ -346,6 +380,7 @@ export function useCanvasSelection({
     setSelectedNodeId,
     setSelectedEdgeId,
     clearSelection,
+    isolateSelection,
     updateSelectedNodeHalo,
     updateSelectedEdgeHalo,
     updateSelectedNodeRect,

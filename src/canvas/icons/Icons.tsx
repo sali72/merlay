@@ -6,332 +6,289 @@ export interface IconProps {
   strokeWidth?: number;
 }
 
-export const PlusIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+const createIcon = (
+  content: React.ReactNode,
+  defaultViewBox = '0 0 24 24'
+): React.FC<IconProps> => {
+  return ({ size = 15, className = '', strokeWidth = 2 }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox={defaultViewBox}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      {content}
+    </svg>
+  );
+};
+
+export const PlusIcon = createIcon(
+  <>
     <path d="M5 12h14" />
     <path d="M12 5v14" />
-  </svg>
+  </>
 );
 
-export const CardIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <rect width="18" height="18" x="3" y="3" rx="2" />
-  </svg>
-);
+export const CardIcon = createIcon(<rect width="18" height="18" x="3" y="3" rx="2" />);
 
-export const ShapesIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ShapesIcon = createIcon(
+  <>
     <path d="M8.3 10a.7.7 0 0 1-.626-.382l-3.5-7A.7.7 0 0 1 4.8 1.618h7a.7.7 0 0 1 .626 1.000l-3.5 7A.7.7 0 0 1 8.3 10Z" />
     <rect width="7" height="7" x="14" y="3" rx="1" />
     <circle cx="8" cy="17" r="4" />
     <polygon points="17 14 20 20 14 20" />
-  </svg>
+  </>
 );
 
-export const FolderIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <rect width="18" height="18" x="3" y="3" rx="2" strokeDasharray="4 3" />
-  </svg>
-);
+export const FolderIcon = createIcon(<rect width="18" height="18" x="3" y="3" rx="2" strokeDasharray="4 3" />);
 
-export const PaletteIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const PaletteIcon = createIcon(
+  <>
     <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
     <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
     <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
     <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
     <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
-  </svg>
+  </>
 );
 
-export const PencilIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const PencilIcon = createIcon(
+  <>
     <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
     <path d="m15 5 4 4" />
-  </svg>
+  </>
 );
 
-export const TrashIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const TrashIcon = createIcon(
+  <>
     <path d="M3 6h18" />
     <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
     <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
     <line x1="10" x2="10" y1="11" y2="17" />
     <line x1="14" x2="14" y1="11" y2="17" />
-  </svg>
+  </>
 );
 
-export const UngroupIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const UngroupIcon = createIcon(
+  <>
     <rect width="8" height="8" x="2" y="2" rx="1" />
     <rect width="8" height="8" x="14" y="14" rx="1" />
     <path d="M14 6h2a2 2 0 0 1 2 2v2" />
     <path d="M6 14H4a2 2 0 0 0-2 2v2" />
-  </svg>
+  </>
 );
 
-export const WandIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const WandIcon = createIcon(
+  <>
     <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
     <path d="M5 3v4" />
     <path d="M19 17v4" />
     <path d="M3 5h4" />
     <path d="M17 19h4" />
-  </svg>
+  </>
 );
 
-export const UndoIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const UndoIcon = createIcon(
+  <>
     <path d="M9 14 4 9l5-5" />
     <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
-  </svg>
+  </>
 );
 
-export const RedoIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const RedoIcon = createIcon(
+  <>
     <path d="m15 14 5-5-5-5" />
     <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13" />
-  </svg>
+  </>
 );
 
-export const CopyIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const CopyIcon = createIcon(
+  <>
     <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
     <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-  </svg>
+  </>
 );
 
-export const CodeIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const CodeIcon = createIcon(
+  <>
     <polyline points="16 18 22 12 16 6" />
     <polyline points="8 6 2 12 8 18" />
-  </svg>
+  </>
 );
 
-export const ImageIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ImageIcon = createIcon(
+  <>
     <rect width="18" height="18" x="3" y="3" rx="2" />
     <circle cx="9" cy="9" r="2" />
     <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-  </svg>
+  </>
 );
 
-export const VectorIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const VectorIcon = createIcon(
+  <>
     <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
     <polyline points="14 2 14 8 20 8" />
     <path d="m10 13-2 2 2 2" />
     <path d="m14 17 2-2-2-2" />
-  </svg>
+  </>
 );
 
-export const MaximizeIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const MaximizeIcon = createIcon(
+  <>
     <path d="M8 3H5a2 2 0 0 0-2 2v3" />
     <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
     <path d="M3 16v3a2 2 0 0 0 2 2h3" />
     <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-  </svg>
+  </>
 );
 
-export const ReverseIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ReverseIcon = createIcon(
+  <>
     <path d="m7 16-4-4 4-4" />
     <path d="M3 12h18" />
     <path d="m17 8 4 4-4 4" />
-  </svg>
+  </>
 );
 
-export const FitViewIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-  </svg>
+export const FitViewIcon = createIcon(
+  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
 );
 
-export const ChevronDownIcon: React.FC<IconProps> = ({ size = 12, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="m6 9 6 6 6-6" />
-  </svg>
-);
-
-export const CloseIcon: React.FC<IconProps> = ({ size = 14, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ChevronDownIcon = createIcon(<path d="m6 9 6 6 6-6" />);
+export const CloseIcon = createIcon(
+  <>
     <line x1="18" y1="6" x2="6" y2="18" />
     <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
+  </>
 );
 
-export const AlertWarningIcon: React.FC<IconProps> = ({ size = 14, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const AlertWarningIcon = createIcon(
+  <>
     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
     <line x1="12" y1="9" x2="12" y2="13" />
     <line x1="12" y1="17" x2="12.01" y2="17" />
-  </svg>
+  </>
 );
 
-export const EditDiagramIcon: React.FC<IconProps> = ({ size = 14, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const EditDiagramIcon = createIcon(
+  <>
     <path d="M12 20h9" />
     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-  </svg>
+  </>
 );
 
-/* Arrow Type Icons for Edge Toolbar */
-export const ArrowSolidIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ArrowSolidIcon = createIcon(
+  <>
     <line x1="3" y1="12" x2="20" y2="12" />
     <polyline points="15 7 20 12 15 17" />
-  </svg>
+  </>
 );
 
-export const ArrowDottedIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ArrowDottedIcon = createIcon(
+  <>
     <line x1="3" y1="12" x2="20" y2="12" strokeDasharray="3 3" />
     <polyline points="15 7 20 12 15 17" />
-  </svg>
+  </>
 );
 
-export const ArrowThickIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 3 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ArrowThickIcon = createIcon(
+  <>
     <line x1="3" y1="12" x2="19" y2="12" />
     <polyline points="14 7 19 12 14 17" strokeWidth="2.5" />
-  </svg>
+  </>
 );
 
-export const ArrowBidirectionalIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const ArrowBidirectionalIcon = createIcon(
+  <>
     <polyline points="8 7 3 12 8 17" />
     <line x1="3" y1="12" x2="21" y2="12" />
     <polyline points="16 7 21 12 16 17" />
-  </svg>
+  </>
 );
 
-export const ArrowOpenIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <line x1="3" y1="12" x2="21" y2="12" />
-  </svg>
-);
+export const ArrowOpenIcon = createIcon(<line x1="3" y1="12" x2="21" y2="12" />);
 
-export const InsertStepIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const InsertStepIcon = createIcon(
+  <>
     <circle cx="12" cy="12" r="9" />
     <line x1="12" y1="8" x2="12" y2="16" />
     <line x1="8" y1="12" x2="16" y2="12" />
-  </svg>
+  </>
 );
 
-export const CheckIcon: React.FC<IconProps> = ({ size = 15, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
+export const CheckIcon = createIcon(<polyline points="20 6 9 17 4 12" />);
 
-export const ShapeIcons = {
-  rectangle: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-    </svg>
-  ),
-  rounded: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="5" width="18" height="14" rx="6" />
-    </svg>
-  ),
-  stadium: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="6" width="20" height="12" rx="6" />
-    </svg>
-  ),
-  cylinder: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <ellipse cx="12" cy="6" rx="9" ry="3" />
-      <path d="M3 6v12c0 1.66 4.03 3 9 3s9-1.34 9-3V6" />
-    </svg>
-  ),
-  circle: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-    </svg>
-  ),
-  double_circle: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-    </svg>
-  ),
-  diamond: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12,2 22,12 12,22 2,12" />
-    </svg>
-  ),
-  hexagon: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="6,3 18,3 23,12 18,21 6,21 1,12" />
-    </svg>
-  ),
-  subroutine: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <line x1="7" y1="5" x2="7" y2="19" />
-      <line x1="17" y1="5" x2="17" y2="19" />
-    </svg>
-  ),
-  parallelogram: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="7,5 22,5 17,19 2,19" />
-    </svg>
-  ),
-  parallelogram_alt: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="2,5 17,5 22,19 7,19" />
-    </svg>
-  ),
-  trapezoid: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="6,5 18,5 22,19 2,19" />
-    </svg>
-  ),
-  trapezoid_alt: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="2,5 22,5 18,19 6,19" />
-    </svg>
-  ),
-  asymmetric: ({ size = 14 }: { size?: number } = {}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="2,5 18,5 22,12 18,19 2,19" />
-    </svg>
-  ),
-};
-
-export const SelectModeIcon: React.FC<IconProps> = ({ size = 14, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const SelectModeIcon = createIcon(
+  <>
     <path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
     <path d="m13 13 6 6" />
-  </svg>
+  </>
 );
 
-export const HandModeIcon: React.FC<IconProps> = ({ size = 14, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const HandModeIcon = createIcon(
+  <>
     <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0" />
     <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2" />
     <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
     <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
-  </svg>
+  </>
 );
 
-export const CheckSquareIcon: React.FC<IconProps> = ({ size = 14, className = '', strokeWidth = 2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+export const CheckSquareIcon = createIcon(
+  <>
     <polyline points="9 11 12 14 22 4" />
     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-  </svg>
+  </>
 );
 
-export const StateTypeIcons = {
-  normal: ({ size = 14 }: { size?: number } = {}) => (
+const createShape = (content: React.ReactNode) => {
+  return ({ size = 14 }: { size?: number } = {}) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="5" width="18" height="14" rx="4" />
+      {content}
     </svg>
+  );
+};
+
+export const ShapeIcons = {
+  rectangle: createShape(<rect x="3" y="5" width="18" height="14" rx="2" />),
+  rounded: createShape(<rect x="3" y="5" width="18" height="14" rx="6" />),
+  stadium: createShape(<rect x="2" y="6" width="20" height="12" rx="6" />),
+  cylinder: createShape(
+    <>
+      <ellipse cx="12" cy="6" rx="9" ry="3" />
+      <path d="M3 6v12c0 1.66 4.03 3 9 3s9-1.34 9-3V6" />
+    </>
   ),
+  circle: createShape(<circle cx="12" cy="12" r="9" />),
+  double_circle: createShape(
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+    </>
+  ),
+  diamond: createShape(<polygon points="12,2 22,12 12,22 2,12" />),
+  hexagon: createShape(<polygon points="6,3 18,3 23,12 18,21 6,21 1,12" />),
+  subroutine: createShape(
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <line x1="7" y1="5" x2="7" y2="19" />
+      <line x1="17" y1="5" x2="17" y2="19" />
+    </>
+  ),
+  parallelogram: createShape(<polygon points="7,5 22,5 17,19 2,19" />),
+  parallelogram_alt: createShape(<polygon points="2,5 17,5 22,19 7,19" />),
+  trapezoid: createShape(<polygon points="6,5 18,5 22,19 2,19" />),
+  trapezoid_alt: createShape(<polygon points="2,5 22,5 18,19 6,19" />),
+  asymmetric: createShape(<polygon points="2,5 18,5 22,12 18,19 2,19" />),
+};
+
+export const StateTypeIcons = {
+  normal: createShape(<rect x="3" y="5" width="18" height="14" rx="4" />),
   start: ({ size = 14 }: { size?: number } = {}) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <circle cx="12" cy="12" r="7" />
@@ -359,5 +316,3 @@ export const StateTypeIcons = {
     </svg>
   ),
 };
-
-

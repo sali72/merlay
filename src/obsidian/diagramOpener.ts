@@ -28,7 +28,22 @@ export async function openVisualModeForActiveFile(
     return;
   }
 
+  openDiagramModal(plugin, file.path, blockMatch, content);
+}
+
+export function openDiagramModal(
+  plugin: VisualMermaidPlugin,
+  filePath: string,
+  blockMatch: { rawCode: string; lineStart: number; lineEnd: number },
+  content: string
+): boolean {
   const rawCode = blockMatch.rawCode;
+  const diagramType = detectDiagramType(rawCode);
+  if (diagramType === 'unknown') {
+    new Notice('Visual Mode currently supports Flowcharts and State Diagrams.');
+    return false;
+  }
+
   const sectionInfo = {
     lineStart: blockMatch.lineStart,
     lineEnd: blockMatch.lineEnd,
@@ -38,10 +53,11 @@ export async function openVisualModeForActiveFile(
   new MermaidBlockModal(
     plugin.app,
     plugin,
-    file.path,
+    filePath,
     sectionInfo,
     rawCode
   ).open();
+  return true;
 }
 
 export async function createNewDiagram(

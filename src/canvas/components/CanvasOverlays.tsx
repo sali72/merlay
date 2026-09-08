@@ -230,19 +230,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         onClearSubgraphStyle={mutations.handleClearSubgraphStyle}
         unmatchedSubgraphIds={selection.unmatchedSubgraphIds}
         onSelectUnmatchedSubgraph={(subId, idx) => {
-          selection.setSelectedNodeIds(new Set());
-          selection.setSelectedEdgeIds(new Set());
-          selection.selectedNodeIdsRef.current = new Set();
-          selection.selectedEdgeIdsRef.current = new Set();
-          selection.setSelectedNodeRect(null);
-          selection.setSelectedEdgePos(null);
-          selection.setActiveNodePopover(null);
-          selection.setActiveEdgePopover(null);
-          selection.setActiveMultiPopover(null);
-          selection.setActiveSubgraphPopover(null);
-          selection.updateSelectedNodeHalo(new Set());
-          selection.updateSelectedEdgeHalo(new Set());
-          selection.setSelectedSubgraphId(subId);
+          selection.isolateSelection('subgraph', subId);
           selection.setSelectedSubgraphRect({
             x: 24,
             y: 52 + idx * 4,

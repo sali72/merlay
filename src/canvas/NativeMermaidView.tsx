@@ -160,31 +160,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     },
     onCommitEdgeLabel: mutations.handleUpdateEdgeLabel,
     onCommitSubgraphLabel: mutations.handleRenameSubgraph,
-    onClearOtherSelections: (keepType, id) => {
-      if (keepType === 'node') {
-        selection.setSelectedEdgeIds(new Set());
-        selection.selectedEdgeIdsRef.current = new Set();
-        selection.setSelectedEdgePos(null);
-        selection.updateSelectedEdgeHalo(new Set());
-      } else if (keepType === 'edge') {
-        selection.setSelectedNodeIds(new Set());
-        selection.selectedNodeIdsRef.current = new Set();
-        selection.setSelectedNodeRect(null);
-        selection.updateSelectedNodeHalo(new Set());
-        selection.setSelectedEdgeId(id);
-        selection.updateSelectedEdgeHalo(new Set([id]));
-      } else if (keepType === 'subgraph') {
-        selection.setSelectedNodeIds(new Set());
-        selection.setSelectedEdgeIds(new Set());
-        selection.selectedNodeIdsRef.current = new Set();
-        selection.selectedEdgeIdsRef.current = new Set();
-        selection.setSelectedNodeRect(null);
-        selection.setSelectedEdgePos(null);
-        selection.updateSelectedNodeHalo(new Set());
-        selection.updateSelectedEdgeHalo(new Set());
-        selection.setSelectedSubgraphId(id);
-      }
-    },
+    onClearOtherSelections: selection.isolateSelection,
   });
 
   // 6. Viewport Modes & State
