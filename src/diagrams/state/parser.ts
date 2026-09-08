@@ -26,6 +26,7 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
   };
 
   const compositeStack: string[] = [];
+  let stmtOrder = 0;
 
   function currentToken(): StateToken {
     return tokens[cursor] || { type: 'EOF', value: '', line: -1, col: -1 };
@@ -43,8 +44,14 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
     }
   }
 
-  // Parse Header
+  // Parse Frontmatter & Header
   skipNewlines();
+  if (currentToken().type === 'FRONTMATTER') {
+    const fmToken = advance();
+    ast.frontmatter = fmToken.value;
+    skipNewlines();
+  }
+
   if (currentToken().type === 'DIRECTIVE') {
     const dirToken = advance();
     ast.diagramType = dirToken.value.toLowerCase() === 'statediagram'
@@ -61,14 +68,22 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
     // 1. Comments — preserved verbatim so visual edits never drop them
     if (token.type === 'COMMENT') {
       const t = advance();
-      ast.rawLines.push({ text: t.value, compositeId: compositeStack[compositeStack.length - 1] });
+      ast.rawLines.push({
+        text: t.value,
+        compositeId: compositeStack[compositeStack.length - 1],
+        order: stmtOrder++,
+      });
       continue;
     }
 
-    // 1b. Unsupported statements (notes, classDefs, --, :::) — preserved verbatim
+    // 1b. Unsupported statements (accTitle, accDescr, notes, classDefs, --, :::) — preserved verbatim
     if (token.type === 'RAW_LINE') {
       const t = advance();
-      ast.rawLines.push({ text: t.value, compositeId: compositeStack[compositeStack.length - 1] });
+      ast.rawLines.push({
+        text: t.value,
+        compositeId: compositeStack[compositeStack.length - 1],
+        order: stmtOrder++,
+      });
       continue;
     }
 
@@ -247,6 +262,7 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
         label: label || stateId,
         stateIds: [],
         compositeIds: [],
+        order: stmtOrder++,
       };
       ast.compositeStates.set(stateId, compDef);
 
@@ -309,6 +325,7 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
         from: fromId,
         to: toId,
         label: transitionLabel,
+        order: stmtOrder++,
       };
 
       ast.transitions.push(transitionDef);
@@ -351,6 +368,7 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
           id: '[*]',
           label: '[*]',
           stateType,
+          order: stmtOrder++,
         });
       }
       return;
@@ -363,6 +381,7 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
         label: label || id,
         stateType,
         compositeId: currentComp,
+        order: stmtOrder++,
       };
       ast.states.set(id, newState);
 
@@ -376,6 +395,7 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
       const existing = ast.states.get(id)!;
       if (label) existing.label = label;
       if (stateType !== 'normal') existing.stateType = stateType;
+      if (existing.order === undefined) existing.order = stmtOrder++;
       if (currentComp && !existing.compositeId) {
         existing.compositeId = currentComp;
         const comp = ast.compositeStates.get(currentComp);

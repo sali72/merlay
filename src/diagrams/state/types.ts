@@ -21,6 +21,7 @@ export interface MermaidStateDef {
   compositeId?: string;
   style?: Record<string, string>;
   classes?: string[];
+  order?: number;
 }
 
 export interface MermaidTransitionDef {
@@ -30,6 +31,7 @@ export interface MermaidTransitionDef {
   to: string;
   label?: string;
   style?: Record<string, string>;
+  order?: number;
 }
 
 export interface MermaidCompositeStateDef {
@@ -40,10 +42,12 @@ export interface MermaidCompositeStateDef {
   stateIds: string[];
   compositeIds: string[];
   style?: Record<string, string>;
+  order?: number;
 }
 
 export interface MermaidStateAST {
   diagramType: 'stateDiagram-v2' | 'stateDiagram';
+  frontmatter?: string;
   direction?: StateDirection;
   states: Map<string, MermaidStateDef>;
   transitions: MermaidTransitionDef[];
@@ -54,5 +58,5 @@ export interface MermaidStateAST {
    * concurrency separators, `:::` styles, comments) preserved verbatim so
    * visual edits never corrupt or drop hand-written code.
    */
-  rawLines: Array<{ text: string; compositeId?: string }>;
+  rawLines: Array<{ text: string; compositeId?: string; order?: number }>;
 }

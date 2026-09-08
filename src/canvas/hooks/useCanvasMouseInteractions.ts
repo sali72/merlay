@@ -228,11 +228,27 @@ export function useCanvasMouseInteractions({
         return isSourceInsideTarget(connectingSourceId, targetNodeId);
       })();
 
+      // Official Mermaid rule: inner nodes of different composite states cannot transition directly
+      const isCrossCompositeBlocked = (() => {
+        if (!targetNodeId || !connectingSourceId || !displayNodes) return false;
+        const srcNode = displayNodes.get(connectingSourceId);
+        const tgtNode = displayNodes.get(targetNodeId);
+        if (
+          srcNode?.subgraphId &&
+          tgtNode?.subgraphId &&
+          srcNode.subgraphId !== tgtNode.subgraphId
+        ) {
+          return true;
+        }
+        return false;
+      })();
+
       if (
         targetNodeId &&
         targetNodeId !== connectingSourceId &&
         !isBlockedAnchorEdge &&
-        !isInnerToOuterBlocked
+        !isInnerToOuterBlocked &&
+        !isCrossCompositeBlocked
       ) {
         applyMutation((a) => {
           m.connect(a, connectingSourceId, targetNodeId);

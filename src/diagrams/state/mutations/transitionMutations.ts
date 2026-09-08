@@ -47,6 +47,27 @@ export function isNodeInsideComposite(
   return false;
 }
 
+/**
+ * Checks if two states are internal states belonging to different composite states.
+ * Official Mermaid rule: "You cannot define transitions between internal states belonging to different composite states".
+ */
+export function areInDifferentComposites(
+  ast: MermaidStateAST,
+  fromId: string,
+  toId: string
+): boolean {
+  if (fromId === '[*]' || toId === '[*]') return false;
+  const fromState = ast.states.get(fromId);
+  const toState = ast.states.get(toId);
+
+  // Both are internal states with a compositeId, and their immediate composites differ
+  if (fromState?.compositeId && toState?.compositeId && fromState.compositeId !== toState.compositeId) {
+    return true;
+  }
+
+  return false;
+}
+
 export function connectStates(
   ast: MermaidStateAST,
   fromId: string,
@@ -57,6 +78,11 @@ export function connectStates(
 
   // Only outer nodes can point to composites; inner nodes cannot point to the outer composite.
   if (ast.compositeStates.has(toId) && isNodeInsideComposite(ast, fromId, toId)) {
+    return null;
+  }
+
+  // Official Mermaid rule: cannot define transitions between internal states of different composite states
+  if (areInDifferentComposites(ast, fromId, toId)) {
     return null;
   }
 

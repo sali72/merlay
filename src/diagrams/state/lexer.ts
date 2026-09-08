@@ -3,6 +3,7 @@
  */
 
 export type StateTokenType =
+  | 'FRONTMATTER'       // --- ... ---
   | 'DIRECTIVE'         // stateDiagram-v2, stateDiagram
   | 'DIRECTION_KEYWORD' // direction
   | 'DIRECTION'         // TB, TD, BT, RL, LR
@@ -55,8 +56,42 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
   const lines = input.split('\n');
 
   let inMultiLineNote = false;
+  let lineIdx = 0;
 
-  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+  // 1. Check for YAML frontmatter at start of diagram (--- ... ---)
+  while (lineIdx < lines.length && (!lines[lineIdx].trim() || lines[lineIdx].trim().startsWith('%%'))) {
+    const raw = lines[lineIdx];
+    const tr = raw.trim();
+    if (!tr) {
+      tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: 1 });
+    } else {
+      tokens.push({ type: 'COMMENT', value: tr, line: lineIdx + 1, col: raw.indexOf('%') + 1 });
+      tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: raw.length + 1 });
+    }
+    lineIdx++;
+  }
+
+  if (lineIdx < lines.length && lines[lineIdx].trim() === '---') {
+    const startLine = lineIdx + 1;
+    lineIdx++; // skip opening ---
+    const fmLines: string[] = [];
+    while (lineIdx < lines.length && lines[lineIdx].trim() !== '---') {
+      fmLines.push(lines[lineIdx]);
+      lineIdx++;
+    }
+    if (lineIdx < lines.length && lines[lineIdx].trim() === '---') {
+      lineIdx++; // skip closing ---
+    }
+    tokens.push({
+      type: 'FRONTMATTER',
+      value: fmLines.join('\n'),
+      line: startLine,
+      col: 1,
+    });
+    tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx, col: 1 });
+  }
+
+  for (; lineIdx < lines.length; lineIdx++) {
     const rawLine = lines[lineIdx];
     const trimmed = rawLine.trim();
 
@@ -79,6 +114,26 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
       continue;
     }
 
+    if (/^accDescr\s*\{/i.test(trimmed)) {
+      const blockLines = [trimmed];
+      while (lineIdx + 1 < lines.length && lines[lineIdx + 1].trim() !== '}') {
+        lineIdx++;
+        blockLines.push('    ' + lines[lineIdx].trim());
+      }
+      if (lineIdx + 1 < lines.length && lines[lineIdx + 1].trim() === '}') {
+        lineIdx++;
+        blockLines.push(lines[lineIdx].trim());
+      }
+      tokens.push({
+        type: 'RAW_LINE',
+        value: blockLines.join('\n    '),
+        line: lineIdx + 1,
+        col: 1,
+      });
+      tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: rawLine.length + 1 });
+      continue;
+    }
+
     if (trimmed.startsWith('%%')) {
       tokens.push({
         type: 'COMMENT',
@@ -91,13 +146,13 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
     }
 
     // Statements the editor does not model are preserved verbatim so visual
-    // edits never corrupt or drop hand-written code.
+    // edits never corrupt or drop hand-written code (accTitle, accDescr, notes, classDefs, --, :::)
     if (
-      /^(note|classdef|class)\b/i.test(trimmed) ||
+      /^(note|classdef|class|acctitle|accdescr|title)\b/i.test(trimmed) ||
       /^--(\s.*)?$/.test(trimmed) ||
       containsInlineClassShorthand(trimmed)
     ) {
-      if (/^note\b/i.test(trimmed) && !trimmed.includes(':')) {
+      if (/^note\s+(right\s+of|left\s+of)\b/i.test(trimmed) && !trimmed.includes(':')) {
         inMultiLineNote = true;
       }
       tokens.push({

@@ -17,9 +17,21 @@ registerDriver(StateDiagramDriver);
  */
 export function detectDiagramType(code: string): SupportedDiagramType {
   const lines = code.split('\n');
+  let inFrontmatter = false;
   for (const rawLine of lines) {
     const trimmed = rawLine.trim();
     if (!trimmed || trimmed.startsWith('%%')) continue;
+
+    if (!inFrontmatter && trimmed === '---') {
+      inFrontmatter = true;
+      continue;
+    }
+    if (inFrontmatter) {
+      if (trimmed === '---') {
+        inFrontmatter = false;
+      }
+      continue;
+    }
 
     // Check for Flowchart / Graph
     if (/^(flowchart|graph)\b/i.test(trimmed)) {

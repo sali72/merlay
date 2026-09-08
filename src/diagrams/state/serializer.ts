@@ -2,11 +2,18 @@
  * Serializer: Converts MermaidStateAST to clean, normalized Mermaid stateDiagram syntax
  */
 
-import { MermaidStateAST, MermaidStateDef } from './types';
-import { isNodeInsideComposite } from './mutations/transitionMutations';
+import { MermaidStateAST, MermaidStateDef, MermaidTransitionDef } from './types';
+import { isNodeInsideComposite, areInDifferentComposites } from './mutations/transitionMutations';
 
 export function serializeMermaidStateDiagram(ast: MermaidStateAST): string {
   const lines: string[] = [];
+
+  // 0. Frontmatter
+  if (ast.frontmatter) {
+    lines.push('---');
+    lines.push(ast.frontmatter);
+    lines.push('---');
+  }
 
   // 1. Header
   lines.push(ast.diagramType || 'stateDiagram-v2');
@@ -14,6 +21,21 @@ export function serializeMermaidStateDiagram(ast: MermaidStateAST): string {
   // 2. Global Direction
   if (ast.direction) {
     lines.push(`    direction ${ast.direction}`);
+  }
+
+  // 2b. Directives and ClassDefs at diagram level (accTitle, accDescr, title, classDef)
+  const topLevelRaws = ast.rawLines ? ast.rawLines.filter((r) => !r.compositeId) : [];
+  const headerRaws = topLevelRaws.filter((r) =>
+    /^(accTitle|accDescr|title|classDef)\b/i.test(r.text.trim())
+  );
+  const otherTopRaws = topLevelRaws.filter(
+    (r) => !/^(accTitle|accDescr|title|classDef)\b/i.test(r.text.trim())
+  );
+
+  if (headerRaws.length > 0) {
+    for (const raw of headerRaws) {
+      lines.push(`    ${raw.text}`);
+    }
   }
 
   const emittedStates = new Set<string>();
@@ -74,6 +96,10 @@ export function serializeMermaidStateDiagram(ast: MermaidStateAST): string {
     if (ast.compositeStates.has(tr.to) && isNodeInsideComposite(ast, tr.from, tr.to)) {
       continue;
     }
+    // Cannot transition between internal states of different composites
+    if (areInDifferentComposites(ast, tr.from, tr.to)) {
+      continue;
+    }
     if (!emittedTransitions.has(tr.id)) {
       emitTransition(lines, tr, '    ');
       emittedTransitions.add(tr.id);
@@ -91,14 +117,11 @@ export function serializeMermaidStateDiagram(ast: MermaidStateAST): string {
     }
   }
 
-  // 7. Preserved statements (notes, classDefs, comments, --, :::) at top level
-  if (ast.rawLines && ast.rawLines.length > 0) {
-    const topLevelRaws = ast.rawLines.filter((r) => !r.compositeId);
-    if (topLevelRaws.length > 0) {
-      lines.push('');
-      for (const raw of topLevelRaws) {
-        lines.push(`    ${raw.text}`);
-      }
+  // 7. Preserved statements (notes, class statements, comments) at top level
+  if (otherTopRaws.length > 0) {
+    lines.push('');
+    for (const raw of otherTopRaws) {
+      lines.push(`    ${raw.text}`);
     }
   }
 
@@ -141,29 +164,37 @@ function emitCompositeState(
     lines.push(`${innerIndent}direction ${compDef.direction}`);
   }
 
+  type InnerItem =
+    | { kind: 'childComp'; id: string; order: number }
+    | { kind: 'state'; state: MermaidStateDef; order: number }
+    | { kind: 'transition'; tr: MermaidTransitionDef; order: number }
+    | { kind: 'raw'; text: string; order: number };
+
+  const items: InnerItem[] = [];
+
   // 1. Nested child composite states
   if (compDef.compositeIds && compDef.compositeIds.length > 0) {
     for (const childCompId of compDef.compositeIds) {
       const childComp = ast.compositeStates.get(childCompId);
       if (childComp) {
-        emitCompositeState(
-          lines,
-          childCompId,
-          childComp,
-          ast,
-          emittedStates,
-          emittedTransitions,
-          innerIndent
-        );
+        items.push({
+          kind: 'childComp',
+          id: childCompId,
+          order: childComp.order ?? 0,
+        });
       }
     }
   }
 
-  // 2. Inner states (guarantee state is declared in composite state even without transitions)
+  // 2. Inner states (guarantee state is declared in composite state)
   for (const stateId of compDef.stateIds) {
     const state = ast.states.get(stateId);
     if (state && state.id !== '[*]') {
-      emitInnerStateDeclaration(lines, state, innerIndent);
+      items.push({
+        kind: 'state',
+        state,
+        order: state.order ?? 0,
+      });
       emittedStates.add(state.id);
     }
   }
@@ -176,12 +207,20 @@ function emitCompositeState(
     if (ast.compositeStates.has(tr.to) && isNodeInsideComposite(ast, tr.from, tr.to)) {
       continue;
     }
+    // Cannot transition between internal states of different composites
+    if (areInDifferentComposites(ast, tr.from, tr.to)) {
+      continue;
+    }
     if (
       (compMembers.has(tr.from) || tr.from === '[*]') &&
       (compMembers.has(tr.to) || tr.to === '[*]') &&
       !emittedTransitions.has(tr.id)
     ) {
-      emitTransition(lines, tr, innerIndent);
+      items.push({
+        kind: 'transition',
+        tr,
+        order: tr.order ?? 0,
+      });
       emittedTransitions.add(tr.id);
     }
   }
@@ -190,8 +229,39 @@ function emitCompositeState(
   if (ast.rawLines) {
     for (const raw of ast.rawLines) {
       if (raw.compositeId === compId) {
-        lines.push(`${innerIndent}${raw.text}`);
+        items.push({
+          kind: 'raw',
+          text: raw.text,
+          order: raw.order ?? 0,
+        });
       }
+    }
+  }
+
+  // Sort items by order so concurrency dividers (--), notes, and transitions
+  // remain in their exact respective positions
+  items.sort((a, b) => a.order - b.order);
+
+  for (const item of items) {
+    if (item.kind === 'childComp') {
+      const childComp = ast.compositeStates.get(item.id);
+      if (childComp) {
+        emitCompositeState(
+          lines,
+          item.id,
+          childComp,
+          ast,
+          emittedStates,
+          emittedTransitions,
+          innerIndent
+        );
+      }
+    } else if (item.kind === 'state') {
+      emitInnerStateDeclaration(lines, item.state, innerIndent);
+    } else if (item.kind === 'transition') {
+      emitTransition(lines, item.tr, innerIndent);
+    } else if (item.kind === 'raw') {
+      lines.push(`${innerIndent}${item.text}`);
     }
   }
 

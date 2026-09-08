@@ -33,6 +33,7 @@ function stateTypeToShape(stateType: MermaidStateType): MermaidShapeType {
 function cloneStateAst(ast: MermaidStateAST): MermaidStateAST {
   return {
     ...ast,
+    frontmatter: ast.frontmatter,
     states: new Map(Array.from(ast.states, ([id, s]) => [id, { ...s }])),
     transitions: ast.transitions.map((t) => ({ ...t })),
     compositeStates: new Map(
@@ -53,6 +54,7 @@ function cloneStateAst(ast: MermaidStateAST): MermaidStateAST {
 function createEmptyStateAst(): MermaidStateAST {
   return {
     diagramType: 'stateDiagram-v2',
+    frontmatter: undefined,
     states: new Map(),
     transitions: [],
     compositeStates: new Map(),
@@ -66,8 +68,22 @@ export const StateDiagramDriver: DiagramDriver<MermaidStateAST> = {
   displayName: 'State Diagram',
   supportsDirection: true,
   canHandle(code: string): boolean {
-    const trimmed = code.trim();
-    return /^stateDiagram(-v2)?\b/i.test(trimmed);
+    const lines = code.split('\n');
+    let inFrontmatter = false;
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed || trimmed.startsWith('%%')) continue;
+      if (!inFrontmatter && trimmed === '---') {
+        inFrontmatter = true;
+        continue;
+      }
+      if (inFrontmatter) {
+        if (trimmed === '---') inFrontmatter = false;
+        continue;
+      }
+      return /^stateDiagram(-v2)?\b/i.test(trimmed);
+    }
+    return false;
   },
   parse(code: string): MermaidStateAST {
     return parseMermaidStateDiagram(code);
@@ -190,6 +206,9 @@ export const StateDiagramDriver: DiagramDriver<MermaidStateAST> = {
       if (!tr) return null;
       // Only outer nodes can point to composites; inner nodes cannot point to outer composite.
       if (ast.compositeStates.has(tr.from) && st.isNodeInsideComposite(ast, tr.to, tr.from)) {
+        return null;
+      }
+      if (st.areInDifferentComposites(ast, tr.to, tr.from)) {
         return null;
       }
       const oldFrom = tr.from;
