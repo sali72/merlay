@@ -6,6 +6,7 @@ export interface ConnectionHandleProps {
   isLR: boolean;
   cursorMode: CursorMode;
   isSpacePressed: boolean;
+  hidden?: boolean;
   onStartConnect: (e: React.MouseEvent, startX: number, startY: number) => void;
 }
 
@@ -14,9 +15,10 @@ export const ConnectionHandle: React.FC<ConnectionHandleProps> = ({
   isLR,
   cursorMode,
   isSpacePressed,
+  hidden = false,
   onStartConnect,
 }) => {
-  if (!hoveredNodeRect || cursorMode === 'hand' || isSpacePressed) {
+  if (!hoveredNodeRect || cursorMode === 'hand' || isSpacePressed || hidden) {
     return null;
   }
 

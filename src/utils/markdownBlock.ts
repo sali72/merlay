@@ -164,3 +164,129 @@ export function replaceMermaidBlock(
     newEndLine: appendLines.length - 2,
   };
 }
+
+export interface TargetMermaidBlockQuery {
+  content: string;
+  hintLine?: number;
+  domIndex?: number;
+  domText?: string;
+  sectionLineStart?: number;
+}
+
+export interface TargetMermaidBlockResult {
+  lineStart: number;
+  lineEnd: number;
+  rawCode: string;
+}
+
+export function findTargetMermaidBlock(
+  query: TargetMermaidBlockQuery
+): TargetMermaidBlockResult | null {
+  const { content, hintLine, domIndex, domText, sectionLineStart } = query;
+  const blockRegex = /```(?:mermaid)\s*\n([\s\S]*?)```/g;
+  const matches = Array.from(content.matchAll(blockRegex));
+  if (matches.length === 0) return null;
+
+  const blocks: TargetMermaidBlockResult[] = matches.map((m) => {
+    const matchIndex = m.index || 0;
+    const linesBefore = content.substring(0, matchIndex).split('\n');
+    const matchLines = m[0].split('\n');
+    const lineStart = linesBefore.length - 1;
+    const lineEnd = lineStart + matchLines.length - 1;
+    return {
+      lineStart,
+      lineEnd,
+      rawCode: m[1],
+    };
+  });
+
+  if (blocks.length === 1) {
+    return blocks[0];
+  }
+
+  // 1. Direct sectionLineStart match (from context.getSectionInfo or dataset)
+  if (typeof sectionLineStart === 'number' && !isNaN(sectionLineStart)) {
+    const directMatch = blocks.find(
+      (b) => Math.abs(b.lineStart - sectionLineStart) <= 1
+    );
+    if (directMatch) return directMatch;
+  }
+
+  // 2. Editor position / hint line (from CodeMirror posAtDOM or cursor)
+  if (typeof hintLine === 'number' && !isNaN(hintLine) && hintLine >= 0) {
+    for (const b of blocks) {
+      if (hintLine >= b.lineStart && hintLine <= b.lineEnd + 1) {
+        return b;
+      }
+    }
+    // Find closest block
+    let bestBlock = blocks[0];
+    let minDistance = Infinity;
+    for (const b of blocks) {
+      const dist = Math.min(
+        Math.abs(hintLine - b.lineStart),
+        Math.abs(hintLine - b.lineEnd)
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        bestBlock = b;
+      }
+    }
+    if (minDistance <= 30) {
+      return bestBlock;
+    }
+  }
+
+  // 3. Sequential DOM index match
+  if (
+    typeof domIndex === 'number' &&
+    domIndex >= 0 &&
+    domIndex < blocks.length
+  ) {
+    return blocks[domIndex];
+  }
+
+  // 4. Content token scoring (supports all diagram types: flowcharts, state diagrams, etc.)
+  if (domText && domText.trim().length > 0) {
+    const lowerDomText = domText.toLowerCase();
+    let bestScore = -1;
+    let bestMatch = blocks[0];
+
+    for (const b of blocks) {
+      const tokens = b.rawCode
+        .split(/[^a-zA-Z0-9_]+/)
+        .filter((t) => t.length >= 3)
+        .map((t) => t.toLowerCase())
+        .filter(
+          (t) =>
+            ![
+              'flowchart',
+              'graph',
+              'statediagram',
+              'direction',
+              'style',
+              'classdef',
+              'class',
+              'state',
+              'subgraph',
+              'end',
+            ].includes(t)
+        );
+
+      let score = 0;
+      for (const token of tokens) {
+        if (lowerDomText.includes(token)) score++;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = b;
+      }
+    }
+
+    if (bestScore > 0) {
+      return bestMatch;
+    }
+  }
+
+  return blocks[0];
+}

@@ -12,10 +12,16 @@ import {
   CodeIcon,
 } from '../icons/Icons';
 
+import { SupportedDiagramType } from '../../diagrams/types';
+
 export interface CanvasTopBarProps {
   cursorMode: CursorMode;
   onSetCursorMode: (mode: CursorMode) => void;
   onAddStep: () => void;
+  onAddStart?: () => void;
+  onAddEnd?: () => void;
+  canAddStart?: boolean;
+  canAddEnd?: boolean;
   onAddGroup: () => void;
   direction: FlowchartDirection;
   onToggleDirection: () => void;
@@ -26,12 +32,19 @@ export interface CanvasTopBarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  diagramType?: SupportedDiagramType;
+  diagramDisplayName?: string;
+  supportsDirection?: boolean;
 }
 
 export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
   cursorMode,
   onSetCursorMode,
   onAddStep,
+  onAddStart,
+  onAddEnd,
+  canAddStart = true,
+  canAddEnd = true,
   onAddGroup,
   direction,
   onToggleDirection,
@@ -42,7 +55,14 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
   canRedo,
   onUndo,
   onRedo,
+  diagramType = 'flowchart',
+  diagramDisplayName,
+  supportsDirection = true,
 }) => {
+  const isStateDiagram = diagramType === 'stateDiagram';
+  const addStepLabel = isStateDiagram ? 'Add State' : 'Add Step';
+  const addGroupLabel = isStateDiagram ? 'Add Composite' : 'Add Group';
+  const badgeName = diagramDisplayName || (isStateDiagram ? 'State Diagram' : 'Flowchart');
   return (
     <div className="mermaid-native-top-bar nodrag">
       <div className="mermaid-top-bar-left">
@@ -96,30 +116,56 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
           type="button"
           className="mermaid-tool-btn mod-cta"
           onClick={onAddStep}
-          title="Add new step"
+          title={isStateDiagram ? 'Add new State' : 'Add new step'}
         >
           <PlusIcon size={14} />
-          <span>Add Step</span>
+          <span>{addStepLabel}</span>
         </button>
+
+        {isStateDiagram && onAddStart && (
+          <button
+            type="button"
+            className="mermaid-tool-btn"
+            onClick={onAddStart}
+            disabled={!canAddStart}
+            title={canAddStart ? 'Add Start point ([*]) with first state' : 'Start point already exists'}
+          >
+            <span>＋Start</span>
+          </button>
+        )}
+
+        {isStateDiagram && onAddEnd && (
+          <button
+            type="button"
+            className="mermaid-tool-btn"
+            onClick={onAddEnd}
+            disabled={!canAddEnd}
+            title={canAddEnd ? 'Add End point ([*]) with final state' : 'End point already exists'}
+          >
+            <span>＋End</span>
+          </button>
+        )}
 
         <button
           type="button"
           className="mermaid-tool-btn"
           onClick={onAddGroup}
-          title="Add new Subgraph / Group"
+          title={isStateDiagram ? 'Add new Composite State' : 'Add new Subgraph / Group'}
         >
           <FolderIcon size={14} />
-          <span>Add Group</span>
+          <span>{addGroupLabel}</span>
         </button>
 
-        <button
-          type="button"
-          className="mermaid-tool-btn"
-          onClick={onToggleDirection}
-          title={`Toggle Flow Direction (Current: ${direction})`}
-        >
-          <span>Flow: {direction}</span>
-        </button>
+        {supportsDirection && (
+          <button
+            type="button"
+            className="mermaid-tool-btn"
+            onClick={onToggleDirection}
+            title={`Toggle Flow Direction (Current: ${direction})`}
+          >
+            <span>Flow: {direction}</span>
+          </button>
+        )}
 
         <div className="mermaid-bar-divider" />
 
@@ -134,6 +180,9 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
       </div>
 
       <div className="mermaid-top-bar-right">
+        <span className="mermaid-diagram-badge" title="Diagram Type">
+          {badgeName}
+        </span>
         <button
           type="button"
           className={`mermaid-tool-btn ${showCodeDrawer ? 'is-active' : ''}`}

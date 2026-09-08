@@ -34,12 +34,15 @@ export function applySelectedNodeHalos(
   if (activeIds.length === 0) return;
 
   for (const activeId of activeIds) {
-    const nodeEl = mountEl.querySelector(
-      `[data-mermaid-node-id="${activeId}"]`
-    ) as SVGGraphicsElement | null;
-    if (!nodeEl) continue;
+    // Several SVG elements can share one id (both [*] anchors map to "[*]"),
+    // so highlight every match instead of only the first.
+    const nodeEls = Array.from(
+      mountEl.querySelectorAll(`[data-mermaid-node-id="${activeId}"]`)
+    ) as SVGGraphicsElement[];
+    if (nodeEls.length === 0) continue;
 
-    nodeEl.classList.add('mermaid-node-selected');
+    for (const nodeEl of nodeEls) {
+      nodeEl.classList.add('mermaid-node-selected');
 
     // 2. Identify shape elements representing the node's geometry
     let shapeElements = Array.from(
@@ -104,7 +107,8 @@ export function applySelectedNodeHalos(
 
       parent.insertBefore(outerHalo, shapeEl.nextSibling);
       parent.insertBefore(innerHalo, outerHalo.nextSibling);
-    });
+      });
+    }
   }
 }
 

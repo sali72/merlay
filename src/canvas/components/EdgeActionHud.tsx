@@ -24,6 +24,7 @@ export interface EdgeActionHudProps {
   onUpdateEdgeLabel: (label: string) => void;
   onToggleStylePopover: () => void;
   onDeleteEdge: () => void;
+  isStateDiagram?: boolean;
 }
 
 export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
@@ -37,6 +38,7 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
   onUpdateEdgeLabel,
   onToggleStylePopover,
   onDeleteEdge,
+  isStateDiagram = false,
 }) => {
   return (
     <div
@@ -50,63 +52,67 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Arrow Shape Pickers */}
-      <button
-        type="button"
-        className={`mermaid-hud-btn icon-only ${
-          selectedEdgePos.arrowType === 'arrow' ? 'is-active' : ''
-        }`}
-        onClick={() => onChangeEdgeType('arrow')}
-        title="Solid Arrow (-->)"
-      >
-        <ArrowSolidIcon size={14} />
-      </button>
+      {/* Arrow Shape Pickers (Only for flowcharts, state transitions are always -->) */}
+      {!isStateDiagram && (
+        <>
+          <button
+            type="button"
+            className={`mermaid-hud-btn icon-only ${
+              selectedEdgePos.arrowType === 'arrow' ? 'is-active' : ''
+            }`}
+            onClick={() => onChangeEdgeType('arrow')}
+            title="Solid Arrow (-->)"
+          >
+            <ArrowSolidIcon size={14} />
+          </button>
 
-      <button
-        type="button"
-        className={`mermaid-hud-btn icon-only ${
-          selectedEdgePos.arrowType === 'dotted' ? 'is-active' : ''
-        }`}
-        onClick={() => onChangeEdgeType('dotted')}
-        title="Dotted Arrow (-.->)"
-      >
-        <ArrowDottedIcon size={14} />
-      </button>
+          <button
+            type="button"
+            className={`mermaid-hud-btn icon-only ${
+              selectedEdgePos.arrowType === 'dotted' ? 'is-active' : ''
+            }`}
+            onClick={() => onChangeEdgeType('dotted')}
+            title="Dotted Arrow (-.->)"
+          >
+            <ArrowDottedIcon size={14} />
+          </button>
 
-      <button
-        type="button"
-        className={`mermaid-hud-btn icon-only ${
-          selectedEdgePos.arrowType === 'thick' ? 'is-active' : ''
-        }`}
-        onClick={() => onChangeEdgeType('thick')}
-        title="Thick Arrow (==>)"
-      >
-        <ArrowThickIcon size={14} />
-      </button>
+          <button
+            type="button"
+            className={`mermaid-hud-btn icon-only ${
+              selectedEdgePos.arrowType === 'thick' ? 'is-active' : ''
+            }`}
+            onClick={() => onChangeEdgeType('thick')}
+            title="Thick Arrow (==>)"
+          >
+            <ArrowThickIcon size={14} />
+          </button>
 
-      <button
-        type="button"
-        className={`mermaid-hud-btn icon-only ${
-          selectedEdgePos.arrowType === 'open' ? 'is-active' : ''
-        }`}
-        onClick={() => onChangeEdgeType('open')}
-        title="Open Line (---)"
-      >
-        <ArrowOpenIcon size={14} />
-      </button>
+          <button
+            type="button"
+            className={`mermaid-hud-btn icon-only ${
+              selectedEdgePos.arrowType === 'open' ? 'is-active' : ''
+            }`}
+            onClick={() => onChangeEdgeType('open')}
+            title="Open Line (---)"
+          >
+            <ArrowOpenIcon size={14} />
+          </button>
 
-      <button
-        type="button"
-        className={`mermaid-hud-btn icon-only ${
-          selectedEdgePos.arrowType === 'bidirectional' ? 'is-active' : ''
-        }`}
-        onClick={() => onChangeEdgeType('bidirectional')}
-        title="Bidirectional Arrow (<-->)"
-      >
-        <ArrowBidirectionalIcon size={14} />
-      </button>
+          <button
+            type="button"
+            className={`mermaid-hud-btn icon-only ${
+              selectedEdgePos.arrowType === 'bidirectional' ? 'is-active' : ''
+            }`}
+            onClick={() => onChangeEdgeType('bidirectional')}
+            title="Bidirectional Arrow (<-->)"
+          >
+            <ArrowBidirectionalIcon size={14} />
+          </button>
 
-      <div className="mermaid-hud-divider" />
+          <div className="mermaid-hud-divider" />
+        </>
+      )}
 
       {/* Reverse Direction */}
       <button
@@ -118,15 +124,19 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
         <ReverseIcon size={14} />
       </button>
 
-      {/* Insert Step Between */}
+      {/* Insert State / Step Between */}
       <button
         type="button"
         className="mermaid-hud-btn insert-step-btn"
         onClick={onInsertNodeOnEdge}
-        title="Insert Step Between (splits connection)"
+        title={
+          isStateDiagram
+            ? 'Insert State Between (splits transition)'
+            : 'Insert Step Between (splits connection)'
+        }
       >
         <InsertStepIcon size={13} />
-        <span>Insert Step</span>
+        <span>{isStateDiagram ? 'Insert State' : 'Insert Step'}</span>
       </button>
 
       <div className="mermaid-hud-divider" />
@@ -135,7 +145,9 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
       <input
         type="text"
         className="mermaid-edge-input"
-        placeholder="Caption (e.g. Yes/No)..."
+        placeholder={
+          isStateDiagram ? 'Event / Condition (e.g. onClick)...' : 'Caption (e.g. Yes/No)...'
+        }
         defaultValue={selectedEdgePos.label || ''}
         key={selectedEdgeId + (selectedEdgePos.label || '')}
         onBlur={(e) => onUpdateEdgeLabel(e.target.value)}
@@ -147,25 +159,28 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
         }}
       />
 
-      <div className="mermaid-hud-divider" />
-
-      {/* Arrow Colors & Themes Button */}
-      <button
-        type="button"
-        className={`mermaid-hud-btn icon-only ${
-          activeEdgePopover === 'style' ? 'is-active' : ''
-        }`}
-        onClick={onToggleStylePopover}
-        title="Arrow Colors & Themes"
-      >
-        <PaletteIcon size={14} />
-        {selectedEdgeStyle?.stroke && (
-          <span
-            className="mermaid-hud-color-indicator"
-            style={{ backgroundColor: selectedEdgeStyle.stroke }}
-          />
-        )}
-      </button>
+      {/* Arrow Colors & Themes Button (Only for flowcharts) */}
+      {!isStateDiagram && (
+        <>
+          <div className="mermaid-hud-divider" />
+          <button
+            type="button"
+            className={`mermaid-hud-btn icon-only ${
+              activeEdgePopover === 'style' ? 'is-active' : ''
+            }`}
+            onClick={onToggleStylePopover}
+            title="Arrow Colors & Themes"
+          >
+            <PaletteIcon size={14} />
+            {selectedEdgeStyle?.stroke && (
+              <span
+                className="mermaid-hud-color-indicator"
+                style={{ backgroundColor: selectedEdgeStyle.stroke }}
+              />
+            )}
+          </button>
+        </>
+      )}
 
       <div className="mermaid-hud-divider" />
 
@@ -174,7 +189,7 @@ export const EdgeActionHud: React.FC<EdgeActionHudProps> = ({
         type="button"
         className="mermaid-hud-btn delete-btn icon-only"
         onClick={onDeleteEdge}
-        title="Delete connection"
+        title={isStateDiagram ? 'Delete Transition' : 'Delete Connection'}
       >
         <TrashIcon size={13} />
       </button>

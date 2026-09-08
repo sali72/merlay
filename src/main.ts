@@ -18,6 +18,9 @@ import {
   VIEW_TYPE_MERMAID_FILE,
 } from './views/MermaidFileView';
 import { MermaidBlockModal } from './views/MermaidBlockModal';
+import { detectDiagramType } from './diagrams/registry';
+import { DiagramTemplateModal } from './views/DiagramTemplateModal';
+import { findTargetMermaidBlock } from './utils/markdownBlock';
 
 class MermaidObserverChild extends MarkdownRenderChild {
   private observer: MutationObserver;
@@ -47,6 +50,11 @@ export default class VisualMermaidPlugin extends Plugin {
 
     // 2. Register Markdown Post-Processor (Reading View & Live Preview)
     this.registerMarkdownPostProcessor((element, context) => {
+      const info = context.getSectionInfo(element);
+      if (info) {
+        element.setAttribute('data-mermaid-line-start', String(info.lineStart));
+        element.setAttribute('data-mermaid-line-end', String(info.lineEnd));
+      }
       this.scanAndAttachToElement(element, context.sourcePath, context);
 
       // MutationObserver to catch asynchronous Mermaid SVG rendering
@@ -256,6 +264,14 @@ export default class VisualMermaidPlugin extends Plugin {
 
     if (parent.querySelector(':scope > .mermaid-studio-edit-btn')) return;
 
+    if (context) {
+      const info = context.getSectionInfo(parent);
+      if (info) {
+        parent.setAttribute('data-mermaid-line-start', String(info.lineStart));
+        parent.setAttribute('data-mermaid-line-end', String(info.lineEnd));
+      }
+    }
+
     parent.style.position = 'relative';
 
     const editBtn = createEl('button', {
@@ -314,22 +330,23 @@ export default class VisualMermaidPlugin extends Plugin {
       e.stopPropagation();
       e.preventDefault();
 
-      // Resolve file path: check sourcePath, then enclosing leaf, then active view
+      // Resolve file path and target leaf
       let filePath = sourcePath;
-      if (!filePath) {
-        const leaves = this.app.workspace.getLeavesOfType('markdown');
-        for (const leaf of leaves) {
-          if (
-            leaf.view instanceof MarkdownView &&
-            leaf.view.containerEl.contains(parent)
-          ) {
-            filePath = leaf.view.file?.path;
-            break;
-          }
+      let targetLeaf: WorkspaceLeaf | null = null;
+      const leaves = this.app.workspace.getLeavesOfType('markdown');
+      for (const leaf of leaves) {
+        if (
+          leaf.view instanceof MarkdownView &&
+          leaf.view.containerEl.contains(parent)
+        ) {
+          targetLeaf = leaf;
+          filePath = leaf.view.file?.path;
+          break;
         }
       }
       if (!filePath) {
         const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        targetLeaf = activeView?.leaf || null;
         filePath = activeView?.file?.path || this.app.workspace.getActiveFile()?.path;
       }
 
@@ -346,79 +363,86 @@ export default class VisualMermaidPlugin extends Plugin {
 
       const content = await this.app.vault.read(file);
 
-      // Check context getSectionInfo first
-      let sectionInfo = context ? context.getSectionInfo(parent) : null;
-      let rawCode = '';
-
-      if (sectionInfo) {
-        const lines = content.split('\n');
-        rawCode = lines
-          .slice(sectionInfo.lineStart + 1, sectionInfo.lineEnd)
-          .join('\n');
-      } else {
-        const matches = Array.from(
-          content.matchAll(/```(?:mermaid)\s*\n([\s\S]*?)```/g)
-        );
-
-        if (matches.length === 0) {
-          new Notice('No Mermaid diagram block found in note.');
-          return;
-        }
-
-        let targetMatch = matches[0];
-        if (matches.length > 1) {
-          const blockText = parent.textContent || '';
-          for (const m of matches) {
-            const lines = m[1].split('\n');
-            let score = 0;
-            for (const l of lines) {
-              const trimmed = l.trim();
-              if (
-                trimmed &&
-                !trimmed.startsWith('%%') &&
-                !trimmed.startsWith('flowchart') &&
-                !trimmed.startsWith('graph')
-              ) {
-                const labelMatch = trimmed.match(
-                  /\["?(.*?)"?\]|\("?(.*?)"?\)|\{"?(.*?)"?\}/
-                );
-                if (labelMatch && blockText.includes(labelMatch[1])) {
-                  score++;
-                }
-              }
+      // 1. Line number hint from CodeMirror 6 posAtDOM (Live Preview)
+      let hintLine: number | undefined;
+      if (targetLeaf?.view instanceof MarkdownView) {
+        try {
+          const editor = targetLeaf.view.editor;
+          const cm = (editor as any)?.cm;
+          if (cm && typeof cm.posAtDOM === 'function') {
+            let pos: number | null = null;
+            try {
+              pos = cm.posAtDOM(parent);
+            } catch {
+              pos = cm.posAtDOM(editBtn);
             }
-            if (score > 0) {
-              targetMatch = m;
-              break;
+            if (pos !== null && typeof pos === 'number' && pos >= 0) {
+              hintLine = editor.offsetToPos(pos).line;
             }
           }
+        } catch {
+          /* ignore */
         }
-
-        rawCode = targetMatch[1];
-        const matchIndex = targetMatch.index || 0;
-        const linesBefore = content.substring(0, matchIndex).split('\n');
-        const matchLines = targetMatch[0].split('\n');
-        sectionInfo = {
-          lineStart: linesBefore.length - 1,
-          lineEnd: linesBefore.length - 1 + matchLines.length - 1,
-          text: content,
-        };
       }
 
-      // Scope Check: Only allow flowcharts in MVP
-      const firstContentLine =
-        rawCode
-          .split('\n')
-          .find((l) => l.trim().length > 0 && !l.trim().startsWith('%%'))
-          ?.trim()
-          .toLowerCase() || '';
+      // 2. DOM index of this button among all mermaid buttons in the view
+      let domIndex: number | undefined;
+      if (targetLeaf?.view instanceof MarkdownView) {
+        try {
+          const viewEl = targetLeaf.view.containerEl;
+          const allBtns = Array.from(
+            viewEl.querySelectorAll('.mermaid-studio-edit-btn')
+          );
+          const idx = allBtns.indexOf(editBtn);
+          if (idx >= 0) domIndex = idx;
+        } catch {
+          /* ignore */
+        }
+      }
 
-      if (
-        !firstContentLine.startsWith('flowchart') &&
-        !firstContentLine.startsWith('graph')
-      ) {
+      // 3. Section line start from context or dataset attribute
+      let sectionLineStart: number | undefined;
+      const directInfo = context ? context.getSectionInfo(parent) : null;
+      if (directInfo) {
+        sectionLineStart = directInfo.lineStart;
+      } else {
+        const stamped =
+          parent.getAttribute('data-mermaid-line-start') ||
+          parent
+            .closest('[data-mermaid-line-start]')
+            ?.getAttribute('data-mermaid-line-start');
+        if (stamped) {
+          const parsed = parseInt(stamped, 10);
+          if (!isNaN(parsed)) sectionLineStart = parsed;
+        }
+      }
+
+      // 4. Resolve exact target block
+      const blockMatch = findTargetMermaidBlock({
+        content,
+        hintLine,
+        domIndex,
+        domText: parent.textContent || '',
+        sectionLineStart,
+      });
+
+      if (!blockMatch) {
+        new Notice('No Mermaid diagram block found in note.');
+        return;
+      }
+
+      const rawCode = blockMatch.rawCode;
+      const sectionInfo = {
+        lineStart: blockMatch.lineStart,
+        lineEnd: blockMatch.lineEnd,
+        text: content,
+      };
+
+      // Scope Check: allow any supported diagram (Flowchart, State Diagram)
+      const diagramType = detectDiagramType(rawCode);
+      if (diagramType === 'unknown') {
         new Notice(
-          'Visual Mode currently supports Flowcharts (flowchart / graph).'
+          'Visual Mode currently supports Flowcharts and State Diagrams.'
         );
         return;
       }
@@ -439,19 +463,22 @@ export default class VisualMermaidPlugin extends Plugin {
     const file = view.file;
     if (!file) return;
     const content = await this.app.vault.read(file);
-    const match = content.match(/```(?:mermaid)\s*\n([\s\S]*?)```/);
-    if (!match) {
+    const cursorLine = view.editor.getCursor().line;
+
+    const blockMatch = findTargetMermaidBlock({
+      content,
+      hintLine: cursorLine,
+    });
+
+    if (!blockMatch) {
       new Notice('No Mermaid code block found in active note.');
       return;
     }
 
-    const rawCode = match[1];
-    const matchIndex = match.index || 0;
-    const linesBefore = content.substring(0, matchIndex).split('\n');
-    const matchLines = match[0].split('\n');
+    const rawCode = blockMatch.rawCode;
     const sectionInfo = {
-      lineStart: linesBefore.length - 1,
-      lineEnd: linesBefore.length - 1 + matchLines.length - 1,
+      lineStart: blockMatch.lineStart,
+      lineEnd: blockMatch.lineEnd,
       text: content,
     };
 
@@ -465,6 +492,12 @@ export default class VisualMermaidPlugin extends Plugin {
   }
 
   async createNewDiagram() {
+    new DiagramTemplateModal(this.app, (template) => {
+      this.createDiagramFileWithTemplate(template.defaultCode);
+    }).open();
+  }
+
+  async createDiagramFileWithTemplate(initialCode: string) {
     try {
       const activeFile = this.app.workspace.getActiveFile();
       const parentDir = activeFile?.parent ? activeFile.parent.path : '';
@@ -481,8 +514,6 @@ export default class VisualMermaidPlugin extends Plugin {
       }
 
       const fullPath = parentDir ? `${parentDir}/${fileName}` : fileName;
-      const initialCode = `flowchart ${this.settings.defaultDirection}\n    A["Start"] --> B["Process"]\n    B --> C["End"]\n`;
-
       const createdFile = await this.app.vault.create(fullPath, initialCode);
       const leaf = this.app.workspace.getLeaf('tab');
       await leaf.openFile(createdFile);

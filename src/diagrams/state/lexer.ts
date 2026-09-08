@@ -1,0 +1,216 @@
+/**
+ * Tokenizer for Mermaid State Diagrams
+ */
+
+export type StateTokenType =
+  | 'DIRECTIVE'         // stateDiagram-v2, stateDiagram
+  | 'DIRECTION_KEYWORD' // direction
+  | 'DIRECTION'         // TB, TD, BT, RL, LR
+  | 'STATE_KEYWORD'     // state
+  | 'AS_KEYWORD'        // as
+  | 'START_END'         // [*]
+  | 'ARROW'             // -->
+  | 'COLON'             // :
+  | 'CHOICE'            // <<choice>>
+  | 'FORK'              // <<fork>>
+  | 'JOIN'              // <<join>>
+  | 'OPEN_BRACE'        // {
+  | 'CLOSE_BRACE'       // }
+  | 'NOTE'              // note
+  | 'STYLE'             // style
+  | 'CLASS_DEF'         // classDef
+  | 'CLASS'             // class
+  | 'IDENTIFIER'        // state name or keyword
+  | 'STRING'            // "quoted string"
+  | 'COMMENT'           // %% comment
+  | 'NEWLINE'
+  | 'EOF';
+
+export interface StateToken {
+  type: StateTokenType;
+  value: string;
+  line: number;
+  col: number;
+}
+
+export function tokenizeStateDiagram(input: string): StateToken[] {
+  const tokens: StateToken[] = [];
+  const lines = input.split('\n');
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const rawLine = lines[lineIdx];
+    const trimmed = rawLine.trim();
+
+    if (!trimmed) {
+      tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: 1 });
+      continue;
+    }
+
+    if (trimmed.startsWith('%%')) {
+      tokens.push({
+        type: 'COMMENT',
+        value: trimmed,
+        line: lineIdx + 1,
+        col: rawLine.indexOf('%') + 1,
+      });
+      tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: rawLine.length + 1 });
+      continue;
+    }
+
+    let pos = 0;
+    while (pos < rawLine.length) {
+      const char = rawLine[pos];
+
+      // Skip whitespace
+      if (char === ' ' || char === '\t' || char === '\r') {
+        pos++;
+        continue;
+      }
+
+      // Check for start/end pseudo-state [*]
+      if (rawLine.startsWith('[*]', pos)) {
+        tokens.push({
+          type: 'START_END',
+          value: '[*]',
+          line: lineIdx + 1,
+          col: pos + 1,
+        });
+        pos += 3;
+        continue;
+      }
+
+      // Check for transition arrow -->
+      if (rawLine.startsWith('-->', pos)) {
+        tokens.push({
+          type: 'ARROW',
+          value: '-->',
+          line: lineIdx + 1,
+          col: pos + 1,
+        });
+        pos += 3;
+        continue;
+      }
+
+      // Check for stereotypes <<choice>>, <<fork>>, <<join>>
+      if (rawLine.startsWith('<<choice>>', pos)) {
+        tokens.push({ type: 'CHOICE', value: '<<choice>>', line: lineIdx + 1, col: pos + 1 });
+        pos += 10;
+        continue;
+      }
+      if (rawLine.startsWith('<<fork>>', pos)) {
+        tokens.push({ type: 'FORK', value: '<<fork>>', line: lineIdx + 1, col: pos + 1 });
+        pos += 8;
+        continue;
+      }
+      if (rawLine.startsWith('<<join>>', pos)) {
+        tokens.push({ type: 'JOIN', value: '<<join>>', line: lineIdx + 1, col: pos + 1 });
+        pos += 8;
+        continue;
+      }
+
+      // Check for braces
+      if (char === '{') {
+        tokens.push({ type: 'OPEN_BRACE', value: '{', line: lineIdx + 1, col: pos + 1 });
+        pos++;
+        continue;
+      }
+      if (char === '}') {
+        tokens.push({ type: 'CLOSE_BRACE', value: '}', line: lineIdx + 1, col: pos + 1 });
+        pos++;
+        continue;
+      }
+
+      // Check for colon
+      if (char === ':') {
+        // The rest of the line after colon is often the label
+        tokens.push({ type: 'COLON', value: ':', line: lineIdx + 1, col: pos + 1 });
+        pos++;
+        // Capture remainder of line as label if present
+        const labelText = rawLine.substring(pos).trim();
+        if (labelText) {
+          tokens.push({
+            type: 'STRING',
+            value: labelText,
+            line: lineIdx + 1,
+            col: pos + 1,
+          });
+          pos = rawLine.length;
+        }
+        continue;
+      }
+
+      // Check for quoted strings e.g. "My State Description"
+      if (char === '"' || char === "'") {
+        const quoteChar = char;
+        let endIdx = pos + 1;
+        let escaped = false;
+        while (endIdx < rawLine.length) {
+          if (rawLine[endIdx] === quoteChar && !escaped) {
+            break;
+          }
+          escaped = rawLine[endIdx] === '\\' && !escaped;
+          endIdx++;
+        }
+        const val = rawLine.substring(pos + 1, endIdx);
+        tokens.push({
+          type: 'STRING',
+          value: val,
+          line: lineIdx + 1,
+          col: pos + 1,
+        });
+        pos = endIdx + 1;
+        continue;
+      }
+
+      // General word / identifier
+      let wordEnd = pos;
+      while (
+        wordEnd < rawLine.length &&
+        !/[\s\{\}\:\"]/.test(rawLine[wordEnd]) &&
+        !rawLine.startsWith('-->', wordEnd) &&
+        !rawLine.startsWith('[*]', wordEnd) &&
+        !rawLine.startsWith('<<', wordEnd)
+      ) {
+        wordEnd++;
+      }
+
+      if (wordEnd > pos) {
+        const word = rawLine.substring(pos, wordEnd);
+        const lower = word.toLowerCase();
+        const upper = word.toUpperCase();
+
+        if (lower === 'statediagram-v2' || lower === 'statediagram') {
+          tokens.push({ type: 'DIRECTIVE', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else if (lower === 'direction') {
+          tokens.push({ type: 'DIRECTION_KEYWORD', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else if (['TB', 'TD', 'BT', 'RL', 'LR'].includes(upper)) {
+          tokens.push({ type: 'DIRECTION', value: upper, line: lineIdx + 1, col: pos + 1 });
+        } else if (lower === 'state') {
+          tokens.push({ type: 'STATE_KEYWORD', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else if (lower === 'as') {
+          tokens.push({ type: 'AS_KEYWORD', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else if (lower === 'note') {
+          tokens.push({ type: 'NOTE', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else if (lower === 'style') {
+          tokens.push({ type: 'STYLE', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else if (lower === 'classdef') {
+          tokens.push({ type: 'CLASS_DEF', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else if (lower === 'class') {
+          tokens.push({ type: 'CLASS', value: word, line: lineIdx + 1, col: pos + 1 });
+        } else {
+          tokens.push({ type: 'IDENTIFIER', value: word, line: lineIdx + 1, col: pos + 1 });
+        }
+
+        pos = wordEnd;
+        continue;
+      }
+
+      pos++;
+    }
+
+    tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: rawLine.length + 1 });
+  }
+
+  tokens.push({ type: 'EOF', value: '', line: lines.length + 1, col: 1 });
+  return tokens;
+}

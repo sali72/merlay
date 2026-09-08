@@ -21,6 +21,7 @@ export interface MultiSelectHudProps {
   onGroupSelected?: () => void;
   onUngroupSelected?: () => void;
   canUngroup?: boolean;
+  isStateDiagram?: boolean;
 }
 
 export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
@@ -34,10 +35,20 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
   onGroupSelected,
   onUngroupSelected,
   canUngroup,
+  isStateDiagram = false,
 }) => {
   const totalCount = selectedNodeCount + selectedEdgeCount;
 
   const renderBadgeText = () => {
+    if (isStateDiagram) {
+      if (selectedNodeCount > 0 && selectedEdgeCount > 0) {
+        return `${selectedNodeCount} States, ${selectedEdgeCount} Transitions`;
+      }
+      if (selectedNodeCount > 0) {
+        return `${selectedNodeCount} States Selected`;
+      }
+      return `${selectedEdgeCount} Transitions Selected`;
+    }
     if (selectedNodeCount > 0 && selectedEdgeCount > 0) {
       return `${selectedNodeCount} Steps, ${selectedEdgeCount} Arrows`;
     }
@@ -66,7 +77,7 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
 
       <div className="mermaid-hud-divider" />
 
-      {/* Batch Shape Picker (visible if any nodes selected) */}
+      {/* Batch Shape / State Type Picker (visible if any nodes selected) */}
       {selectedNodeCount > 0 && (
         <button
           type="button"
@@ -74,14 +85,18 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
             activePopover === 'shape' ? 'is-active' : ''
           }`}
           onClick={() => onTogglePopover('shape')}
-          title="Change Shape (All Selected Nodes)"
+          title={
+            isStateDiagram
+              ? 'Change State Type (All Selected States)'
+              : 'Change Shape (All Selected Nodes)'
+          }
         >
           <ShapesIcon size={14} />
         </button>
       )}
 
-      {/* Batch Arrow Type Picker (visible if any edges selected) */}
-      {selectedEdgeCount > 0 && (
+      {/* Batch Arrow Type Picker (Only for flowcharts) */}
+      {!isStateDiagram && selectedEdgeCount > 0 && (
         <button
           type="button"
           className={`mermaid-hud-btn icon-only ${
@@ -94,7 +109,7 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
         </button>
       )}
 
-      {/* Batch Visual Style & Color (Applies to both nodes & arrows!) */}
+      {/* Batch Visual Style & Color */}
       <button
         type="button"
         className={`mermaid-hud-btn icon-only ${
@@ -106,13 +121,17 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
         <PaletteIcon size={14} />
       </button>
 
-      {/* Group selected nodes into new subgraph */}
+      {/* Group selected nodes into new subgraph / composite */}
       {selectedNodeCount > 0 && onGroupSelected && (
         <button
           type="button"
           className="mermaid-hud-btn icon-only"
           onClick={onGroupSelected}
-          title="Group Selected Nodes into New Subgraph"
+          title={
+            isStateDiagram
+              ? 'Group Selected States into Composite State'
+              : 'Group Selected Nodes into New Subgraph'
+          }
         >
           <FolderIcon size={14} />
         </button>
@@ -124,7 +143,11 @@ export const MultiSelectHud: React.FC<MultiSelectHudProps> = ({
           type="button"
           className="mermaid-hud-btn icon-only"
           onClick={onUngroupSelected}
-          title="Ungroup Selected Nodes"
+          title={
+            isStateDiagram
+              ? 'Remove Selected States from Composite State'
+              : 'Ungroup Selected Nodes'
+          }
         >
           <UngroupIcon size={14} />
         </button>

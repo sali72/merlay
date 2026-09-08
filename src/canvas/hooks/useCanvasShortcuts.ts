@@ -1,0 +1,160 @@
+import { useState, useEffect } from 'react';
+import { CursorMode } from '../types';
+
+export interface UseCanvasShortcutsOptions {
+  setCursorMode: (mode: CursorMode) => void;
+  handleUndo: () => void;
+  handleRedo: () => void;
+  handleSelectAll: () => void;
+  handleDuplicateSelected: () => void;
+  handleCopySelected: () => void;
+  handlePasteSelected: () => void;
+  handleBatchDeleteSelected: () => void;
+  clearSelection: () => void;
+  hasActivePopovers: boolean;
+  clearActivePopovers: () => void;
+  hasSelectedElements: boolean;
+  canCopy: boolean;
+}
+
+export function useCanvasShortcuts({
+  setCursorMode,
+  handleUndo,
+  handleRedo,
+  handleSelectAll,
+  handleDuplicateSelected,
+  handleCopySelected,
+  handlePasteSelected,
+  handleBatchDeleteSelected,
+  clearSelection,
+  hasActivePopovers,
+  clearActivePopovers,
+  hasSelectedElements,
+  canCopy,
+}: UseCanvasShortcutsOptions) {
+  const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isInputActive =
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA';
+
+      // Spacebar hold to temporarily activate hand pan
+      if (e.code === 'Space' && !isInputActive && !e.repeat) {
+        e.preventDefault();
+        setIsSpacePressed(true);
+        return;
+      }
+
+      // Hotkey V: Select Mode
+      if ((e.key === 'v' || e.key === 'V') && !isInputActive && !e.ctrlKey && !e.metaKey) {
+        setCursorMode('select');
+        return;
+      }
+
+      // Hotkey H: Hand Mode
+      if ((e.key === 'h' || e.key === 'H') && !isInputActive && !e.ctrlKey && !e.metaKey) {
+        setCursorMode('hand');
+        return;
+      }
+
+      // Hotkey Ctrl+Z (Undo)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && !isInputActive) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Hotkey Ctrl+Shift+Z or Ctrl+Y (Redo)
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        ((e.shiftKey && (e.key === 'z' || e.key === 'Z')) || e.key === 'y' || e.key === 'Y') &&
+        !isInputActive
+      ) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Hotkey Ctrl+A (Select All)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && !isInputActive) {
+        e.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      // Hotkey Ctrl+D (Duplicate Selected)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D') && !isInputActive) {
+        e.preventDefault();
+        handleDuplicateSelected();
+        return;
+      }
+
+      // Hotkey Ctrl+C (Copy Selected)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && !isInputActive) {
+        if (canCopy) {
+          e.preventDefault();
+          handleCopySelected();
+          return;
+        }
+      }
+
+      // Hotkey Ctrl+V (Paste Selected)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V') && !isInputActive) {
+        e.preventDefault();
+        handlePasteSelected();
+        return;
+      }
+
+      // Escape: Dismiss popovers or clear selection
+      if (e.key === 'Escape') {
+        if (hasActivePopovers) {
+          clearActivePopovers();
+        } else if (hasSelectedElements) {
+          clearSelection();
+        }
+        return;
+      }
+
+      // Delete / Backspace: Delete selected elements
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputActive) {
+        if (hasSelectedElements) {
+          e.preventDefault();
+          handleBatchDeleteSelected();
+        }
+      }
+    };
+
+    const handleGlobalKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    window.addEventListener('keyup', handleGlobalKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener('keyup', handleGlobalKeyUp);
+    };
+  }, [
+    setCursorMode,
+    handleUndo,
+    handleRedo,
+    handleSelectAll,
+    handleDuplicateSelected,
+    handleCopySelected,
+    handlePasteSelected,
+    handleBatchDeleteSelected,
+    clearSelection,
+    hasActivePopovers,
+    clearActivePopovers,
+    hasSelectedElements,
+    canCopy,
+  ]);
+
+  return {
+    isSpacePressed,
+  };
+}
