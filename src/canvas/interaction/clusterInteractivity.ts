@@ -1,28 +1,56 @@
 /**
  * Subgraph Cluster Interactivity Setup for Native Mermaid SVG.
- * Matches SVG cluster groups to AST subgraphs and attaches click/double-click handlers.
+ * Matches SVG cluster groups to view-model subgraphs and attaches
+ * click/double-click handlers, plus hover so clusters can act as connection
+ * endpoints (drag-to-connect to/from a composite/group).
  */
 
 import { MermaidSubgraphDef } from '../../diagrams/viewModel';
+import { Rect } from '../types';
 
 export interface SetupClusterInteractivityOptions {
   mountEl: HTMLElement;
   displaySubgraphs: Map<string, MermaidSubgraphDef>;
+  getLocalRect: (el: Element) => Rect | null;
   onSelectSubgraph: (targetSubId: string, htmlEl: Element) => void;
   onStartEditingSubgraph: (subId: string, subEl: Element) => void;
+  onHoverSubgraph?: (subId: string, rect: Rect | null) => void;
 }
 
 export function setupClusterInteractivity({
   mountEl,
   displaySubgraphs,
+  getLocalRect,
   onSelectSubgraph,
   onStartEditingSubgraph,
+  onHoverSubgraph,
 }: SetupClusterInteractivityOptions): void {
   const clusterElements = Array.from(
     mountEl.querySelectorAll('.cluster, [class*="cluster"]')
   );
   const usedSubIds = new Set<string>();
   const pendingLabelClusters: Element[] = [];
+
+  const bindCluster = (htmlEl: SVGGraphicsElement, targetSubId: string) => {
+    htmlEl.setAttribute('data-mermaid-subgraph-id', targetSubId);
+    // Clusters double as connection endpoints (e.g. transitions to/from
+    // composite states, edges between flowchart subgraphs). Drivers decide
+    // whether the id is connectable; the canvas just resolves the drop.
+    htmlEl.setAttribute('data-mermaid-node-id', targetSubId);
+    htmlEl.onclick = (e) => {
+      e.stopPropagation();
+      onSelectSubgraph(targetSubId, htmlEl);
+    };
+    htmlEl.ondblclick = (e) => {
+      e.stopPropagation();
+      onStartEditingSubgraph(targetSubId, htmlEl);
+    };
+    if (onHoverSubgraph) {
+      htmlEl.onmouseenter = () => {
+        onHoverSubgraph(targetSubId, getLocalRect(htmlEl));
+      };
+    }
+  };
 
   const matchByIdOrContainment = (htmlEl: Element): string | null => {
     const idAttr = htmlEl.getAttribute('id') || '';
@@ -61,16 +89,7 @@ export function setupClusterInteractivity({
     const matched = matchByIdOrContainment(htmlEl);
     if (matched) {
       usedSubIds.add(matched);
-      htmlEl.setAttribute('data-mermaid-subgraph-id', matched);
-      const targetSubId = matched;
-      htmlEl.onclick = (e) => {
-        e.stopPropagation();
-        onSelectSubgraph(targetSubId, htmlEl);
-      };
-      htmlEl.ondblclick = (e) => {
-        e.stopPropagation();
-        onStartEditingSubgraph(targetSubId, htmlEl);
-      };
+      bindCluster(htmlEl, matched);
     } else {
       unassignedClusters.push(htmlEl);
     }
@@ -110,15 +129,7 @@ export function setupClusterInteractivity({
     usedSubIds.add(targetSubId);
     const qIdx = subQueue.indexOf(targetSubId);
     if (qIdx !== -1) subQueue.splice(qIdx, 1);
-    htmlEl.setAttribute('data-mermaid-subgraph-id', targetSubId);
-    htmlEl.onclick = (e) => {
-      e.stopPropagation();
-      onSelectSubgraph(targetSubId, htmlEl);
-    };
-    htmlEl.ondblclick = (e) => {
-      e.stopPropagation();
-      onStartEditingSubgraph(targetSubId, htmlEl);
-    };
+    bindCluster(htmlEl, targetSubId);
   }
   for (const el of pendingLabelClusters) {
     const htmlEl = el as SVGGraphicsElement;

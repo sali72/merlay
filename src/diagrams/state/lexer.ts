@@ -23,6 +23,7 @@ export type StateTokenType =
   | 'IDENTIFIER'        // state name or keyword
   | 'STRING'            // "quoted string"
   | 'COMMENT'           // %% comment
+  | 'RAW_LINE'          // unsupported statement preserved verbatim (notes, classDefs, --, :::)
   | 'NEWLINE'
   | 'EOF';
 
@@ -31,6 +32,22 @@ export interface StateToken {
   value: string;
   line: number;
   col: number;
+}
+
+/** True when ':::' occurs outside quoted strings (inline classDef shorthand). */
+function containsInlineClassShorthand(line: string): boolean {
+  let quoteChar: string | null = null;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoteChar) {
+      if (ch === quoteChar && line[i - 1] !== '\\') quoteChar = null;
+    } else if (ch === '"' || ch === "'") {
+      quoteChar = ch;
+    } else if (line.startsWith(':::', i)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function tokenizeStateDiagram(input: string): StateToken[] {
@@ -57,6 +74,23 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
       continue;
     }
 
+    // Statements the editor does not model are preserved verbatim so visual
+    // edits never corrupt or drop hand-written code.
+    if (
+      /^(note|classdef|class)\b/i.test(trimmed) ||
+      trimmed === '--' ||
+      containsInlineClassShorthand(trimmed)
+    ) {
+      tokens.push({
+        type: 'RAW_LINE',
+        value: trimmed,
+        line: lineIdx + 1,
+        col: 1,
+      });
+      tokens.push({ type: 'NEWLINE', value: '\n', line: lineIdx + 1, col: rawLine.length + 1 });
+      continue;
+    }
+
     let pos = 0;
     while (pos < rawLine.length) {
       const char = rawLine[pos];
@@ -64,6 +98,18 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
       // Skip whitespace
       if (char === ' ' || char === '\t' || char === '\r') {
         pos++;
+        continue;
+      }
+
+      // Trailing comment: everything from %% to end of line
+      if (rawLine.startsWith('%%', pos)) {
+        tokens.push({
+          type: 'COMMENT',
+          value: rawLine.substring(pos).trim(),
+          line: lineIdx + 1,
+          col: pos + 1,
+        });
+        pos = rawLine.length;
         continue;
       }
 

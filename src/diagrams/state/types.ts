@@ -49,5 +49,10 @@ export interface MermaidStateAST {
   transitions: MermaidTransitionDef[];
   compositeStates: Map<string, MermaidCompositeStateDef>;
   styles: Array<{ targetId: string; styles: Record<string, string> }>;
-  rawLines: string[];
+  /**
+   * Statements the editor does not model (notes, classDef/class, `--`
+   * concurrency separators, `:::` styles, comments) preserved verbatim so
+   * visual edits never corrupt or drop hand-written code.
+   */
+  rawLines: Array<{ text: string; compositeId?: string }>;
 }

@@ -46,7 +46,7 @@ function cloneStateAst(ast: MermaidStateAST): MermaidStateAST {
       ])
     ),
     styles: ast.styles.map((s) => ({ ...s })),
-    rawLines: [...ast.rawLines],
+    rawLines: ast.rawLines.map((r) => ({ ...r })),
   };
 }
 

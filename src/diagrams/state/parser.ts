@@ -58,9 +58,17 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
 
     const token = currentToken();
 
-    // 1. Comments
+    // 1. Comments — preserved verbatim so visual edits never drop them
     if (token.type === 'COMMENT') {
-      advance();
+      const t = advance();
+      ast.rawLines.push({ text: t.value, compositeId: compositeStack[compositeStack.length - 1] });
+      continue;
+    }
+
+    // 1b. Unsupported statements (notes, classDefs, --, :::) — preserved verbatim
+    if (token.type === 'RAW_LINE') {
+      const t = advance();
+      ast.rawLines.push({ text: t.value, compositeId: compositeStack[compositeStack.length - 1] });
       continue;
     }
 
@@ -132,6 +140,22 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
 
     // Advance unknown tokens to avoid infinite loops
     advance();
+  }
+
+  // 7. Reconcile: a transition may reference a composite id before it is
+  // declared, which creates an implicit state. Composite ids win — drop the
+  // duplicate state (transitions keep the id and resolve to the composite).
+  for (const compId of ast.compositeStates.keys()) {
+    const dupState = ast.states.get(compId);
+    if (!dupState) continue;
+    const comp = ast.compositeStates.get(compId)!;
+    if (dupState.label && dupState.label !== compId && (comp.label === compId || !comp.label)) {
+      comp.label = dupState.label;
+    }
+    ast.states.delete(compId);
+    for (const other of ast.compositeStates.values()) {
+      other.stateIds = other.stateIds.filter((id) => id !== compId);
+    }
   }
 
   return ast;
@@ -269,6 +293,12 @@ export function parseMermaidStateDiagram(input: string): MermaidStateAST {
     stateType: MermaidStateType = 'normal'
   ) {
     const currentComp = compositeStack[compositeStack.length - 1];
+
+    // Composite states are valid transition endpoints — never shadow them
+    // with a duplicate state of the same id.
+    if (id !== '[*]' && ast.compositeStates.has(id)) {
+      return;
+    }
 
     if (!ast.states.has(id)) {
       const newState: MermaidStateDef = {

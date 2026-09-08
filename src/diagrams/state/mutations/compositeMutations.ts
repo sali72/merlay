@@ -7,7 +7,10 @@ import {
   MermaidStateAST,
   StateDirection,
 } from '../types';
-import { deleteState } from './stateMutations';
+import {
+  deleteState,
+  removeComposite,
+} from './stateMutations';
 
 export function setStateDiagramDirection(
   ast: MermaidStateAST,
@@ -67,7 +70,10 @@ export function deleteCompositeState(
     }
   }
 
-  ast.compositeStates.delete(compId);
+  // Removes the definition, its styles, and the transitions that targeted
+  // the composite itself (dropping them beats leaving mermaid to auto-create
+  // a replacement state with the same id).
+  removeComposite(ast, compId);
 }
 
 export function moveStateToComposite(
@@ -86,8 +92,7 @@ export function moveStateToComposite(
     const oldComp = ast.compositeStates.get(oldCompId)!;
     oldComp.stateIds = oldComp.stateIds.filter((id) => id !== stateId);
     if (oldComp.stateIds.length === 0 && (!oldComp.compositeIds || oldComp.compositeIds.length === 0)) {
-      ast.compositeStates.delete(oldCompId);
-      ast.styles = ast.styles.filter((s) => s.targetId !== oldCompId);
+      removeComposite(ast, oldCompId);
     }
   }
 

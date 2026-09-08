@@ -100,10 +100,19 @@ export function pruneEmptyComposites(ast: MermaidStateAST): void {
           delete st.compositeId;
         }
       }
-      ast.compositeStates.delete(compId);
-      ast.styles = ast.styles.filter((s) => s.targetId !== compId);
+      removeComposite(ast, compId);
     }
   }
+}
+
+/** Delete a composite definition along with its styles and the transitions
+ * that referenced it as an endpoint. */
+export function removeComposite(ast: MermaidStateAST, compId: string): void {
+  ast.compositeStates.delete(compId);
+  ast.styles = ast.styles.filter((s) => s.targetId !== compId);
+  ast.transitions = ast.transitions.filter(
+    (t) => t.from !== compId && t.to !== compId
+  );
 }
 
 /** Drop the [*] entry once no transition references it (it renders nothing). */

@@ -161,6 +161,8 @@ src/
   - Pseudo-states (`<<choice>>`, `<<fork>>`, `<<join>>`) must not have aliases (`state "label" as id`).
   - Start/end anchors are denoted by `[*]`, share one node id, and cannot be multi-selected or converted to normal states via morphing.
   - Directional transitions to/from `[*]` must be strictly preserved.
+  - **Transitions to/from composite states are valid** — composite ids are transition endpoints, never shadow states. Deleting a composite drops the transitions that targeted it.
+  - **Statements the editor does not model** (notes, `classDef`/`class`, `--` concurrency separators, `:::` shorthand, `%%` comments) are preserved verbatim in `ast.rawLines` (scoped to their composite when applicable) and re-emitted on serialize — visual edits must never corrupt or drop hand-written code.
 
 ---
 

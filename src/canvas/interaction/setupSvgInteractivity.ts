@@ -70,11 +70,13 @@ export function setupSvgInteractivity(options: SetupSvgInteractivityOptions): vo
     onStartEditingEdge,
   });
 
-  // 3. Subgraph clusters
+  // 3. Subgraph clusters (also connectable as endpoints via data-mermaid-node-id)
   setupClusterInteractivity({
     mountEl,
     displaySubgraphs,
+    getLocalRect,
     onSelectSubgraph,
     onStartEditingSubgraph,
+    onHoverSubgraph: onHoverNode,
   });
 }

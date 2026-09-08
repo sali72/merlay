@@ -86,6 +86,17 @@ export function serializeMermaidStateDiagram(ast: MermaidStateAST): string {
     }
   }
 
+  // 7. Preserved statements (notes, classDefs, comments, --, :::) at top level
+  if (ast.rawLines && ast.rawLines.length > 0) {
+    const topLevelRaws = ast.rawLines.filter((r) => !r.compositeId);
+    if (topLevelRaws.length > 0) {
+      lines.push('');
+      for (const raw of topLevelRaws) {
+        lines.push(`    ${raw.text}`);
+      }
+    }
+  }
+
   return lines.join('\n').trim() + '\n';
 }
 
@@ -147,6 +158,15 @@ function emitCompositeState(
     ) {
       emitTransition(lines, tr, innerIndent);
       emittedTransitions.add(tr.id);
+    }
+  }
+
+  // 4. Preserved statements scoped to this composite (notes, -- separators)
+  if (ast.rawLines) {
+    for (const raw of ast.rawLines) {
+      if (raw.compositeId === compId) {
+        lines.push(`${innerIndent}${raw.text}`);
+      }
     }
   }
 
