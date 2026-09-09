@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
+import { useCanvasStore } from '../store/canvasStore';
 import {
   ActiveEdgePopover,
   ActiveMultiPopover,
@@ -16,32 +17,86 @@ export interface UseCanvasSelectionOptions {
   svgMountRef: React.RefObject<HTMLDivElement>;
   getLocalRect: (el: Element) => Rect | null;
   displayDirection: string;
-  selectedStarKind?: 'start' | 'end' | null;
 }
 
 export function useCanvasSelection({
   svgMountRef,
   getLocalRect,
   displayDirection,
-  selectedStarKind,
 }: UseCanvasSelectionOptions) {
-  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
-  const [selectedSubgraphId, setSelectedSubgraphId] = useState<string | null>(null);
+  const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds);
+  const selectedEdgeIds = useCanvasStore((s) => s.selectedEdgeIds);
+  const selectedSubgraphId = useCanvasStore((s) => s.selectedSubgraphId);
+  const selectedStarKind = useCanvasStore((s) => s.selectedStarKind);
 
-  const [selectedNodeRect, setSelectedNodeRect] = useState<Rect | null>(null);
-  const [selectedEdgePos, setSelectedEdgePos] = useState<SelectedEdgePos | null>(null);
-  const [selectedSubgraphRect, setSelectedSubgraphRect] = useState<Rect | null>(null);
+  const selectedNodeRect = useCanvasStore((s) => s.selectedNodeRect);
+  const selectedEdgePos = useCanvasStore((s) => s.selectedEdgePos);
+  const selectedSubgraphRect = useCanvasStore((s) => s.selectedSubgraphRect);
 
-  const selectedNodeIdsRef = useRef<Set<string>>(new Set());
-  const selectedEdgeIdsRef = useRef<Set<string>>(new Set());
+  const activeNodePopover = useCanvasStore((s) => s.activeNodePopover);
+  const activeEdgePopover = useCanvasStore((s) => s.activeEdgePopover);
+  const activeMultiPopover = useCanvasStore((s) => s.activeMultiPopover);
+  const activeSubgraphPopover = useCanvasStore((s) => s.activeSubgraphPopover);
 
-  const [activeNodePopover, setActiveNodePopover] = useState<ActiveNodePopover>(null);
-  const [activeEdgePopover, setActiveEdgePopover] = useState<ActiveEdgePopover>(null);
-  const [activeMultiPopover, setActiveMultiPopover] = useState<ActiveMultiPopover>(null);
-  const [activeSubgraphPopover, setActiveSubgraphPopover] = useState<'style' | 'group' | null>(null);
+  const unmatchedSubgraphIds = useCanvasStore((s) => s.unmatchedSubgraphIds);
 
-  const [unmatchedSubgraphIds, setUnmatchedSubgraphIds] = useState<string[]>([]);
+  const setSelectedNodeIds = useCallback((ids: Set<string>) => {
+    useCanvasStore.getState().setSelectedNodeIds(ids);
+  }, []);
+  const setSelectedEdgeIds = useCallback((ids: Set<string>) => {
+    useCanvasStore.getState().setSelectedEdgeIds(ids);
+  }, []);
+  const setSelectedSubgraphId = useCallback((id: string | null) => {
+    useCanvasStore.getState().setSelectedSubgraphId(id);
+  }, []);
+  const setSelectedNodeRect = useCallback((rect: Rect | null) => {
+    useCanvasStore.getState().setSelectedNodeRect(rect);
+  }, []);
+  const setSelectedEdgePos = useCallback((pos: SelectedEdgePos | null) => {
+    useCanvasStore.getState().setSelectedEdgePos(pos);
+  }, []);
+  const setSelectedSubgraphRect = useCallback((rect: Rect | null) => {
+    useCanvasStore.getState().setSelectedSubgraphRect(rect);
+  }, []);
+
+  const setActiveNodePopover = useCallback(
+    (popover: ActiveNodePopover | ((prev: ActiveNodePopover) => ActiveNodePopover)) => {
+      useCanvasStore.getState().setActiveNodePopover(popover);
+    },
+    []
+  );
+  const setActiveEdgePopover = useCallback(
+    (popover: ActiveEdgePopover | ((prev: ActiveEdgePopover) => ActiveEdgePopover)) => {
+      useCanvasStore.getState().setActiveEdgePopover(popover);
+    },
+    []
+  );
+  const setActiveMultiPopover = useCallback(
+    (popover: ActiveMultiPopover | ((prev: ActiveMultiPopover) => ActiveMultiPopover)) => {
+      useCanvasStore.getState().setActiveMultiPopover(popover);
+    },
+    []
+  );
+  const setActiveSubgraphPopover = useCallback(
+    (
+      popover:
+        | 'style'
+        | 'group'
+        | null
+        | ((prev: 'style' | 'group' | null) => 'style' | 'group' | null)
+    ) => {
+      useCanvasStore.getState().setActiveSubgraphPopover(popover);
+    },
+    []
+  );
+  const setUnmatchedSubgraphIds = useCallback((ids: string[] | ((prev: string[]) => string[])) => {
+    useCanvasStore.getState().setUnmatchedSubgraphIds(ids);
+  }, []);
+
+  const selectedNodeIdsRef = useRef<Set<string>>(selectedNodeIds);
+  selectedNodeIdsRef.current = selectedNodeIds;
+  const selectedEdgeIdsRef = useRef<Set<string>>(selectedEdgeIds);
+  selectedEdgeIdsRef.current = selectedEdgeIds;
 
   const isMultiSelect = selectedNodeIds.size + selectedEdgeIds.size > 1;
 
@@ -184,18 +239,7 @@ export function useCanvasSelection({
   );
 
   const clearSelection = useCallback(() => {
-    selectedNodeIdsRef.current = new Set();
-    selectedEdgeIdsRef.current = new Set();
-    setSelectedNodeIds(new Set());
-    setSelectedEdgeIds(new Set());
-    setSelectedSubgraphId(null);
-    setSelectedNodeRect(null);
-    setSelectedEdgePos(null);
-    setSelectedSubgraphRect(null);
-    setActiveNodePopover(null);
-    setActiveEdgePopover(null);
-    setActiveMultiPopover(null);
-    setActiveSubgraphPopover(null);
+    useCanvasStore.getState().clearSelection();
     updateSelectedNodeHalo(new Set());
     updateSelectedEdgeHalo(new Set());
     if (svgMountRef.current) {
@@ -319,31 +363,24 @@ export function useCanvasSelection({
     (keepType: 'node' | 'edge' | 'subgraph', id: string) => {
       const empty = new Set<string>();
       if (keepType === 'node') {
-        selectedEdgeIdsRef.current = empty;
-        setSelectedEdgeIds(empty);
-        setSelectedEdgePos(null);
+        useCanvasStore.getState().setSelectedEdgeIds(empty);
+        useCanvasStore.getState().setSelectedEdgePos(null);
         updateSelectedEdgeHalo(empty);
       } else if (keepType === 'edge') {
-        selectedNodeIdsRef.current = empty;
-        setSelectedNodeIds(empty);
-        setSelectedNodeRect(null);
+        useCanvasStore.getState().setSelectedNodeIds(empty);
+        useCanvasStore.getState().setSelectedNodeRect(null);
         updateSelectedNodeHalo(empty);
         setSelectedEdgeId(id);
         updateSelectedEdgeHalo(new Set([id]));
       } else if (keepType === 'subgraph') {
-        selectedNodeIdsRef.current = empty;
-        selectedEdgeIdsRef.current = empty;
-        setSelectedNodeIds(empty);
-        setSelectedEdgeIds(empty);
-        setSelectedNodeRect(null);
-        setSelectedEdgePos(null);
-        setActiveNodePopover(null);
-        setActiveEdgePopover(null);
-        setActiveMultiPopover(null);
-        setActiveSubgraphPopover(null);
+        useCanvasStore.getState().setSelectedNodeIds(empty);
+        useCanvasStore.getState().setSelectedEdgeIds(empty);
+        useCanvasStore.getState().setSelectedNodeRect(null);
+        useCanvasStore.getState().setSelectedEdgePos(null);
+        useCanvasStore.getState().clearPopovers();
         updateSelectedNodeHalo(empty);
         updateSelectedEdgeHalo(empty);
-        setSelectedSubgraphId(id);
+        useCanvasStore.getState().setSelectedSubgraphId(id);
       }
     },
     [updateSelectedNodeHalo, updateSelectedEdgeHalo, setSelectedEdgeId]

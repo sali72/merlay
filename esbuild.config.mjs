@@ -43,19 +43,12 @@ const context = await esbuild.context({
   jsx: 'automatic',
   plugins: [
     {
-      name: 'combine-css',
+      name: 'copy-css',
       setup(build) {
         build.onEnd(() => {
-          let customCss = '';
           if (fs.existsSync('src/styles.css')) {
-            customCss = fs.readFileSync('src/styles.css', 'utf-8');
+            fs.copyFileSync('src/styles.css', 'styles.css');
           }
-          let reactFlowCss = '';
-          if (fs.existsSync('main.css')) {
-            reactFlowCss = fs.readFileSync('main.css', 'utf-8');
-            fs.unlinkSync('main.css');
-          }
-          fs.writeFileSync('styles.css', reactFlowCss + '\n\n' + customCss);
         });
       },
     },

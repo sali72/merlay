@@ -20,8 +20,6 @@ export interface SetupSvgInteractivityOptions {
   displayEdges: MermaidEdgeDef[];
   displaySubgraphs: Map<string, MermaidSubgraphDef>;
   getLocalRect: (el: Element) => Rect | null;
-  selectedNodeIdsRef: React.RefObject<Set<string>>;
-  selectedEdgeIdsRef: React.RefObject<Set<string>>;
   onSelectNode: (targetNodeId: string, isMulti: boolean, htmlEl: Element) => void;
   onSelectEdge: (targetEdge: MermaidEdgeDef, resolvedPath: Element, isMulti: boolean) => void;
   onSelectSubgraph: (targetSubId: string, htmlEl: Element) => void;

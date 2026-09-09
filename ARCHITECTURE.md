@@ -127,11 +127,11 @@ src/
 
 ## 3. Engineering Rules for AI & Developers
 
-### 1. The 300 LOC Guideline
-- Keep every file **under 300 lines of code** whenever feasible.
-- Break large components into domain-specific sub-layers (e.g., `NodeOverlays`, `EdgeOverlays`).
-- Break large hooks into focused sub-hooks (e.g., `useNodeMutations`, `useEdgeMutations`).
-- Always maintain facade re-exports (`index.ts` or the original file name) to preserve backward compatibility with tests and callers.
+### 1. Domain Cohesion & Decoupling Guideline
+- Prefer **cohesive, decoupled modules** over arbitrary line-count file chopping. Avoid splitting hooks or components if the split forces 15+ parameters/setters to be threaded through props.
+- File size is an indicator of responsibility, not a dogmatic limit. Group tightly coupled state and actions together rather than scattering them across arbitrary sub-hook files.
+- Centralize shared canvas state (selection, geometry, camera, popovers) in a single decoupled store (e.g. Zustand) to eliminate prop-threading and ref-mirroring.
+- Always maintain facade re-exports (`index.ts` or original entrypoints) to preserve backward compatibility with tests and callers.
 
 ### 2. Pure AST Mutations
 - **NEVER** modify SVG DOM nodes directly to update diagram structure.

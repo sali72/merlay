@@ -1,6 +1,6 @@
 /**
  * Hook to manage Mermaid SVG rendering, camera stabilization, unmatched subgraph discovery,
- * and binding SVG DOM interactivity.
+ * and binding SVG DOM interactivity via the centralized Zustand store.
  */
 
 import React, { useEffect, useRef, useCallback } from 'react';
@@ -11,6 +11,7 @@ import { DiagramDriver } from '../../diagrams/types';
 import { renderMermaidSvg } from '../renderer/mermaidRenderer';
 import { applySelectedNodeHalos } from '../renderer/selectionHalo';
 import { setupSvgInteractivity } from '../interaction/setupSvgInteractivity';
+import { useCanvasStore } from '../store/canvasStore';
 
 export interface UseCanvasRendererOptions {
   app: App;
@@ -21,35 +22,15 @@ export interface UseCanvasRendererOptions {
   displayEdges: MermaidEdgeDef[];
   displaySubgraphs: Map<string, MermaidSubgraphDef>;
   getLocalRect: (el: Element) => Rect | null;
-  selection: {
-    selectedNodeIdsRef: React.MutableRefObject<Set<string>>;
-    selectedEdgeIdsRef: React.MutableRefObject<Set<string>>;
-    setSelectedNodeIds: (ids: Set<string>) => void;
-    setSelectedEdgeIds: (ids: Set<string>) => void;
-    setSelectedNodeRect: (rect: Rect | null) => void;
-    setSelectedEdgePos: (pos: any | null) => void;
-    setSelectedSubgraphId: (id: string | null) => void;
-    setSelectedSubgraphRect: (rect: Rect | null) => void;
-    setActiveNodePopover: (popover: any) => void;
-    setActiveEdgePopover: (popover: any) => void;
-    setActiveMultiPopover: (popover: any) => void;
-    setActiveSubgraphPopover: (popover: any) => void;
-    updateSelectedNodeHalo: (nodes?: Set<string>) => void;
-    updateSelectedEdgeHalo: (edges?: Set<string>) => void;
-    updateSelectedNodeRect: () => void;
-    setUnmatchedSubgraphIds: React.Dispatch<React.SetStateAction<string[]>>;
-  };
-  selectedStarKindRef: React.MutableRefObject<'start' | 'end' | null>;
-  setSelectedStarKind: (kind: 'start' | 'end' | null) => void;
+  updateSelectedNodeHalo: (nodes?: Set<string>) => void;
+  updateSelectedEdgeHalo: (edges?: Set<string>) => void;
+  updateSelectedNodeRect: () => void;
   inlineEditing: {
     startEditingEdge: (edgeId: string, edgeEl: Element) => void;
     startEditingSubgraph: (subId: string, subEl: Element) => void;
     setEditingNodeId: (id: string | null) => void;
   };
   handleStartEditingNode: (nodeId: string, el: Element) => void;
-  setHoveredNodeId: (id: string | null) => void;
-  setHoveredNodeRect: (rect: Rect | null) => void;
-  setHoveredNodeKind: (kind: 'start' | 'end' | null) => void;
   stabilizeCamera: () => void;
   setSyntaxError: (err: string | null) => void;
 }
@@ -63,14 +44,11 @@ export function useCanvasRenderer({
   displayEdges,
   displaySubgraphs,
   getLocalRect,
-  selection,
-  selectedStarKindRef,
-  setSelectedStarKind,
+  updateSelectedNodeHalo,
+  updateSelectedEdgeHalo,
+  updateSelectedNodeRect,
   inlineEditing,
   handleStartEditingNode,
-  setHoveredNodeId,
-  setHoveredNodeRect,
-  setHoveredNodeKind,
   stabilizeCamera,
   setSyntaxError,
 }: UseCanvasRendererOptions) {
@@ -90,12 +68,10 @@ export function useCanvasRenderer({
       displayEdges,
       displaySubgraphs,
       getLocalRect,
-      selectedNodeIdsRef: selection.selectedNodeIdsRef,
-      selectedEdgeIdsRef: selection.selectedEdgeIdsRef,
       onSelectNode: (targetNodeId, isMulti, htmlEl) => {
-        selection.setSelectedSubgraphId(null);
-        selection.setSelectedSubgraphRect(null);
-        selection.setActiveSubgraphPopover(null);
+        useCanvasStore.getState().setSelectedSubgraphId(null);
+        useCanvasStore.getState().setSelectedSubgraphRect(null);
+        useCanvasStore.getState().setActiveSubgraphPopover(null);
         mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
           c.classList.remove('mermaid-cluster-selected')
         );
@@ -107,90 +83,80 @@ export function useCanvasRenderer({
           : null;
 
         if (isAnchorId(targetNodeId) && starKindForTarget) {
-          selectedStarKindRef.current = starKindForTarget;
-          setSelectedStarKind(starKindForTarget);
+          useCanvasStore.getState().setSelectedStarKind(starKindForTarget);
         } else if (!isAnchorId(targetNodeId)) {
-          selectedStarKindRef.current = null;
-          setSelectedStarKind(null);
+          useCanvasStore.getState().setSelectedStarKind(null);
         }
 
         if (isMulti) {
           // Anchors are single-select only — never part of a multi-select group.
           if (isAnchorId(targetNodeId)) {
             const nextNodes = new Set([targetNodeId]);
-            selection.selectedNodeIdsRef.current = nextNodes;
-            selection.setSelectedNodeIds(nextNodes);
-            selection.setSelectedEdgeIds(new Set());
-            selection.setSelectedEdgePos(null);
-            selection.updateSelectedEdgeHalo(new Set());
+            useCanvasStore.getState().setSelectedNodeIds(nextNodes);
+            useCanvasStore.getState().setSelectedEdgeIds(new Set());
+            useCanvasStore.getState().setSelectedEdgePos(null);
+            updateSelectedEdgeHalo(new Set());
             const rect = getLocalRect(htmlEl);
-            if (rect) selection.setSelectedNodeRect(rect);
+            if (rect) useCanvasStore.getState().setSelectedNodeRect(rect);
             // Kind-filtered halo — only highlight the clicked anchor, not both
             applySelectedNodeHalos(mountEl, nextNodes, undefined, starKindForTarget);
             return;
           }
-          const prev = selection.selectedNodeIdsRef.current;
+          const prev = useCanvasStore.getState().selectedNodeIds;
           // Drop any existing anchor from the multi-set before toggling.
           const next = new Set(
             Array.from(prev).filter((id) => !isAnchorId(id))
           );
           if (next.has(targetNodeId)) next.delete(targetNodeId);
           else next.add(targetNodeId);
-          selection.selectedNodeIdsRef.current = next;
-          selection.setSelectedNodeIds(next);
-          selection.updateSelectedNodeHalo(next);
+          useCanvasStore.getState().setSelectedNodeIds(next);
+          updateSelectedNodeHalo(next);
         } else {
           const nextNodes = new Set([targetNodeId]);
           const emptyEdges = new Set<string>();
-          selection.selectedNodeIdsRef.current = nextNodes;
-          selection.selectedEdgeIdsRef.current = emptyEdges;
-          selection.setSelectedNodeIds(nextNodes);
-          selection.setSelectedEdgeIds(emptyEdges);
-          selection.setSelectedEdgePos(null);
-          selection.updateSelectedEdgeHalo(emptyEdges);
+          useCanvasStore.getState().setSelectedNodeIds(nextNodes);
+          useCanvasStore.getState().setSelectedEdgeIds(emptyEdges);
+          useCanvasStore.getState().setSelectedEdgePos(null);
+          updateSelectedEdgeHalo(emptyEdges);
           const rect = getLocalRect(htmlEl);
-          if (rect) selection.setSelectedNodeRect(rect);
+          if (rect) useCanvasStore.getState().setSelectedNodeRect(rect);
           if (isAnchorId(targetNodeId) && starKindForTarget) {
             applySelectedNodeHalos(mountEl, nextNodes, undefined, starKindForTarget);
           } else {
-            selection.updateSelectedNodeHalo(nextNodes);
+            updateSelectedNodeHalo(nextNodes);
           }
         }
       },
       onSelectEdge: (targetEdge, resolvedPath, isMulti) => {
-        selectedStarKindRef.current = null;
-        setSelectedStarKind(null);
-        selection.setSelectedSubgraphId(null);
-        selection.setSelectedSubgraphRect(null);
-        selection.setActiveSubgraphPopover(null);
+        useCanvasStore.getState().setSelectedStarKind(null);
+        useCanvasStore.getState().setSelectedSubgraphId(null);
+        useCanvasStore.getState().setSelectedSubgraphRect(null);
+        useCanvasStore.getState().setActiveSubgraphPopover(null);
         mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
           c.classList.remove('mermaid-cluster-selected')
         );
 
         const edgeId = targetEdge.id;
         if (isMulti) {
-          const prev = selection.selectedEdgeIdsRef.current;
+          const prev = useCanvasStore.getState().selectedEdgeIds;
           const next = new Set(prev);
           if (next.has(edgeId)) next.delete(edgeId);
           else next.add(edgeId);
-          selection.selectedEdgeIdsRef.current = next;
-          selection.setSelectedEdgeIds(next);
-          selection.updateSelectedEdgeHalo(next);
+          useCanvasStore.getState().setSelectedEdgeIds(next);
+          updateSelectedEdgeHalo(next);
         } else {
           const nextEdges = new Set([edgeId]);
           const emptyNodes = new Set<string>();
-          selection.selectedEdgeIdsRef.current = nextEdges;
-          selection.selectedNodeIdsRef.current = emptyNodes;
-          selection.setSelectedEdgeIds(nextEdges);
-          selection.setSelectedNodeIds(emptyNodes);
-          selection.setSelectedNodeRect(null);
+          useCanvasStore.getState().setSelectedEdgeIds(nextEdges);
+          useCanvasStore.getState().setSelectedNodeIds(emptyNodes);
+          useCanvasStore.getState().setSelectedNodeRect(null);
           inlineEditing.setEditingNodeId(null);
-          selection.updateSelectedNodeHalo(emptyNodes);
-          selection.updateSelectedEdgeHalo(nextEdges);
+          updateSelectedNodeHalo(emptyNodes);
+          updateSelectedEdgeHalo(nextEdges);
 
           const rect = getLocalRect(resolvedPath);
           if (rect) {
-            selection.setSelectedEdgePos({
+            useCanvasStore.getState().setSelectedEdgePos({
               x: rect.x + rect.width / 2,
               y: rect.y + rect.height / 2,
               label: targetEdge.label,
@@ -202,22 +168,11 @@ export function useCanvasRenderer({
         }
       },
       onSelectSubgraph: (targetSubId, htmlEl) => {
-        selectedStarKindRef.current = null;
-        setSelectedStarKind(null);
-        selection.setSelectedSubgraphId(targetSubId);
-        const empty = new Set<string>();
-        selection.selectedNodeIdsRef.current = empty;
-        selection.selectedEdgeIdsRef.current = new Set<string>();
-        selection.setSelectedNodeIds(new Set());
-        selection.setSelectedEdgeIds(new Set());
-        selection.setSelectedNodeRect(null);
-        selection.setSelectedEdgePos(null);
-        selection.setActiveNodePopover(null);
-        selection.setActiveEdgePopover(null);
-        selection.setActiveMultiPopover(null);
-        selection.setActiveSubgraphPopover(null);
-        selection.updateSelectedNodeHalo(new Set());
-        selection.updateSelectedEdgeHalo(new Set());
+        useCanvasStore.getState().setSelectedStarKind(null);
+        useCanvasStore.getState().clearSelection();
+        useCanvasStore.getState().setSelectedSubgraphId(targetSubId);
+        updateSelectedNodeHalo(new Set());
+        updateSelectedEdgeHalo(new Set());
 
         mountEl.querySelectorAll('.mermaid-cluster-selected').forEach((c) =>
           c.classList.remove('mermaid-cluster-selected')
@@ -225,15 +180,13 @@ export function useCanvasRenderer({
         htmlEl.classList.add('mermaid-cluster-selected');
 
         const rect = getLocalRect(htmlEl);
-        if (rect) selection.setSelectedSubgraphRect(rect);
+        if (rect) useCanvasStore.getState().setSelectedSubgraphRect(rect);
       },
       onStartEditingNode: handleStartEditingNode,
       onStartEditingEdge: inlineEditing.startEditingEdge,
       onStartEditingSubgraph: inlineEditing.startEditingSubgraph,
       onHoverNode: (nodeId, rect, kind) => {
-        setHoveredNodeId(nodeId);
-        if (rect) setHoveredNodeRect(rect);
-        setHoveredNodeKind(kind ?? null);
+        useCanvasStore.getState().setHoveredNode(nodeId, rect, kind ?? null);
       },
     });
   }, [
@@ -243,31 +196,27 @@ export function useCanvasRenderer({
     displayEdges,
     displaySubgraphs,
     getLocalRect,
-    selection,
-    selectedStarKindRef,
-    setSelectedStarKind,
+    updateSelectedNodeHalo,
+    updateSelectedEdgeHalo,
     inlineEditing,
     handleStartEditingNode,
-    setHoveredNodeId,
-    setHoveredNodeRect,
-    setHoveredNodeKind,
   ]);
 
-  // Latest-callback refs so the render effect only depends on [code, app].
+  // Stable refs for renderer effect
   const setupRef = useRef(setupSvg);
   setupRef.current = setupSvg;
   const stabilizeRef = useRef(stabilizeCamera);
   stabilizeRef.current = stabilizeCamera;
-  const rectRef = useRef(selection.updateSelectedNodeRect);
-  rectRef.current = selection.updateSelectedNodeRect;
-  const haloNodeRef = useRef(selection.updateSelectedNodeHalo);
-  haloNodeRef.current = selection.updateSelectedNodeHalo;
-  const haloEdgeRef = useRef(selection.updateSelectedEdgeHalo);
-  haloEdgeRef.current = selection.updateSelectedEdgeHalo;
+  const rectRef = useRef(updateSelectedNodeRect);
+  rectRef.current = updateSelectedNodeRect;
+  const haloNodeRef = useRef(updateSelectedNodeHalo);
+  haloNodeRef.current = updateSelectedNodeHalo;
+  const haloEdgeRef = useRef(updateSelectedEdgeHalo);
+  haloEdgeRef.current = updateSelectedEdgeHalo;
   const subgraphsRef = useRef(displaySubgraphs);
   subgraphsRef.current = displaySubgraphs;
 
-  // Render SVG
+  // Render effect
   useEffect(() => {
     const mountEl = svgMountRef.current;
     if (!mountEl) return;
@@ -296,7 +245,7 @@ export function useCanvasRenderer({
           for (const subId of subgraphsRef.current.keys()) {
             if (!rendered.has(subId)) missing.push(subId);
           }
-          selection.setUnmatchedSubgraphIds((prev) => {
+          useCanvasStore.getState().setUnmatchedSubgraphIds((prev) => {
             if (prev.length === missing.length && prev.every((id) => missing.includes(id))) {
               return prev;
             }
@@ -311,6 +260,5 @@ export function useCanvasRenderer({
         console.error('Mermaid render error:', err);
         setSyntaxError(err?.message || 'Diagram syntax error');
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, app]);
+  }, [code, app, setSyntaxError, svgMountRef]);
 }

@@ -23,6 +23,7 @@ import { useCanvasRenderer } from './hooks/useCanvasRenderer';
 import { CanvasTopBar } from './components/CanvasTopBar';
 import { CanvasOverlays } from './components/CanvasOverlays';
 import { SyntaxDrawer } from './components/SyntaxDrawer';
+import { useCanvasStore } from './store/canvasStore';
 
 export type { NativeMermaidViewProps };
 
@@ -77,46 +78,18 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   });
   const driver = astHook.driver;
 
-  const [selectedStarKind, setSelectedStarKind] = useState<'start' | 'end' | null>(null);
-  const selectedStarKindRef = useRef<'start' | 'end' | null>(null);
-  useEffect(() => {
-    selectedStarKindRef.current = selectedStarKind;
-  }, [selectedStarKind]);
-
   // 3. Selection & Halos
   const selection = useCanvasSelection({
     svgMountRef,
     getLocalRect,
     displayDirection: astHook.displayDirection,
-    selectedStarKind,
   });
 
-  // 4. Diagram Mutations (driver-dispatched)
+  // 4. Diagram Mutations (driver-dispatched via Zustand)
   const mutations = useDiagramMutations({
     astHook,
-    selectedNodeId: selection.selectedNodeId,
-    selectedNodeIds: selection.selectedNodeIds,
-    selectedEdgeId: selection.selectedEdgeId,
-    selectedEdgeIds: selection.selectedEdgeIds,
-    selectedSubgraphId: selection.selectedSubgraphId,
-    setSelectedNodeId: selection.setSelectedNodeId,
-    setSelectedEdgeId: selection.setSelectedEdgeId,
-    setSelectedSubgraphId: selection.setSelectedSubgraphId,
-    setSelectedNodeIds: selection.setSelectedNodeIds,
-    setSelectedEdgeIds: selection.setSelectedEdgeIds,
-    setSelectedNodeRect: selection.setSelectedNodeRect,
-    setSelectedEdgePos: selection.setSelectedEdgePos,
-    setSelectedSubgraphRect: selection.setSelectedSubgraphRect,
-    setActiveNodePopover: selection.setActiveNodePopover,
-    setActiveEdgePopover: selection.setActiveEdgePopover,
-    setActiveMultiPopover: selection.setActiveMultiPopover,
-    setActiveSubgraphPopover: selection.setActiveSubgraphPopover,
     updateSelectedNodeHalo: selection.updateSelectedNodeHalo,
     updateSelectedEdgeHalo: selection.updateSelectedEdgeHalo,
-    selectedNodeIdsRef: selection.selectedNodeIdsRef,
-    selectedEdgeIdsRef: selection.selectedEdgeIdsRef,
-    selectedStarKind,
-    setSelectedStarKind,
   });
 
   // 5. Marquee Selection
@@ -127,11 +100,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     getLocalRect,
     onSelectionChange: (nodes, edges) => {
       if (!nodes.has('[*]')) {
-        selectedStarKindRef.current = null;
-        setSelectedStarKind(null);
+        useCanvasStore.getState().setSelectedStarKind(null);
       }
-      selection.selectedNodeIdsRef.current = nodes;
-      selection.selectedEdgeIdsRef.current = edges;
       selection.setSelectedNodeIds(nodes);
       selection.setSelectedEdgeIds(edges);
       selection.updateSelectedNodeHalo(nodes);
@@ -161,8 +131,14 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   });
 
   // 7. Viewport Modes & State
-  const [cursorMode, setCursorMode] = useState<CursorMode>('select');
-  const [showCodeDrawer, setShowCodeDrawer] = useState<boolean>(false);
+  const cursorMode = useCanvasStore((s) => s.cursorMode);
+  const setCursorMode = useCallback((mode: CursorMode) => {
+    useCanvasStore.getState().setCursorMode(mode);
+  }, []);
+  const showCodeDrawer = useCanvasStore((s) => s.showCodeDrawer);
+  const setShowCodeDrawer = useCallback((show: boolean | ((prev: boolean) => boolean)) => {
+    useCanvasStore.getState().setShowCodeDrawer(show);
+  }, []);
 
   const handleStartEditingNode = useCallback(
     (nodeId: string, nodeEl: Element) => {
@@ -179,13 +155,15 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     : false;
 
   const resetTransientUiState = useCallback(() => {
-    selection.clearSelection();
-    selectedStarKindRef.current = null;
-    setSelectedStarKind(null);
-    inlineEditing.setEditingNodeId(null);
-    inlineEditing.setEditingEdgeId(null);
-    inlineEditing.setEditingSubgraphId(null);
-  }, [selection, inlineEditing]);
+    useCanvasStore.getState().resetTransientUiState();
+    selection.updateSelectedNodeHalo(new Set());
+    selection.updateSelectedEdgeHalo(new Set());
+    if (svgMountRef.current) {
+      svgMountRef.current
+        .querySelectorAll('.mermaid-cluster-selected')
+        .forEach((c) => c.classList.remove('mermaid-cluster-selected'));
+    }
+  }, [selection, svgMountRef]);
 
   const handleUndo = useCallback(() => {
     const prevCode = undoHistory();
@@ -214,8 +192,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       )
     );
     const allEdgeIds = new Set(mutations.displayEdges.map((e) => e.id));
-    selectedStarKindRef.current = null;
-    setSelectedStarKind(null);
+    useCanvasStore.getState().setSelectedStarKind(null);
     selection.selectedNodeIdsRef.current = allNodeIds;
     selection.selectedEdgeIdsRef.current = allEdgeIds;
     selection.setSelectedNodeIds(allNodeIds);
@@ -291,14 +268,11 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     displayEdges: mutations.displayEdges,
     displaySubgraphs: mutations.displaySubgraphs,
     getLocalRect,
-    selection,
-    selectedStarKindRef,
-    setSelectedStarKind,
+    updateSelectedNodeHalo: selection.updateSelectedNodeHalo,
+    updateSelectedEdgeHalo: selection.updateSelectedEdgeHalo,
+    updateSelectedNodeRect: selection.updateSelectedNodeRect,
     inlineEditing,
     handleStartEditingNode,
-    setHoveredNodeId: mouse.setHoveredNodeId,
-    setHoveredNodeRect: mouse.setHoveredNodeRect,
-    setHoveredNodeKind: mouse.setHoveredNodeKind,
     stabilizeCamera,
     setSyntaxError: mutations.setSyntaxError,
   });
@@ -322,12 +296,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       }}
       onClick={() => {
         if (marquee.isMarqueeActiveRef.current) return;
-        selection.clearSelection();
-        selectedStarKindRef.current = null;
-        setSelectedStarKind(null);
-        inlineEditing.setEditingNodeId(null);
-        inlineEditing.setEditingEdgeId(null);
-        inlineEditing.setEditingSubgraphId(null);
+        resetTransientUiState();
       }}
     >
       {/* Top Controls Bar */}
