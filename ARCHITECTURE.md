@@ -182,8 +182,11 @@ npm run build
 
 ## 5. Adding a New Diagram Type
 
-To add support for a new Mermaid diagram type (e.g., Class Diagram, ER Diagram):
+For the complete, 5-phase step-by-step engineering and UX procedure (including grammar analysis, UX coherence, error prevention, preservation rules, and an AI execution prompt template), see the dedicated playbook:
 
+👉 **[docs/ADDING_NEW_DIAGRAM.md](docs/ADDING_NEW_DIAGRAM.md)**
+
+### Quick Summary:
 1. **Define AST & Types**: In `src/diagrams/<name>/types.ts`.
 2. **Implement Lexer & Parser**: In `src/diagrams/<name>/lexer.ts` and `parser.ts`.
 3. **Implement Serializer**: In `src/diagrams/<name>/serializer.ts`.

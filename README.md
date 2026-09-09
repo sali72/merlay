@@ -114,6 +114,10 @@ npm run build
 npm test
 ```
 
+### Architecture & Contributing
+- [Architecture Guide](ARCHITECTURE.md): Design philosophy, module map, and engineering rules.
+- [Adding a New Diagram Type](docs/ADDING_NEW_DIAGRAM.md): 5-phase procedure and AI prompt template for extending the diagram driver system.
+
 ---
 
 ## 📄 License
