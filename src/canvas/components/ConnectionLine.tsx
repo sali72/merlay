@@ -1,12 +1,8 @@
 import React from 'react';
+import { DragLine } from '../store/canvasStore';
 
 export interface ConnectionLineProps {
-  dragLine: {
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-  } | null;
+  dragLine: DragLine | null;
 }
 
 export const ConnectionLine: React.FC<ConnectionLineProps> = ({ dragLine }) => {

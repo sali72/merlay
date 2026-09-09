@@ -2,10 +2,11 @@
  * Hook for Canvas mouse interactions: panning, connection dragging, node hover proximity, and marquee triggering.
  */
 
-import React, { useState } from 'react';
+import React, { useCallback } from 'react';
 import { CursorMode, Rect } from '../types';
 import { DiagramDriver } from '../../diagrams/types';
 import { MermaidNodeDef, MermaidEdgeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
+import { DragLine, useCanvasStore } from '../store/canvasStore';
 
 export interface UseCanvasMouseInteractionsOptions {
   worldRef: React.RefObject<HTMLDivElement>;
@@ -58,18 +59,57 @@ export function useCanvasMouseInteractions({
   const m = driver.mutations;
   const anchors = m.anchors;
 
-  const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
-  const [connectingSourceKind, setConnectingSourceKind] = useState<'start' | 'end' | null>(null);
-  const [dragLine, setDragLine] = useState<{
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-  } | null>(null);
+  const connectingSourceId = useCanvasStore((s) => s.connectingSourceId);
+  const connectingSourceKind = useCanvasStore(
+    (s) => s.connectingSourceKind ?? s.connectingHandleKind
+  );
+  const dragLine = useCanvasStore((s) => s.dragLine);
 
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [hoveredNodeRect, setHoveredNodeRect] = useState<Rect | null>(null);
-  const [hoveredNodeKind, setHoveredNodeKind] = useState<'start' | 'end' | null>(null);
+  const hoveredNodeId = useCanvasStore((s) => s.hoveredNodeId);
+  const hoveredNodeRect = useCanvasStore((s) => s.hoveredNodeRect);
+  const hoveredNodeKind = useCanvasStore((s) => s.hoveredNodeKind);
+
+  const setConnectingSourceId = useCallback((id: string | null) => {
+    useCanvasStore.getState().setConnectingSourceId(id);
+  }, []);
+
+  const setConnectingSourceKind = useCallback((kind: 'start' | 'end' | null) => {
+    useCanvasStore.getState().setConnectingSourceKind(kind);
+  }, []);
+
+  const setDragLine = useCallback(
+    (
+      line:
+        | DragLine
+        | null
+        | ((prev: DragLine | null) => DragLine | null)
+    ) => {
+      useCanvasStore.getState().setDragLine(line);
+    },
+    []
+  );
+
+  const setHoveredNode = useCallback(
+    (id: string | null, rect: Rect | null, kind?: 'start' | 'end' | null) => {
+      useCanvasStore.getState().setHoveredNode(id, rect, kind);
+    },
+    []
+  );
+
+  const setHoveredNodeId = useCallback((id: string | null) => {
+    const s = useCanvasStore.getState();
+    s.setHoveredNode(id, s.hoveredNodeRect, s.hoveredNodeKind);
+  }, []);
+
+  const setHoveredNodeRect = useCallback((rect: Rect | null) => {
+    const s = useCanvasStore.getState();
+    s.setHoveredNode(s.hoveredNodeId, rect, s.hoveredNodeKind);
+  }, []);
+
+  const setHoveredNodeKind = useCallback((kind: 'start' | 'end' | null) => {
+    const s = useCanvasStore.getState();
+    s.setHoveredNode(s.hoveredNodeId, s.hoveredNodeRect, kind);
+  }, []);
 
   const isAnchorId = (id: string | null | undefined): boolean =>
     !!anchors && !!id && anchors.isAnchor(id);
@@ -81,13 +121,14 @@ export function useCanvasMouseInteractions({
   ) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!hoveredNodeId) return;
+    const store = useCanvasStore.getState();
+    const curHoveredId = store.hoveredNodeId;
+    const curHoveredKind = store.hoveredNodeKind;
+    if (!curHoveredId) return;
     // End anchors have no outgoing transitions.
-    if (isAnchorId(hoveredNodeId) && hoveredNodeKind === 'end') return;
+    if (isAnchorId(curHoveredId) && curHoveredKind === 'end') return;
 
-    setConnectingSourceId(hoveredNodeId);
-    setConnectingSourceKind(hoveredNodeKind);
-    setDragLine({
+    store.setConnecting(curHoveredId, curHoveredKind, {
       x1: startX,
       y1: startY,
       x2: startX,
@@ -124,11 +165,12 @@ export function useCanvasMouseInteractions({
       return;
     }
 
-    if (connectingSourceId && worldRef.current) {
+    const store = useCanvasStore.getState();
+    if (store.connectingSourceId && worldRef.current) {
       const worldRect = worldRef.current.getBoundingClientRect();
       const currentWorldX = (e.clientX - worldRect.left) / zoom;
       const currentWorldY = (e.clientY - worldRect.top) / zoom;
-      setDragLine((prev) =>
+      store.setDragLine((prev) =>
         prev
           ? {
               ...prev,
@@ -147,22 +189,26 @@ export function useCanvasMouseInteractions({
       displayEdges
     );
 
-    if (!isMarquee && hoveredNodeId && hoveredNodeRect && worldRef.current && !connectingSourceId) {
+    if (
+      !isMarquee &&
+      store.hoveredNodeId &&
+      store.hoveredNodeRect &&
+      worldRef.current &&
+      !store.connectingSourceId
+    ) {
       const worldRect = worldRef.current.getBoundingClientRect();
       const mouseX = (e.clientX - worldRect.left) / zoom;
       const mouseY = (e.clientY - worldRect.top) / zoom;
       const pad = 24;
       const withinX =
-        mouseX >= hoveredNodeRect.x - pad &&
-        mouseX <= hoveredNodeRect.x + hoveredNodeRect.width + pad + 24;
+        mouseX >= store.hoveredNodeRect.x - pad &&
+        mouseX <= store.hoveredNodeRect.x + store.hoveredNodeRect.width + pad + 24;
       const withinY =
-        mouseY >= hoveredNodeRect.y - pad &&
-        mouseY <= hoveredNodeRect.y + hoveredNodeRect.height + pad + 24;
+        mouseY >= store.hoveredNodeRect.y - pad &&
+        mouseY <= store.hoveredNodeRect.y + store.hoveredNodeRect.height + pad + 24;
 
       if (!withinX || !withinY) {
-        setHoveredNodeId(null);
-        setHoveredNodeRect(null);
-        setHoveredNodeKind(null);
+        store.setHoveredNode(null, null, null);
       }
     }
   };
@@ -174,7 +220,11 @@ export function useCanvasMouseInteractions({
       marquee.endMarquee(displayNodes, displayEdges);
     }
 
-    if (connectingSourceId) {
+    const store = useCanvasStore.getState();
+    const cSourceId = store.connectingSourceId;
+    const cSourceKind = store.connectingSourceKind ?? store.connectingHandleKind;
+
+    if (cSourceId) {
       const targetNodeEl = (e.target as HTMLElement).closest(
         '[data-mermaid-node-id]'
       ) as HTMLElement | null;
@@ -190,21 +240,21 @@ export function useCanvasMouseInteractions({
       const targetEdgeId = targetEdgeEl?.getAttribute('data-mermaid-edge-id');
 
       // Directional guard for start/end anchors.
-      const srcIsStart = isAnchorId(connectingSourceId) && connectingSourceKind === 'start';
-      const srcIsEnd = isAnchorId(connectingSourceId) && connectingSourceKind === 'end';
+      const srcIsStart = isAnchorId(cSourceId) && cSourceKind === 'start';
+      const srcIsEnd = isAnchorId(cSourceId) && cSourceKind === 'end';
       const tgtIsStart = isAnchorId(targetNodeId) && targetKind === 'start';
       const tgtIsEnd = isAnchorId(targetNodeId) && targetKind === 'end';
 
       const isBlockedAnchorEdge =
-        (isAnchorId(targetNodeId) && isAnchorId(connectingSourceId)) ||
+        (isAnchorId(targetNodeId) && isAnchorId(cSourceId)) ||
         srcIsEnd ||
         tgtIsStart ||
         (isAnchorId(targetNodeId) && !tgtIsEnd) ||
-        (isAnchorId(connectingSourceId) && !srcIsStart);
+        (isAnchorId(cSourceId) && !srcIsStart);
 
       // Only outer nodes can point to composites; inner nodes cannot point to outer composite.
       const isInnerToOuterBlocked = (() => {
-        if (!targetNodeId || !connectingSourceId || !displaySubgraphs) return false;
+        if (!targetNodeId || !cSourceId || !displaySubgraphs) return false;
         if (!displaySubgraphs.has(targetNodeId)) return false;
         const subgraphs = displaySubgraphs;
         const isSourceInsideTarget = (srcId: string, tgtSubId: string): boolean => {
@@ -225,13 +275,13 @@ export function useCanvasMouseInteractions({
           }
           return false;
         };
-        return isSourceInsideTarget(connectingSourceId, targetNodeId);
+        return isSourceInsideTarget(cSourceId, targetNodeId);
       })();
 
       // Official Mermaid rule: inner nodes of different composite states cannot transition directly
       const isCrossCompositeBlocked = (() => {
-        if (!targetNodeId || !connectingSourceId || !displayNodes) return false;
-        const srcNode = displayNodes.get(connectingSourceId);
+        if (!targetNodeId || !cSourceId || !displayNodes) return false;
+        const srcNode = displayNodes.get(cSourceId);
         const tgtNode = displayNodes.get(targetNodeId);
         if (
           srcNode?.subgraphId &&
@@ -245,14 +295,14 @@ export function useCanvasMouseInteractions({
 
       if (
         targetNodeId &&
-        targetNodeId !== connectingSourceId &&
+        targetNodeId !== cSourceId &&
         !isBlockedAnchorEdge &&
         !isInnerToOuterBlocked &&
         !isCrossCompositeBlocked
       ) {
         applyMutation((a) => {
-          m.connect(a, connectingSourceId, targetNodeId);
-        }, connectingSourceId);
+          m.connect(a, cSourceId, targetNodeId);
+        }, cSourceId);
       } else if (targetEdgeId) {
         let createdNodeId: string | null = null;
         applyMutation((a) => {
@@ -261,9 +311,7 @@ export function useCanvasMouseInteractions({
         if (createdNodeId) setSelectedNodeId(createdNodeId);
       }
 
-      setConnectingSourceId(null);
-      setConnectingSourceKind(null);
-      setDragLine(null);
+      store.setConnecting(null, null, null);
     }
   };
 
@@ -280,6 +328,7 @@ export function useCanvasMouseInteractions({
     setHoveredNodeRect,
     hoveredNodeKind,
     setHoveredNodeKind,
+    setHoveredNode,
     handleStartConnect,
     handleMouseDown,
     handleMouseMove,

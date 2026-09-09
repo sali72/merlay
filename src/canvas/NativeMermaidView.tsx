@@ -289,9 +289,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
       onMouseUp={mouse.handleMouseUp}
       onMouseLeave={() => {
         if (!mouse.connectingSourceId) {
-          mouse.setHoveredNodeId(null);
-          mouse.setHoveredNodeRect(null);
-          mouse.setHoveredNodeKind(null);
+          useCanvasStore.getState().setHoveredNode(null, null, null);
         }
       }}
       onClick={() => {

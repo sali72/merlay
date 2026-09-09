@@ -41,7 +41,7 @@ export const ConnectionHandle: React.FC<ConnectionHandleProps> = ({
         zIndex: 100,
       }}
       onMouseDown={(e) => onStartConnect(e, posX, posY)}
-      title="Drag to connect with another step"
+      title="Drag to connect"
     />
   );
 };

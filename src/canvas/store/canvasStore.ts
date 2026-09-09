@@ -20,10 +20,10 @@ import {
 } from '../types';
 
 export interface DragLine {
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 }
 
 export interface CanvasStoreState {
@@ -51,6 +51,7 @@ export interface CanvasStoreState {
   hoveredNodeRect: Rect | null;
   hoveredNodeKind: 'start' | 'end' | null;
   connectingSourceId: string | null;
+  connectingSourceKind: 'start' | 'end' | null;
   connectingHandleKind: 'start' | 'end' | null;
   dragLine: DragLine | null;
 
@@ -108,9 +109,18 @@ export interface CanvasStoreState {
   ) => void;
   setConnecting: (
     sourceId: string | null,
-    handleKind?: 'start' | 'end' | null,
+    sourceKind?: 'start' | 'end' | null,
     dragLine?: DragLine | null
   ) => void;
+  setDragLine: (
+    dragLine:
+      | DragLine
+      | null
+      | ((prev: DragLine | null) => DragLine | null)
+  ) => void;
+  setConnectingSourceId: (id: string | null) => void;
+  setConnectingSourceKind: (kind: 'start' | 'end' | null) => void;
+  setConnectingHandleKind: (kind: 'start' | 'end' | null) => void;
 
   setCamera: (updates: {
     pan?: { x: number; y: number };
@@ -162,6 +172,7 @@ export const useCanvasStore = create<CanvasStoreState>((set) => ({
   hoveredNodeRect: null,
   hoveredNodeKind: null,
   connectingSourceId: null,
+  connectingSourceKind: null,
   connectingHandleKind: null,
   dragLine: null,
 
@@ -218,18 +229,29 @@ export const useCanvasStore = create<CanvasStoreState>((set) => ({
     })),
 
   setCursorMode: (mode) => set({ cursorMode: mode }),
-  setHoveredNode: (id, rect, kind = null) =>
+  setHoveredNode: (id, rect = null, kind = null) =>
     set({
       hoveredNodeId: id,
       hoveredNodeRect: rect,
       hoveredNodeKind: kind,
     }),
-  setConnecting: (sourceId, handleKind = null, dragLine = null) =>
+  setConnecting: (sourceId, sourceKind = null, dragLine = null) =>
     set({
       connectingSourceId: sourceId,
-      connectingHandleKind: handleKind,
+      connectingSourceKind: sourceKind,
+      connectingHandleKind: sourceKind,
       dragLine,
     }),
+  setDragLine: (dragLine) =>
+    set((state) => ({
+      dragLine:
+        typeof dragLine === 'function' ? dragLine(state.dragLine) : dragLine,
+    })),
+  setConnectingSourceId: (id) => set({ connectingSourceId: id }),
+  setConnectingSourceKind: (kind) =>
+    set({ connectingSourceKind: kind, connectingHandleKind: kind }),
+  setConnectingHandleKind: (kind) =>
+    set({ connectingSourceKind: kind, connectingHandleKind: kind }),
 
   setCamera: (updates) =>
     set((state) => ({
@@ -318,5 +340,12 @@ export const useCanvasStore = create<CanvasStoreState>((set) => ({
       editingSubgraphId: null,
       editingSubgraphRect: null,
       editingSubgraphLabel: '',
+      hoveredNodeId: null,
+      hoveredNodeRect: null,
+      hoveredNodeKind: null,
+      connectingSourceId: null,
+      connectingSourceKind: null,
+      connectingHandleKind: null,
+      dragLine: null,
     }),
 }));
