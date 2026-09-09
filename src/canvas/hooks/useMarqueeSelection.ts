@@ -114,7 +114,7 @@ export function useMarqueeSelection({
           // Check edges
           for (const edge of displayEdges) {
             const edgePathEl = mount.querySelector(
-              `path[data-mermaid-edge-id="${edge.id}"]:not(.mermaid-edge-hit-area)`
+              `[data-mermaid-edge-id="${edge.id}"]:not(.mermaid-edge-hit-area)`
             );
             if (edgePathEl) {
               const rect = getLocalRect(edgePathEl);

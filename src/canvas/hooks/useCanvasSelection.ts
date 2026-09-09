@@ -163,6 +163,27 @@ export function useCanvasSelection({
       if (rect) setSelectedNodeRect(rect);
       return;
     }
+    if (currentId !== '[*]') {
+      let topEl = elsToUse[0];
+      let topY = Infinity;
+      for (const el of elsToUse) {
+        if (
+          el.classList.contains('actor-line') ||
+          el.classList.contains('mermaid-lifeline-hit-area') ||
+          el.tagName.toLowerCase() === 'line'
+        ) {
+          continue;
+        }
+        const r = getLocalRect(el);
+        if (r && r.y < topY) {
+          topY = r.y;
+          topEl = el;
+        }
+      }
+      const rect = getLocalRect(topEl);
+      if (rect) setSelectedNodeRect(rect);
+      return;
+    }
     // Union of all matching rects (covers both start & end anchors when no kind).
     let minX = Infinity;
     let minY = Infinity;
@@ -199,7 +220,26 @@ export function useCanvasSelection({
           nodeEls = Array.from(svgMountRef.current.querySelectorAll(`[data-mermaid-node-id="${id}"]`));
         }
         if (nodeEls.length > 0) {
-          if (nodeEls.length === 1) {
+          if (id !== '[*]') {
+            let topEl = nodeEls[0];
+            let topY = Infinity;
+            for (const el of nodeEls) {
+              if (
+                el.classList.contains('actor-line') ||
+                el.classList.contains('mermaid-lifeline-hit-area') ||
+                el.tagName.toLowerCase() === 'line'
+              ) {
+                continue;
+              }
+              const r = getLocalRect(el);
+              if (r && r.y < topY) {
+                topY = r.y;
+                topEl = el;
+              }
+            }
+            const rect = getLocalRect(topEl);
+            if (rect) setSelectedNodeRect(rect);
+          } else if (nodeEls.length === 1) {
             const rect = getLocalRect(nodeEls[0]);
             if (rect) setSelectedNodeRect(rect);
           } else {

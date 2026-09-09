@@ -9,11 +9,13 @@ import {
   TrashIcon,
   ShapeIcons,
   StateTypeIcons,
+  UserIcon,
 } from '../icons/Icons';
 
 import { DiagramDriver } from '../../diagrams/types';
 
 function kindIcon(kind: string | undefined): React.FC<{ size?: number }> {
+  if (kind === 'actor') return UserIcon;
   const shapes = ShapeIcons as Record<string, any>;
   const stateTypes = StateTypeIcons as Record<string, any>;
   const key = kind || 'rectangle';

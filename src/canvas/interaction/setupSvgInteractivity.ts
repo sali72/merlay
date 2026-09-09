@@ -20,6 +20,7 @@ export interface SetupSvgInteractivityOptions {
   displayEdges: MermaidEdgeDef[];
   displaySubgraphs: Map<string, MermaidSubgraphDef>;
   getLocalRect: (el: Element) => Rect | null;
+  getLocalPoint?: (clientX: number, clientY: number) => { x: number; y: number } | null;
   onSelectNode: (targetNodeId: string, isMulti: boolean, htmlEl: Element) => void;
   onSelectEdge: (targetEdge: MermaidEdgeDef, resolvedPath: Element, isMulti: boolean) => void;
   onSelectSubgraph: (targetSubId: string, htmlEl: Element) => void;
@@ -37,6 +38,7 @@ export function setupSvgInteractivity(options: SetupSvgInteractivityOptions): vo
     displayEdges,
     displaySubgraphs,
     getLocalRect,
+    getLocalPoint,
     onSelectNode,
     onSelectEdge,
     onSelectSubgraph,
@@ -53,6 +55,7 @@ export function setupSvgInteractivity(options: SetupSvgInteractivityOptions): vo
     displayNodes,
     displaySubgraphs,
     getLocalRect,
+    getLocalPoint,
     onSelectNode,
     onSelectSubgraph,
     onStartEditingNode,

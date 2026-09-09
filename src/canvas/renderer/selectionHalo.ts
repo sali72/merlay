@@ -51,35 +51,63 @@ export function applySelectedNodeHalos(
     for (const nodeEl of elsToUse) {
       nodeEl.classList.add('mermaid-node-selected');
 
-    // 2. Identify shape elements representing the node's geometry
-    let shapeElements = Array.from(
-      nodeEl.querySelectorAll('rect, circle, polygon, path, ellipse')
-    ).filter((el) => {
+      // Skip lifelines, lifeline hit areas, and mirrored bottom actor boxes when cloning halo shapes
       if (
-        el.closest('.label') ||
-        el.closest('text') ||
-        el.closest('foreignObject')
+        nodeEl.classList.contains('actor-line') ||
+        nodeEl.classList.contains('mermaid-lifeline-hit-area') ||
+        nodeEl.classList.contains('actor-bottom') ||
+        nodeEl.closest('.actor-bottom') ||
+        nodeEl.tagName.toLowerCase() === 'line'
       ) {
-        return false;
+        continue;
       }
-      if (el.classList.contains('mermaid-node-selection-halo')) {
-        return false;
+
+      // 2. Identify shape elements representing the node's geometry
+      let shapeElements = Array.from(
+        nodeEl.querySelectorAll('rect, circle, polygon, path, ellipse, line')
+      ).filter((el) => {
+        if (
+          el.closest('.label') ||
+          el.closest('text') ||
+          el.closest('foreignObject')
+        ) {
+          return false;
+        }
+        if (
+          el.classList.contains('mermaid-node-selection-halo') ||
+          el.classList.contains('actor-line') ||
+          el.classList.contains('mermaid-lifeline-hit-area')
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      // Prefer primary label-container shape(s) if present (except for stick figures where all limbs should glow)
+      if (!nodeEl.classList.contains('actor-man') && !nodeEl.querySelector('.actor-man')) {
+        const primaryShapes = shapeElements.filter(
+          (el) =>
+            el.classList.contains('label-container') ||
+            el.classList.contains('outer') ||
+            el.classList.contains('basic') ||
+            el.classList.contains('actor-top')
+        );
+        if (primaryShapes.length > 0) {
+          shapeElements = primaryShapes;
+        }
       }
-      return true;
-    });
 
-    // Prefer primary label-container shape(s) if present
-    const primaryShapes = shapeElements.filter(
-      (el) =>
-        el.classList.contains('label-container') ||
-        el.classList.contains('outer') ||
-        el.classList.contains('basic')
-    );
-    if (primaryShapes.length > 0) {
-      shapeElements = primaryShapes;
-    }
+      // If nodeEl itself is a geometric SVG shape (e.g. <rect class="actor actor-top">)
+      if (
+        shapeElements.length === 0 &&
+        ['rect', 'circle', 'polygon', 'path', 'ellipse', 'line'].includes(
+          nodeEl.tagName.toLowerCase()
+        )
+      ) {
+        shapeElements = [nodeEl];
+      }
 
-    if (shapeElements.length === 0) continue;
+      if (shapeElements.length === 0) continue;
 
     // 3. For each shape element, inject an outer soft pulsing glow and an inner crisp accent contour
     shapeElements.forEach((shapeEl) => {

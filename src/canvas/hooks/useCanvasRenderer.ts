@@ -22,6 +22,7 @@ export interface UseCanvasRendererOptions {
   displayEdges: MermaidEdgeDef[];
   displaySubgraphs: Map<string, MermaidSubgraphDef>;
   getLocalRect: (el: Element) => Rect | null;
+  getLocalPoint?: (clientX: number, clientY: number) => { x: number; y: number } | null;
   updateSelectedNodeHalo: (nodes?: Set<string>) => void;
   updateSelectedEdgeHalo: (edges?: Set<string>) => void;
   updateSelectedNodeRect: () => void;
@@ -44,6 +45,7 @@ export function useCanvasRenderer({
   displayEdges,
   displaySubgraphs,
   getLocalRect,
+  getLocalPoint,
   updateSelectedNodeHalo,
   updateSelectedEdgeHalo,
   updateSelectedNodeRect,
@@ -68,6 +70,7 @@ export function useCanvasRenderer({
       displayEdges,
       displaySubgraphs,
       getLocalRect,
+      getLocalPoint,
       onSelectNode: (targetNodeId, isMulti, htmlEl) => {
         useCanvasStore.getState().setSelectedSubgraphId(null);
         useCanvasStore.getState().setSelectedSubgraphRect(null);

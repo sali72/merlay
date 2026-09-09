@@ -58,6 +58,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     isPanning,
     zoomRef,
     getLocalRect,
+    getLocalPoint,
     pinNodeForCamera,
     stabilizeCamera,
     handleWheel,
@@ -242,6 +243,8 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   // 9. Mouse Interactions (Panning, Connecting, Hover)
   const mouse = useCanvasMouseInteractions({
     worldRef,
+    svgMountRef,
+    getLocalRect,
     zoom,
     cursorMode,
     isSpacePressed,
@@ -268,6 +271,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     displayEdges: mutations.displayEdges,
     displaySubgraphs: mutations.displaySubgraphs,
     getLocalRect,
+    getLocalPoint,
     updateSelectedNodeHalo: selection.updateSelectedNodeHalo,
     updateSelectedEdgeHalo: selection.updateSelectedEdgeHalo,
     updateSelectedNodeRect: selection.updateSelectedNodeRect,
@@ -345,6 +349,13 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
           handleStartEditingNode={handleStartEditingNode}
         />
       </div>
+
+      {/* Sequence Diagram Affordance Guide */}
+      {driver.type === 'sequenceDiagram' && (
+        <div className="mermaid-canvas-hint-bar nodrag">
+          <span>💡 <strong>Tip:</strong> Drag from a participant handle to connect &bull; Click message to edit &bull; Double-click to rename</span>
+        </div>
+      )}
 
       {/* Slide-out Mermaid Code Syntax Drawer */}
       <SyntaxDrawer

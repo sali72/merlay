@@ -10,6 +10,8 @@ import { DragLine, useCanvasStore } from '../store/canvasStore';
 
 export interface UseCanvasMouseInteractionsOptions {
   worldRef: React.RefObject<HTMLDivElement>;
+  svgMountRef?: React.RefObject<HTMLDivElement>;
+  getLocalRect?: (el: Element) => Rect | null;
   zoom: number;
   cursorMode: CursorMode;
   isSpacePressed: boolean;
@@ -41,6 +43,8 @@ export interface UseCanvasMouseInteractionsOptions {
 
 export function useCanvasMouseInteractions({
   worldRef,
+  svgMountRef,
+  getLocalRect,
   zoom,
   cursorMode,
   isSpacePressed,
@@ -199,13 +203,14 @@ export function useCanvasMouseInteractions({
       const worldRect = worldRef.current.getBoundingClientRect();
       const mouseX = (e.clientX - worldRect.left) / zoom;
       const mouseY = (e.clientY - worldRect.top) / zoom;
-      const pad = 24;
+      const padX = 32;
+      const padY = 48;
       const withinX =
-        mouseX >= store.hoveredNodeRect.x - pad &&
-        mouseX <= store.hoveredNodeRect.x + store.hoveredNodeRect.width + pad + 24;
+        mouseX >= store.hoveredNodeRect.x - padX &&
+        mouseX <= store.hoveredNodeRect.x + store.hoveredNodeRect.width + padX;
       const withinY =
-        mouseY >= store.hoveredNodeRect.y - pad &&
-        mouseY <= store.hoveredNodeRect.y + store.hoveredNodeRect.height + pad + 24;
+        mouseY >= store.hoveredNodeRect.y - padY &&
+        mouseY <= store.hoveredNodeRect.y + store.hoveredNodeRect.height + padY;
 
       if (!withinX || !withinY) {
         store.setHoveredNode(null, null, null);
@@ -225,10 +230,54 @@ export function useCanvasMouseInteractions({
     const cSourceKind = store.connectingSourceKind ?? store.connectingHandleKind;
 
     if (cSourceId) {
-      const targetNodeEl = (e.target as HTMLElement).closest(
+      let targetNodeEl = (e.target as HTMLElement).closest(
         '[data-mermaid-node-id]'
       ) as HTMLElement | null;
-      const targetNodeId = targetNodeEl?.getAttribute('data-mermaid-node-id');
+
+      // Fallback 1: check if target is inside an element with name matching displayNodes
+      if (!targetNodeEl) {
+        const namedContainer = (e.target as HTMLElement).closest('[name], [data-id]');
+        const nameVal =
+          namedContainer?.getAttribute('name') || namedContainer?.getAttribute('data-id');
+        if (nameVal && displayNodes.has(nameVal)) {
+          targetNodeEl =
+            (namedContainer as HTMLElement).closest('[data-mermaid-node-id]') ||
+            (namedContainer as HTMLElement);
+        }
+      }
+
+      // Fallback 2: snap to closest node/lifeline within 45px radius
+      if (!targetNodeEl && worldRef.current) {
+        const worldRect = worldRef.current.getBoundingClientRect();
+        const dropX = (e.clientX - worldRect.left) / zoom;
+        const dropY = (e.clientY - worldRect.top) / zoom;
+        let closestDist = 50;
+        const candidates = Array.from(
+          worldRef.current.querySelectorAll('[data-mermaid-node-id]')
+        ) as HTMLElement[];
+        for (const cand of candidates) {
+          const nid = cand.getAttribute('data-mermaid-node-id');
+          if (nid && nid !== cSourceId) {
+            const r = cand.getBoundingClientRect();
+            const candX = (r.left - worldRect.left) / zoom;
+            const candY = (r.top - worldRect.top) / zoom;
+            const candW = r.width / zoom;
+            const candH = r.height / zoom;
+            const dx = Math.max(candX - dropX, 0, dropX - (candX + candW));
+            const dy = Math.max(candY - dropY, 0, dropY - (candY + candH));
+            const dist = Math.hypot(dx, dy);
+            if (dist < closestDist) {
+              closestDist = dist;
+              targetNodeEl = cand;
+            }
+          }
+        }
+      }
+
+      const targetNodeId =
+        targetNodeEl?.getAttribute('data-mermaid-node-id') ||
+        targetNodeEl?.getAttribute('name') ||
+        targetNodeEl?.getAttribute('data-id');
       const targetKind = targetNodeEl?.getAttribute('data-mermaid-start-end') as
         | 'start'
         | 'end'
@@ -300,8 +349,50 @@ export function useCanvasMouseInteractions({
         !isInnerToOuterBlocked &&
         !isCrossCompositeBlocked
       ) {
+        const worldRect = worldRef.current ? worldRef.current.getBoundingClientRect() : null;
+        const dropY = worldRect ? (e.clientY - worldRect.top) / zoom : 0;
+        const startY = store.dragLine ? store.dragLine.y1 : dropY;
+        const connectionY = (startY + dropY) / 2;
+
+        let insertAfterEdgeId: string | undefined = undefined;
+        let insertAtIndex: number | undefined = undefined;
+
+        if (svgMountRef?.current && getLocalRect && displayEdges && displayEdges.length > 0) {
+          const edgeYPositions: Array<{ id: string; y: number }> = [];
+          for (const edge of displayEdges) {
+            const edgeEl = svgMountRef.current.querySelector(
+              `[data-mermaid-edge-id="${edge.id}"]:not(.mermaid-edge-hit-area)`
+            );
+            if (edgeEl) {
+              const r = getLocalRect(edgeEl);
+              if (r) {
+                edgeYPositions.push({ id: edge.id, y: r.y + r.height / 2 });
+              }
+            }
+          }
+
+          edgeYPositions.sort((a, b) => a.y - b.y);
+
+          if (edgeYPositions.length > 0) {
+            if (connectionY < edgeYPositions[0].y) {
+              insertAtIndex = 0;
+            } else {
+              for (let i = edgeYPositions.length - 1; i >= 0; i--) {
+                if (edgeYPositions[i].y <= connectionY) {
+                  insertAfterEdgeId = edgeYPositions[i].id;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
         applyMutation((a) => {
-          m.connect(a, cSourceId, targetNodeId);
+          m.connect(a, cSourceId, targetNodeId, {
+            insertAfterEdgeId,
+            insertAtIndex,
+            y: connectionY,
+          });
         }, cSourceId);
       } else if (targetEdgeId) {
         let createdNodeId: string | null = null;

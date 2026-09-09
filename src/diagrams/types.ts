@@ -93,6 +93,12 @@ export interface AnchorApi<TAst = any> {
   delete(ast: TAst, kind: 'start' | 'end' | null): void;
 }
 
+export interface ConnectionContext {
+  insertAfterEdgeId?: string;
+  insertAtIndex?: number;
+  y?: number;
+}
+
 /**
  * The full mutation surface the canvas needs. Core members are required;
  * optional members are gated by DiagramCapabilities.
@@ -109,7 +115,7 @@ export interface DiagramMutations<TAst = any> {
   updateNodesKind(ast: TAst, nodeIds: Iterable<string>, kind: string): void;
 
   // Connections
-  connect(ast: TAst, fromId: string, toId: string): void;
+  connect(ast: TAst, fromId: string, toId: string, context?: ConnectionContext): void;
   deleteEdge(ast: TAst, edgeId: string): void;
   deleteEdges(ast: TAst, edgeIds: Iterable<string>): void;
   updateEdgeLabel(ast: TAst, edgeId: string, label: string): void;
@@ -166,6 +172,10 @@ export interface DiagramMutations<TAst = any> {
 export interface SvgDomAdapter {
   /** Prefixes mermaid uses for node element ids, e.g. 'flowchart-'. */
   nodeIdPrefixes: string[];
+  /** Optional custom CSS selector for locating node elements. */
+  nodeSelector?: string;
+  /** Optional custom CSS selector for locating edge line/path elements. */
+  edgeSelector?: string;
   /** Selectors that locate anchor elements ([*]), if this diagram has them. */
   anchorSelectors?: string;
   /** View-model node id of the anchor pseudo-node ('[*]'), if this diagram has them. */

@@ -1,6 +1,7 @@
 import { DiagramDriver, DiagramTemplate, SupportedDiagramType } from './types';
 import { FlowchartDriver } from './flowchart/flowchartDriver';
 import { StateDiagramDriver } from './state/stateDriver';
+import { SequenceDiagramDriver } from './sequence/sequenceDriver';
 
 const drivers = new Map<SupportedDiagramType, DiagramDriver>();
 
@@ -11,6 +12,7 @@ export function registerDriver(driver: DiagramDriver): void {
 // Register built-in drivers
 registerDriver(FlowchartDriver);
 registerDriver(StateDiagramDriver);
+registerDriver(SequenceDiagramDriver);
 
 /**
  * Detect the Mermaid diagram type from code by inspecting directives and comments
@@ -95,5 +97,11 @@ export const DIAGRAM_TEMPLATES: DiagramTemplate[] = [
     label: 'State Diagram',
     description: 'Finite state machines, lifecycle transitions, choices, and forks.',
     defaultCode: `stateDiagram-v2\n    [*] --> Idle\n    Idle --> Processing : Submit\n    Processing --> Success : Approve\n    Processing --> Failed : Reject\n    Success --> [*]\n    Failed --> Idle : Retry\n`,
+  },
+  {
+    type: 'sequenceDiagram',
+    label: 'Sequence Diagram',
+    description: 'Interactions, actors, synchronous/asynchronous messages, and lifelines.',
+    defaultCode: `sequenceDiagram\n    autonumber\n    actor Alice\n    participant Bob\n    Alice->>Bob: Hello Bob, how are you?\n    Bob-->>Alice: I am good thanks!\n`,
   },
 ];

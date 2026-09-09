@@ -125,7 +125,10 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
         activeNodePopover={selection.activeNodePopover}
         onSproutNextStep={mutations.handleSproutNextStep}
         onStartEditingNode={(nodeId) => {
-          const el = svgMountRef.current?.querySelector(`[data-mermaid-node-id="${nodeId}"]`);
+          const el =
+            svgMountRef.current?.querySelector(
+              `rect.actor-top[name="${nodeId}"], g.actor-top[name="${nodeId}"], [data-mermaid-node-id="${nodeId}"]:not(.actor-line):not(.mermaid-lifeline-hit-area)`
+            ) || svgMountRef.current?.querySelector(`[data-mermaid-node-id="${nodeId}"]`);
           if (el) handleStartEditingNode(nodeId, el);
         }}
         onToggleNodePopover={(popover) =>

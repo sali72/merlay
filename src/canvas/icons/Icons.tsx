@@ -36,6 +36,13 @@ export const PlusIcon = createIcon(
 
 export const CardIcon = createIcon(<rect width="18" height="18" x="3" y="3" rx="2" />);
 
+export const UserIcon = createIcon(
+  <>
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </>
+);
+
 export const ShapesIcon = createIcon(
   <>
     <path d="M8.3 10a.7.7 0 0 1-.626-.382l-3.5-7A.7.7 0 0 1 4.8 1.618h7a.7.7 0 0 1 .626 1.000l-3.5 7A.7.7 0 0 1 8.3 10Z" />

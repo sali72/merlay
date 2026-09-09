@@ -5,6 +5,7 @@ import { DiagramDriver } from '../src/diagrams/types';
 
 const flowchartDriver = getDriver('flowchart')!;
 const stateDriver = getDriver('stateDiagram')!;
+const sequenceDriver = getDriver('sequenceDiagram')!;
 
 function roundTrip(driver: DiagramDriver, code: string) {
   const ast = driver.parse(code);
@@ -118,8 +119,50 @@ test('Driver surface: anchors API for state diagrams', () => {
   assert.ok(!anchors.has(ast, 'start'));
 });
 
+test('Driver surface: sequence capabilities, labels, and projection', () => {
+  assert.deepEqual(sequenceDriver.capabilities, {
+    supportsDirection: false,
+    supportsNodeKinds: true,
+    supportsEdgeTypes: true,
+    supportsEdgeStyles: false,
+    supportsGroups: true,
+    hasAnchors: false,
+  });
+  assert.strictEqual(sequenceDriver.labels.node, 'Participant');
+  assert.strictEqual(sequenceDriver.labels.edge, 'Message');
+  assert.strictEqual(sequenceDriver.mutations.anchors, undefined);
+  assert.ok(sequenceDriver.nodeKindOptions.length > 0);
+
+  const { ast, code } = roundTrip(
+    sequenceDriver,
+    'sequenceDiagram\n    actor Alice\n    participant Bob\n    Alice->>Bob: Hello\n'
+  );
+  const projection = sequenceDriver.project(ast);
+  assert.strictEqual(projection.nodes.size, 2);
+  assert.strictEqual(projection.edges.length, 1);
+  assert.strictEqual(projection.direction, undefined);
+  assert.strictEqual(projection.nodes.get('Alice')!.shape, 'circle');
+  assert.strictEqual(projection.nodes.get('Bob')!.shape, 'rectangle');
+  assert.strictEqual(projection.edges[0].label, 'Hello');
+  assert.ok(code.includes('sequenceDiagram'));
+});
+
+test('Driver surface: sequence mutations work through the unified interface', () => {
+  const driver = sequenceDriver;
+  const ast = driver.parse('sequenceDiagram\n    Alice->>Bob: Hello\n');
+
+  const childId = driver.mutations.addChildNode(ast, 'Bob', 'Next Participant');
+  assert.ok(ast.participants.has(childId));
+  assert.ok(ast.messages.some((m: any) => m.from === 'Bob' && m.to === childId));
+
+  const code = driver.serialize(ast);
+  assert.ok(code.includes('Bob->>'));
+  const reparsed = driver.parse(code);
+  assert.strictEqual(reparsed.participants.size, ast.participants.size);
+});
+
 test('Driver surface: clone never aliases committed AST state', () => {
-  for (const driver of [flowchartDriver, stateDriver]) {
+  for (const driver of [flowchartDriver, stateDriver, sequenceDriver]) {
     const ast = driver.parse(driver.createDefault('TD'));
     const cloned = driver.clone(ast);
     assert.notEqual(cloned, ast);
@@ -143,4 +186,13 @@ test('Driver surface: groups through the unified interface', () => {
   const stGroupId = stateDriver.mutations.createGroup(stAst, 'Composite');
   assert.ok(stAst.compositeStates.has(stGroupId));
   assert.ok(stAst.compositeStates.get(stGroupId)!.stateIds.length > 0);
+
+  const seqAst = sequenceDriver.parse('sequenceDiagram\n    Alice->>Bob: Hello\n');
+  const seqGroupId = sequenceDriver.mutations.createGroupWithMembers(
+    seqAst,
+    'Service Box',
+    ['Alice', 'Bob']
+  );
+  assert.ok(seqAst.boxes.has(seqGroupId));
+  assert.strictEqual(seqAst.participants.get('Alice')!.boxId, seqGroupId);
 });

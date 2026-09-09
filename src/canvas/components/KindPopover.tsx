@@ -7,7 +7,7 @@ import React from 'react';
 import { MermaidNodeDef } from '../../diagrams/viewModel';
 import { NodeKindOption } from '../../diagrams/types';
 import { PopoverPos } from '../types';
-import { ShapeIcons, StateTypeIcons } from '../icons/Icons';
+import { ShapeIcons, StateTypeIcons, UserIcon } from '../icons/Icons';
 
 export interface KindPopoverProps {
   popoverPos: PopoverPos | null;
@@ -20,6 +20,7 @@ export interface KindPopoverProps {
 }
 
 function kindIcon(kind: string): React.FC<{ size?: number }> {
+  if (kind === 'actor') return UserIcon;
   const shapes = ShapeIcons as Record<string, any>;
   const stateTypes = StateTypeIcons as Record<string, any>;
   return shapes[kind] || stateTypes[kind] || ShapeIcons.rectangle;

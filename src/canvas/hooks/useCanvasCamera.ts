@@ -34,6 +34,20 @@ export function useCanvasCamera({ worldRef, svgMountRef }: UseCanvasCameraOption
     };
   }, [worldRef]);
 
+  // Convert client coordinates to canvas world coordinates
+  const getLocalPoint = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } | null => {
+      if (!worldRef.current) return null;
+      const worldRect = worldRef.current.getBoundingClientRect();
+      const currentZoom = zoomRef.current;
+      return {
+        x: (clientX - worldRect.left) / currentZoom,
+        y: (clientY - worldRect.top) / currentZoom,
+      };
+    },
+    [worldRef]
+  );
+
   // Record screen position of active node to stabilize camera across re-render
   const pinNodeForCamera = useCallback((nodeId: string) => {
     if (!svgMountRef.current) return;
@@ -131,6 +145,7 @@ export function useCanvasCamera({ worldRef, svgMountRef }: UseCanvasCameraOption
     panStartRef,
     pendingCameraPinRef,
     getLocalRect,
+    getLocalPoint,
     pinNodeForCamera,
     stabilizeCamera,
     handleWheel,

@@ -65,9 +65,14 @@ export function matchSvgEdgeToAst(
     }
   }
 
-  // 3. Try matching by label text content
+  // 3. Try matching by label text content (including sequence diagram autonumber format: "1: Message")
   if (textContent) {
-    const matched = edges.find((ed) => ed.label && ed.label.trim() === textContent);
+    const cleanText = textContent.replace(/^\d+:\s*/, '').trim();
+    const matched = edges.find(
+      (ed) =>
+        ed.label &&
+        (ed.label.trim() === textContent || ed.label.trim() === cleanText)
+    );
     if (matched) return matched;
   }
 

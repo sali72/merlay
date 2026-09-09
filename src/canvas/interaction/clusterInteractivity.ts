@@ -25,9 +25,20 @@ export function setupClusterInteractivity({
   onStartEditingSubgraph,
   onHoverSubgraph,
 }: SetupClusterInteractivityOptions): void {
-  const clusterElements = Array.from(
-    mountEl.querySelectorAll('.cluster, [class*="cluster"]')
+  const clusterElements: Element[] = Array.from(
+    mountEl.querySelectorAll('.cluster, [class*="cluster"], .box, [class*="box"]')
   );
+
+  // In Mermaid sequence diagrams, boxes are rendered as <g><rect class="rect" .../><text class="text">...</text></g>
+  mountEl.querySelectorAll('rect.rect').forEach((rectEl) => {
+    const parentG = rectEl.parentElement;
+    if (parentG && parentG.tagName.toLowerCase() === 'g') {
+      if (!clusterElements.includes(parentG)) clusterElements.push(parentG);
+    } else if (!clusterElements.includes(rectEl)) {
+      clusterElements.push(rectEl);
+    }
+  });
+
   const usedSubIds = new Set<string>();
   const pendingLabelClusters: Element[] = [];
 
@@ -37,6 +48,23 @@ export function setupClusterInteractivity({
     // composite states, edges between flowchart subgraphs). Drivers decide
     // whether the id is connectable; the canvas just resolves the drop.
     htmlEl.setAttribute('data-mermaid-node-id', targetSubId);
+    htmlEl.style.cursor = 'pointer';
+
+    // Ensure all child rects and texts receive clicks and have pointer cursor
+    htmlEl.querySelectorAll('rect, text').forEach((child) => {
+      const childEl = child as SVGGraphicsElement;
+      childEl.style.cursor = 'pointer';
+      childEl.setAttribute('pointer-events', 'all');
+      childEl.onclick = (e) => {
+        e.stopPropagation();
+        onSelectSubgraph(targetSubId, htmlEl);
+      };
+      childEl.ondblclick = (e) => {
+        e.stopPropagation();
+        onStartEditingSubgraph(targetSubId, htmlEl);
+      };
+    });
+
     htmlEl.onclick = (e) => {
       e.stopPropagation();
       onSelectSubgraph(targetSubId, htmlEl);
@@ -70,6 +98,7 @@ export function setupClusterInteractivity({
       }
     }
 
+    // 1. Direct DOM containment (flowchart / state subgraphs)
     for (const [subId, subDef] of displaySubgraphs.entries()) {
       if (usedSubIds.has(subId)) continue;
       if (subDef.nodeIds.length === 0) continue;
@@ -79,6 +108,33 @@ export function setupClusterInteractivity({
         }
       }
     }
+
+    // 2. Geometric horizontal containment (for sequence diagram boxes where participants are siblings)
+    const boxRect = getLocalRect(htmlEl);
+    if (boxRect) {
+      for (const [subId, subDef] of displaySubgraphs.entries()) {
+        if (usedSubIds.has(subId)) continue;
+        if (subDef.nodeIds.length === 0) continue;
+        let allMatch = true;
+        for (const nid of subDef.nodeIds) {
+          const nodeEl =
+            mountEl.querySelector(
+              `rect.actor-top[name="${nid}"], g.actor-top[name="${nid}"], [data-mermaid-node-id="${nid}"]:not(.actor-line):not(.mermaid-lifeline-hit-area)`
+            ) || mountEl.querySelector(`[data-mermaid-node-id="${nid}"]`);
+          if (nodeEl) {
+            const nr = getLocalRect(nodeEl);
+            if (nr && (nr.x < boxRect.x - 30 || nr.x + nr.width > boxRect.x + boxRect.width + 30)) {
+              allMatch = false;
+              break;
+            }
+          }
+        }
+        if (allMatch) {
+          return subId;
+        }
+      }
+    }
+
     return null;
   };
 
