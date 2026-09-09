@@ -5,11 +5,17 @@ import { FlowchartDirection } from '../diagrams/viewModel';
 export interface VisualMermaidSettings {
   defaultDirection: FlowchartDirection;
   showCodeDrawerByDefault: boolean;
+  enableEditorContextMenu: boolean;
+  enableFileContextMenu: boolean;
+  enableInsertCommands: boolean;
 }
 
 export const DEFAULT_SETTINGS: VisualMermaidSettings = {
   defaultDirection: 'LR',
   showCodeDrawerByDefault: false,
+  enableEditorContextMenu: true,
+  enableFileContextMenu: true,
+  enableInsertCommands: true,
 };
 
 export class VisualMermaidSettingTab extends PluginSettingTab {
@@ -53,5 +59,44 @@ export class VisualMermaidSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    containerEl.createEl('h3', { text: 'Commands & Context Menus' });
+
+    new Setting(containerEl)
+      .setName('Editor Context Menu')
+      .setDesc('Show "Insert Mermaid Diagram" and "Edit Diagram in Visual Mode" in the note editor right-click menu.')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableEditorContextMenu)
+          .onChange(async (value) => {
+            this.plugin.settings.enableEditorContextMenu = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('File Explorer Context Menu')
+      .setDesc('Show "New Mermaid Diagram" and "Open in Visual Editor" in the file explorer right-click menu.')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableFileContextMenu)
+          .onChange(async (value) => {
+            this.plugin.settings.enableFileContextMenu = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Insert Diagram Commands & Slash Commands')
+      .setDesc('Enable "Insert Mermaid Diagram" commands in the Command Palette and Obsidian slash (/) menu.')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableInsertCommands)
+          .onChange(async (value) => {
+            this.plugin.settings.enableInsertCommands = value;
+            await this.plugin.saveSettings();
+          })
+      );
   }
 }
+

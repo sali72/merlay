@@ -3,6 +3,9 @@ import {
   WorkspaceLeaf,
   MarkdownView,
   MarkdownPostProcessorContext,
+  TFile,
+  TFolder,
+  MenuItem,
 } from 'obsidian';
 import {
   DEFAULT_SETTINGS,
@@ -24,7 +27,13 @@ import {
   createNewDiagram,
   createDiagramFileWithTemplate,
   openVisualModeForActiveFile,
+  openDiagramModal,
+  insertMermaidBlockAtCursor,
 } from './obsidian/diagramOpener';
+import { DiagramTemplateModal } from './views/DiagramTemplateModal';
+import { DIAGRAM_TEMPLATES } from './diagrams/registry';
+import { DiagramTemplate } from './diagrams/types';
+import { isCursorInMermaidBlock } from './utils/markdownBlock';
 
 export default class VisualMermaidPlugin extends Plugin {
   public settings: VisualMermaidSettings = DEFAULT_SETTINGS;
@@ -67,15 +76,230 @@ export default class VisualMermaidPlugin extends Plugin {
       this.createNewDiagram();
     });
 
-    // 5. Commands
+    // 5. Context Menus (Right-Click)
+    // 5.1 Editor Context Menu (inside markdown notes)
+    this.registerEvent(
+      this.app.workspace.on('editor-menu', (menu, editor, info) => {
+        if (!this.settings.enableEditorContextMenu) return;
+
+        const view =
+          info instanceof MarkdownView
+            ? info
+            : this.app.workspace.getActiveViewOfType(MarkdownView);
+
+        const cursor = editor.getCursor();
+        const content = editor.getValue();
+        const blockInCursor = isCursorInMermaidBlock(content, cursor.line);
+
+        // If right-clicked directly inside an existing Mermaid diagram block
+        if (blockInCursor && view?.file) {
+          menu.addItem((item) => {
+            item
+              .setTitle('Edit Diagram in Visual Mode')
+              .setIcon('git-pull-request')
+              .setSection('action')
+              .onClick(() => {
+                openDiagramModal(
+                  this,
+                  view.file!.path,
+                  blockInCursor,
+                  content
+                );
+              });
+          });
+          menu.addSeparator();
+        }
+
+        // Insert Mermaid Diagram option (with submenu if supported)
+        menu.addItem((item) => {
+          item
+            .setTitle('Insert Mermaid Diagram')
+            .setIcon('git-pull-request')
+            .setSection('action');
+
+          const submenu =
+            typeof (item as any).setSubmenu === 'function'
+              ? (item as any).setSubmenu()
+              : null;
+
+          if (submenu && view) {
+            submenu.addItem((subItem: MenuItem) => {
+              subItem
+                .setTitle('Choose Template...')
+                .setIcon('list')
+                .onClick(() => {
+                  new DiagramTemplateModal(this.app, (template) => {
+                    insertMermaidBlockAtCursor(this, view, template, true);
+                  }).open();
+                });
+            });
+
+            submenu.addSeparator();
+
+            for (const template of DIAGRAM_TEMPLATES) {
+              submenu.addItem((subItem: MenuItem) => {
+                subItem
+                  .setTitle(template.label)
+                  .setIcon(
+                    template.type === 'flowchart' ? 'git-fork' : 'git-commit'
+                  )
+                  .onClick(() => {
+                    insertMermaidBlockAtCursor(this, view, template, true);
+                  });
+              });
+            }
+          } else {
+            item.onClick(() => {
+              if (view) {
+                new DiagramTemplateModal(this.app, (template) => {
+                  insertMermaidBlockAtCursor(this, view, template, true);
+                }).open();
+              }
+            });
+          }
+        });
+      })
+    );
+
+    // 5.2 File Explorer Context Menu (folders and files)
+    this.registerEvent(
+      this.app.workspace.on('file-menu', (menu, file, source, leaf) => {
+        if (!this.settings.enableFileContextMenu) return;
+
+        // If right-clicked on an existing .mmd or .mermaid file, offer to open in visual editor
+        if (
+          file instanceof TFile &&
+          (file.extension === 'mmd' || file.extension === 'mermaid')
+        ) {
+          menu.addItem((item) => {
+            item
+              .setTitle('Open in Visual Editor')
+              .setIcon('git-pull-request')
+              .setSection('open')
+              .onClick(async () => {
+                const targetLeaf = leaf || this.app.workspace.getLeaf('tab');
+                await targetLeaf.openFile(file);
+              });
+          });
+          return;
+        }
+
+        // Determine target folder
+        let targetFolder = '';
+        if (file instanceof TFolder) {
+          targetFolder = file.path;
+        } else if (file instanceof TFile) {
+          targetFolder = file.parent ? file.parent.path : '';
+        }
+
+        menu.addItem((item) => {
+          item
+            .setTitle('New Mermaid Diagram')
+            .setIcon('git-pull-request')
+            .setSection('action');
+
+          const submenu =
+            typeof (item as any).setSubmenu === 'function'
+              ? (item as any).setSubmenu()
+              : null;
+
+          if (submenu) {
+            submenu.addItem((subItem: MenuItem) => {
+              subItem
+                .setTitle('Choose Template...')
+                .setIcon('list')
+                .onClick(() => {
+                  new DiagramTemplateModal(this.app, (template) => {
+                    createDiagramFileWithTemplate(
+                      this,
+                      template.defaultCode,
+                      targetFolder
+                    );
+                  }).open();
+                });
+            });
+
+            submenu.addSeparator();
+
+            for (const template of DIAGRAM_TEMPLATES) {
+              submenu.addItem((subItem: MenuItem) => {
+                subItem
+                  .setTitle(template.label)
+                  .setIcon(
+                    template.type === 'flowchart' ? 'git-fork' : 'git-commit'
+                  )
+                  .onClick(() => {
+                    createDiagramFileWithTemplate(
+                      this,
+                      template.defaultCode,
+                      targetFolder
+                    );
+                  });
+              });
+            }
+          } else {
+            item.onClick(() => {
+              new DiagramTemplateModal(this.app, (template) => {
+                createDiagramFileWithTemplate(
+                  this,
+                  template.defaultCode,
+                  targetFolder
+                );
+              }).open();
+            });
+          }
+        });
+      })
+    );
+
+    // 6. Commands (available in Command Palette and Slash Commands "/")
+    // 6.1 Insert Mermaid Diagram (in active note at cursor)
+    this.addCommand({
+      id: 'insert-mermaid-diagram',
+      name: 'Insert Mermaid Diagram',
+      editorCheckCallback: (checking, editor, view) => {
+        if (!this.settings.enableInsertCommands) return false;
+        if (view instanceof MarkdownView) {
+          if (!checking) {
+            new DiagramTemplateModal(this.app, (template) => {
+              insertMermaidBlockAtCursor(this, view, template, true);
+            }).open();
+          }
+          return true;
+        }
+        return false;
+      },
+    });
+
+    // 6.2 Dynamic insert commands for each template (direct slash command per type)
+    for (const template of DIAGRAM_TEMPLATES) {
+      this.addCommand({
+        id: `insert-mermaid-${template.type.toLowerCase()}`,
+        name: `Insert Mermaid Diagram: ${template.label}`,
+        editorCheckCallback: (checking, editor, view) => {
+          if (!this.settings.enableInsertCommands) return false;
+          if (view instanceof MarkdownView) {
+            if (!checking) {
+              insertMermaidBlockAtCursor(this, view, template, true);
+            }
+            return true;
+          }
+          return false;
+        },
+      });
+    }
+
+
+    // 6.3 Create New Standalone Mermaid Diagram File (.mmd)
     this.addCommand({
       id: 'create-new-mermaid-diagram',
-      name: 'Create New Mermaid Diagram',
+      name: 'Create New Mermaid Diagram (File)',
       callback: () => {
         this.createNewDiagram();
       },
     });
 
+    // 6.4 Open Visual Mode for Current Diagram in Note
     this.addCommand({
       id: 'open-visual-mode-active-note',
       name: 'Open Visual Mode for Current Diagram',
@@ -91,7 +315,7 @@ export default class VisualMermaidPlugin extends Plugin {
       },
     });
 
-    // 6. Settings Tab
+    // 7. Settings Tab
     this.addSettingTab(new VisualMermaidSettingTab(this.app, this));
   }
 
@@ -116,12 +340,31 @@ export default class VisualMermaidPlugin extends Plugin {
     return openVisualModeForActiveFile(this, view);
   }
 
-  createNewDiagram(): Promise<void> {
-    return createNewDiagram(this);
+  createNewDiagram(targetFolder?: string): Promise<void> {
+    return createNewDiagram(this, targetFolder);
   }
 
-  createDiagramFileWithTemplate(initialCode: string): Promise<void> {
-    return createDiagramFileWithTemplate(this, initialCode);
+  createDiagramFileWithTemplate(
+    initialCode: string,
+    targetFolder?: string
+  ): Promise<void> {
+    return createDiagramFileWithTemplate(this, initialCode, targetFolder);
+  }
+
+  insertMermaidDiagram(
+    view: MarkdownView,
+    template?: DiagramTemplate,
+    openVisualMode = true
+  ): Promise<void> {
+    if (template) {
+      return insertMermaidBlockAtCursor(this, view, template, openVisualMode);
+    }
+    return new Promise((resolve) => {
+      new DiagramTemplateModal(this.app, async (chosen) => {
+        await insertMermaidBlockAtCursor(this, view, chosen, openVisualMode);
+        resolve();
+      }).open();
+    });
   }
 
   async loadSettings(): Promise<void> {
@@ -132,3 +375,4 @@ export default class VisualMermaidPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 }
+

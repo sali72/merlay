@@ -3,6 +3,8 @@ import * as assert from 'node:assert';
 import {
   findMermaidBlockBounds,
   replaceMermaidBlock,
+  isCursorInMermaidBlock,
+  findTargetMermaidBlock,
 } from '../src/utils/markdownBlock';
 
 test('findMermaidBlockBounds: finds exact bounds of mermaid block', () => {
@@ -162,3 +164,120 @@ test('replaceMermaidBlock: handles multiple mermaid blocks in same note', () => 
   // Ensure Block 1 was untouched
   assert.ok(res.updatedText.includes('# Block 1\n```mermaid\nflowchart LR\n    A --> B\n```'));
 });
+
+test('isCursorInMermaidBlock: detects cursor inside mermaid block boundaries', () => {
+  const doc = [
+    '# Note Title', // line 0
+    'Intro text',   // line 1
+    '```mermaid',   // line 2
+    'flowchart LR', // line 3
+    '    A --> B',  // line 4
+    '```',          // line 5
+    'Outro text',   // line 6
+    '```mermaid',   // line 7
+    'stateDiagram-v2', // line 8
+    '    [*] --> S1',  // line 9
+    '```',          // line 10
+    'End',          // line 11
+  ].join('\n');
+
+  // Outside blocks
+  assert.equal(isCursorInMermaidBlock(doc, 0), null);
+  assert.equal(isCursorInMermaidBlock(doc, 1), null);
+  assert.equal(isCursorInMermaidBlock(doc, 6), null);
+  assert.equal(isCursorInMermaidBlock(doc, 11), null);
+
+  // Inside Block 1 (lines 2 to 5)
+  for (let line = 2; line <= 5; line++) {
+    const match = isCursorInMermaidBlock(doc, line);
+    assert.ok(match, `Expected line ${line} to be detected inside Block 1`);
+    assert.equal(match.lineStart, 2);
+    assert.equal(match.lineEnd, 5);
+    assert.ok(match.rawCode.includes('flowchart LR'));
+  }
+
+  // Inside Block 2 (lines 7 to 10)
+  for (let line = 7; line <= 10; line++) {
+    const match = isCursorInMermaidBlock(doc, line);
+    assert.ok(match, `Expected line ${line} to be detected inside Block 2`);
+    assert.equal(match.lineStart, 7);
+    assert.equal(match.lineEnd, 10);
+    assert.ok(match.rawCode.includes('stateDiagram-v2'));
+  }
+});
+
+test('findTargetMermaidBlock: correctly distinguishes back-to-back diagrams without any empty lines', () => {
+  const backToBackDoc = [
+    '```mermaid',      // line 0
+    'flowchart LR',     // line 1
+    '    A["Start"] --> B["End"]', // line 2
+    '```',              // line 3
+    '```mermaid',      // line 4
+    'stateDiagram-v2',  // line 5
+    '    [*] --> Idle', // line 6
+    '    Idle --> [*]', // line 7
+    '```',              // line 8
+  ].join('\n');
+
+  // Test 1: clicking Diagram 2 with hintLine at opening fence (line 4)
+  const target2ByLine = findTargetMermaidBlock({
+    content: backToBackDoc,
+    hintLine: 4,
+    domIndex: 1,
+    domText: 'Idle',
+  });
+  assert.ok(target2ByLine);
+  assert.equal(target2ByLine.lineStart, 4);
+  assert.equal(target2ByLine.lineEnd, 8);
+  assert.ok(target2ByLine.rawCode.includes('stateDiagram-v2'));
+
+  // Test 2: clicking Diagram 1 with hintLine at line 0
+  const target1ByLine = findTargetMermaidBlock({
+    content: backToBackDoc,
+    hintLine: 0,
+    domIndex: 0,
+    domText: 'Start End',
+  });
+  assert.ok(target1ByLine);
+  assert.equal(target1ByLine.lineStart, 0);
+  assert.equal(target1ByLine.lineEnd, 3);
+  assert.ok(target1ByLine.rawCode.includes('flowchart LR'));
+
+  // Test 3: boundary position where posAtDOM landed on closing fence (line 3)
+  // but domText corresponds to Diagram 2
+  const target2Boundary = findTargetMermaidBlock({
+    content: backToBackDoc,
+    hintLine: 3,
+    domIndex: 1,
+    domText: 'Idle',
+  });
+  assert.ok(target2Boundary);
+  assert.equal(target2Boundary.lineStart, 4);
+  assert.equal(target2Boundary.lineEnd, 8);
+  assert.ok(target2Boundary.rawCode.includes('stateDiagram-v2'));
+
+  // Test 4: replaceMermaidBlock updates Diagram 2 while leaving Diagram 1 untouched
+  const updatedCode2 = 'stateDiagram-v2\n    [*] --> Running\n    Running --> [*]';
+  const replaceResult2 = replaceMermaidBlock(
+    backToBackDoc,
+    updatedCode2,
+    4,
+    'stateDiagram-v2\n    [*] --> Idle\n    Idle --> [*]'
+  );
+
+  const expectedAfterReplace2 = [
+    '```mermaid',
+    'flowchart LR',
+    '    A["Start"] --> B["End"]',
+    '```',
+    '```mermaid',
+    'stateDiagram-v2',
+    '    [*] --> Running',
+    '    Running --> [*]',
+    '```',
+  ].join('\n');
+
+  assert.equal(replaceResult2.updatedText, expectedAfterReplace2);
+  assert.equal(replaceResult2.newStartLine, 4);
+});
+

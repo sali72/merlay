@@ -6,6 +6,7 @@ import { MarkdownView, Notice, TFile, WorkspaceLeaf } from 'obsidian';
 import type VisualMermaidPlugin from '../main';
 import { findTargetMermaidBlock } from '../utils/markdownBlock';
 import { detectDiagramType } from '../diagrams/registry';
+import { DiagramTemplate } from '../diagrams/types';
 import { MermaidBlockModal } from '../views/MermaidBlockModal';
 import { DiagramTemplateModal } from '../views/DiagramTemplateModal';
 
@@ -61,20 +62,25 @@ export function openDiagramModal(
 }
 
 export async function createNewDiagram(
-  plugin: VisualMermaidPlugin
+  plugin: VisualMermaidPlugin,
+  targetFolder?: string
 ): Promise<void> {
   new DiagramTemplateModal(plugin.app, (template) => {
-    createDiagramFileWithTemplate(plugin, template.defaultCode);
+    createDiagramFileWithTemplate(plugin, template.defaultCode, targetFolder);
   }).open();
 }
 
 export async function createDiagramFileWithTemplate(
   plugin: VisualMermaidPlugin,
-  initialCode: string
+  initialCode: string,
+  targetFolder?: string
 ): Promise<void> {
   try {
-    const activeFile = plugin.app.workspace.getActiveFile();
-    const parentDir = activeFile?.parent ? activeFile.parent.path : '';
+    let parentDir = targetFolder;
+    if (parentDir === undefined) {
+      const activeFile = plugin.app.workspace.getActiveFile();
+      parentDir = activeFile?.parent ? activeFile.parent.path : '';
+    }
     const baseName = 'New Diagram';
     let fileName = `${baseName}.mmd`;
     let counter = 1;
@@ -96,4 +102,62 @@ export async function createDiagramFileWithTemplate(
   } catch (e: any) {
     new Notice(`Error creating diagram: ${e.message}`);
   }
+}
+
+export async function insertMermaidBlockAtCursor(
+  plugin: VisualMermaidPlugin,
+  view: MarkdownView,
+  template: DiagramTemplate,
+  openVisualMode = true
+): Promise<void> {
+  const editor = view.editor;
+  const cursor = editor.getCursor();
+  const currentLineText = editor.getLine(cursor.line);
+
+  const codeContent = template.defaultCode.trim();
+  const blockText = `\`\`\`mermaid\n${codeContent}\n\`\`\``;
+
+  let textToInsert = '';
+  let insertFrom = cursor;
+  let insertTo = cursor;
+  let targetLineStart = cursor.line;
+
+  if (currentLineText.trim().length === 0) {
+    // Current line is blank: replace it with block + newline
+    insertFrom = { line: cursor.line, ch: 0 };
+    insertTo = { line: cursor.line, ch: currentLineText.length };
+    textToInsert = `${blockText}\n`;
+    targetLineStart = cursor.line;
+  } else {
+    // Current line has text: insert block separated by newlines
+    textToInsert = `\n\n${blockText}\n`;
+    targetLineStart = cursor.line + 2;
+  }
+
+  editor.replaceRange(textToInsert, insertFrom, insertTo);
+
+  // Position cursor inside the diagram code block
+  editor.setCursor({
+    line: targetLineStart + 1,
+    ch: 0,
+  });
+
+  if (openVisualMode && view.file) {
+    try {
+      await view.save();
+      const content = await plugin.app.vault.read(view.file);
+      const blockMatch = findTargetMermaidBlock({
+        content,
+        hintLine: targetLineStart,
+      });
+
+      if (blockMatch) {
+        openDiagramModal(plugin, view.file.path, blockMatch, content);
+      }
+    } catch (err: any) {
+      console.error('Failed to open visual mode after inserting diagram:', err);
+    }
+  }
+
+  new Notice(`Inserted ${template.label}`);
 }

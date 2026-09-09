@@ -58,19 +58,31 @@ Mermaid was designed as a code-first, declarative diagramming tool without arbit
 
 ## 📖 Usage
 
-### 1. In-Note Diagram Editing
-1. Hover over any ````mermaid```` flowchart block in your notes (Live Preview or Reading View).
-2. Click the **"Visual Mode"** button beside "Edit this block".
-3. Add nodes, sprout next steps, connect edges, or edit labels.
-4. Changes are debounced and saved automatically into your note.
+### 1. In-Note Diagram Editing & Insertion
+- **Slash Commands (`/`):**
+  - Type `/Insert Mermaid Diagram` in Live Preview to pick from template types (Flowchart, State Diagram, etc.).
+  - Or type `/flowchart` or `/state` directly to insert and immediately launch Visual Mode.
+- **Right-Click Context Menu:**
+  - Right-click anywhere in your note editor → **Insert Mermaid Diagram** → select a diagram template.
+  - Right-click directly inside an existing Mermaid code block → **Edit Diagram in Visual Mode**.
+- **Hover Button:**
+  - Hover over any ````mermaid```` block in your notes (Live Preview or Reading View).
+  - Click the **"Visual Mode"** button beside "Edit this block".
+  - Add nodes, sprout next steps, connect edges, or edit labels. Changes are debounced and saved automatically into your note.
 
 ### 2. Standalone `.mmd` Files
-- Run the command: `Visual Mermaid Studio: Create New Mermaid Diagram`.
-- Or create/open any `.mmd` or `.mermaid` file in your vault.
+- **File Explorer Right-Click:** Right-click any folder in the Obsidian File Explorer → **New Mermaid Diagram** to create a `.mmd` file directly inside that folder.
+- **Ribbon & Command Palette:**
+  - Click the **Visual Mermaid Studio** ribbon icon on the left sidebar.
+  - Or press `Ctrl + P` / `Cmd + P` and run `Visual Mermaid Studio: Create New Mermaid Diagram (File)`.
+  - Or open any `.mmd` or `.mermaid` file in your vault.
 
 ### 3. Command Palette
-- Press `Ctrl + P` (or `Cmd + P` on macOS) and run:
-  `Visual Mermaid Studio: Open Visual Mode for Current Diagram`
+- `Visual Mermaid Studio: Insert Mermaid Diagram`: Insert a diagram block into the current note at cursor.
+- `Visual Mermaid Studio: Insert Mermaid Diagram: Flowchart`: Directly insert a flowchart block and launch Visual Mode.
+- `Visual Mermaid Studio: Insert Mermaid Diagram: State Diagram`: Directly insert a state diagram block and launch Visual Mode.
+- `Visual Mermaid Studio: Open Visual Mode for Current Diagram`: Open the visual editor for the diagram block under cursor.
+- `Visual Mermaid Studio: Create New Mermaid Diagram (File)`: Create a standalone `.mmd` file.
 
 ---
 
