@@ -46,7 +46,7 @@ export function attachEditButton(
   const editBtn = createEl('button', {
     cls: 'merlay-edit-btn clickable-icon',
     attr: {
-      'aria-label': 'Edit in visual mode',
+      'aria-label': 'Open in visual mode',
     },
   });
   setIcon(editBtn, 'git-pull-request');

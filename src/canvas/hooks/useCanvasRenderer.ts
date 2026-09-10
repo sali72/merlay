@@ -11,6 +11,7 @@ import { DiagramDriver } from '../../diagrams/types';
 import { renderMermaidSvg } from '../renderer/mermaidRenderer';
 import { applySelectedNodeHalos } from '../renderer/selectionHalo';
 import { setupSvgInteractivity } from '../interaction/setupSvgInteractivity';
+import { setupViewOnlyInteractivity } from '../interaction/setupViewOnlyInteractivity';
 import { useCanvasStore } from '../store/canvasStore';
 
 export interface UseCanvasRendererOptions {
@@ -59,9 +60,16 @@ export function useCanvasRenderer({
   const isAnchorId = (id: string | null | undefined): id is string =>
     !!anchors && !!id && anchors.isAnchor(id);
 
+  const isEditable = driver.capabilities.editable !== false;
+
   const setupSvg = useCallback(() => {
     const mountEl = svgMountRef.current;
     if (!mountEl) return;
+
+    if (!isEditable) {
+      setupViewOnlyInteractivity({ mountEl });
+      return;
+    }
 
     setupSvgInteractivity({
       mountEl,

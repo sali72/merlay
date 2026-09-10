@@ -84,6 +84,30 @@ export function useMarqueeSelection({
           const minY = Math.min(pending.startY, pending.currentY);
           const maxY = Math.max(pending.startY, pending.currentY);
 
+          if (displayNodes.size === 0) {
+            // View-Only mode: highlight arbitrary SVG elements intersecting with marquee box
+            const elements = mount.querySelectorAll(
+              ':is(.node, [class*="node"], .cluster, .actor, [class*="actor"], .task, [class*="task"], .commit, [class*="commit"], [class*="slice"], [class*="entity"], g[id]):not(.label):not(text)'
+            );
+            elements.forEach((el) => {
+              const rect = getLocalRect(el);
+              if (rect) {
+                const intersects = !(
+                  rect.x + rect.width < minX ||
+                  rect.x > maxX ||
+                  rect.y + rect.height < minY ||
+                  rect.y > maxY
+                );
+                if (intersects) {
+                  el.classList.add('mermaid-view-highlight');
+                } else {
+                  el.classList.remove('mermaid-view-highlight');
+                }
+              }
+            });
+            return;
+          }
+
           const newSelectedNodes = new Set<string>();
           const newSelectedEdges = new Set<string>();
 

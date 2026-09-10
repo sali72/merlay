@@ -5,7 +5,11 @@
 import { MarkdownView, Notice, TFile, WorkspaceLeaf } from 'obsidian';
 import type MerlayPlugin from '../main';
 import { findTargetMermaidBlock } from '../utils/markdownBlock';
-import { detectDiagramType } from '../diagrams/registry';
+import {
+  detectDiagramType,
+  isDiagramSupported,
+  DIAGRAM_DISPLAY_NAMES,
+} from '../diagrams/registry';
 import { DiagramTemplate } from '../diagrams/types';
 import { MermaidBlockModal } from '../views/MermaidBlockModal';
 import { DiagramTemplateModal } from '../views/DiagramTemplateModal';
@@ -40,9 +44,12 @@ export function openDiagramModal(
 ): boolean {
   const rawCode = blockMatch.rawCode;
   const diagramType = detectDiagramType(rawCode);
-  if (diagramType === 'unknown') {
-    new Notice('Visual Mode currently supports Flowcharts and State Diagrams.');
-    return false;
+  if (!isDiagramSupported(diagramType)) {
+    const displayName = DIAGRAM_DISPLAY_NAMES[diagramType] || 'diagram';
+    new Notice(
+      `Viewing ${displayName} in View-Only mode. Visual editing is not yet supported for this diagram type.`,
+      4000
+    );
   }
 
   new MermaidBlockModal(

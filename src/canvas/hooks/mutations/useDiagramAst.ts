@@ -7,8 +7,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { MermaidEdgeDef, MermaidNodeDef, MermaidSubgraphDef } from '../../../diagrams/viewModel';
 import { SupportedDiagramType } from '../../../diagrams/types';
-import { getDriver } from '../../../diagrams/registry';
-import { FlowchartDriver } from '../../../diagrams/flowchart/flowchartDriver';
+import { getDriverOrDefault } from '../../../diagrams/registry';
 
 export interface UseDiagramAstOptions {
   code: string;
@@ -27,7 +26,7 @@ export function useDiagramAst({
   diagramType,
   pinNodeForCamera,
 }: UseDiagramAstOptions) {
-  const driver = getDriver(diagramType) ?? FlowchartDriver;
+  const driver = getDriverOrDefault(diagramType);
 
   // The single active AST. Re-parsed whenever code changes from outside this
   // hook (undo/redo, syntax drawer, external edits) — never when we emitted

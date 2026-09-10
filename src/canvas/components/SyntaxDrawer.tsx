@@ -7,6 +7,7 @@ export interface SyntaxDrawerProps {
   syntaxError: string | null;
   onClose: () => void;
   onChangeCode: (newCode: string) => void;
+  readOnly?: boolean;
 }
 
 export const SyntaxDrawer: React.FC<SyntaxDrawerProps> = ({
@@ -15,13 +16,14 @@ export const SyntaxDrawer: React.FC<SyntaxDrawerProps> = ({
   syntaxError,
   onClose,
   onChangeCode,
+  readOnly = false,
 }) => {
   if (!isOpen) return null;
 
   return (
     <div className="mermaid-side-code-drawer nodrag">
       <div className="mermaid-code-drawer-header">
-        <span>Mermaid Syntax</span>
+        <span>Mermaid Syntax{readOnly ? ' (View Only)' : ''}</span>
         <button
           type="button"
           className="mermaid-code-close-btn"
@@ -37,7 +39,10 @@ export const SyntaxDrawer: React.FC<SyntaxDrawerProps> = ({
       <textarea
         className="mermaid-code-drawer-textarea"
         value={code}
-        onChange={(e) => onChangeCode(e.target.value)}
+        readOnly={readOnly}
+        onChange={(e) => {
+          if (!readOnly) onChangeCode(e.target.value);
+        }}
         spellCheck={false}
       />
     </div>

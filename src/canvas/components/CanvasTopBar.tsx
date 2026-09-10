@@ -55,6 +55,7 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
   onRedo,
 }) => {
   const { labels, capabilities } = driver;
+  const isEditable = capabilities.editable !== false;
 
   return (
     <div className="mermaid-native-top-bar nodrag">
@@ -65,7 +66,7 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
             type="button"
             className={`mermaid-mode-btn ${cursorMode === 'select' ? 'is-active' : ''}`}
             onClick={() => onSetCursorMode('select')}
-            title="Select & Marquee Tool (V)"
+            title={!isEditable ? 'Select & Highlight Tool (V)' : 'Select & Marquee Tool (V)'}
           >
             <SelectModeIcon size={13} />
             <span>Select</span>
@@ -84,38 +85,43 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
         <div className="mermaid-bar-divider" />
 
         {/* Undo / Redo */}
-        <button
-          type="button"
-          className="mermaid-tool-btn icon-only"
-          onClick={onUndo}
-          disabled={!canUndo}
-          title="Undo (Ctrl+Z)"
-        >
-          <UndoIcon size={14} />
-        </button>
-        <button
-          type="button"
-          className="mermaid-tool-btn icon-only"
-          onClick={onRedo}
-          disabled={!canRedo}
-          title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
-        >
-          <RedoIcon size={14} />
-        </button>
+        {isEditable && (
+          <>
+            <button
+              type="button"
+              className="mermaid-tool-btn icon-only"
+              onClick={onUndo}
+              disabled={!canUndo}
+              title="Undo (Ctrl+Z)"
+            >
+              <UndoIcon size={14} />
+            </button>
+            <button
+              type="button"
+              className="mermaid-tool-btn icon-only"
+              onClick={onRedo}
+              disabled={!canRedo}
+              title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+            >
+              <RedoIcon size={14} />
+            </button>
+            <div className="mermaid-bar-divider" />
+          </>
+        )}
 
-        <div className="mermaid-bar-divider" />
+        {isEditable && (
+          <button
+            type="button"
+            className="mermaid-tool-btn mod-cta"
+            onClick={onAddStep}
+            title={`Add new ${labels.node.toLowerCase()}`}
+          >
+            <PlusIcon size={14} />
+            <span>{labels.addNode}</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          className="mermaid-tool-btn mod-cta"
-          onClick={onAddStep}
-          title={`Add new ${labels.node.toLowerCase()}`}
-        >
-          <PlusIcon size={14} />
-          <span>{labels.addNode}</span>
-        </button>
-
-        {capabilities.hasAnchors && onAddStart && (
+        {isEditable && capabilities.hasAnchors && onAddStart && (
           <button
             type="button"
             className="mermaid-tool-btn"
@@ -127,7 +133,7 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
           </button>
         )}
 
-        {capabilities.hasAnchors && onAddEnd && (
+        {isEditable && capabilities.hasAnchors && onAddEnd && (
           <button
             type="button"
             className="mermaid-tool-btn"
@@ -139,7 +145,7 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
           </button>
         )}
 
-        {capabilities.supportsGroups && (
+        {isEditable && capabilities.supportsGroups && (
           <button
             type="button"
             className="mermaid-tool-btn"
@@ -151,7 +157,7 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
           </button>
         )}
 
-        {capabilities.supportsDirection && (
+        {isEditable && capabilities.supportsDirection && (
           <button
             type="button"
             className="mermaid-tool-btn"
@@ -162,7 +168,7 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
           </button>
         )}
 
-        <div className="mermaid-bar-divider" />
+        {isEditable && <div className="mermaid-bar-divider" />}
 
         <button
           type="button"
@@ -175,8 +181,11 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
       </div>
 
       <div className="mermaid-top-bar-right">
-        <span className="mermaid-diagram-badge" title="Diagram Type">
-          {driver.displayName}
+        <span
+          className={`mermaid-diagram-badge ${!isEditable ? 'is-view-only' : ''}`}
+          title={!isEditable ? 'Visual editing is not yet supported for this diagram type' : 'Diagram Type'}
+        >
+          {driver.displayName} {!isEditable ? '(View Only)' : ''}
         </span>
         <button
           type="button"

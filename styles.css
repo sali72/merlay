@@ -1122,3 +1122,64 @@ pre.language-mermaid {
   color: var(--mermaid-text, #dcddde);
   font-weight: 500;
 }
+
+/* View-Only Diagram Modes & Banners */
+.mermaid-native-editor-root.is-view-only.is-mode-hand {
+  cursor: grab;
+}
+
+.mermaid-native-editor-root.is-view-only.is-mode-hand.is-panning {
+  cursor: grabbing;
+}
+
+.mermaid-native-editor-root.is-view-only.is-mode-hand .mermaid-native-svg-mount svg * {
+  cursor: grab;
+}
+
+.mermaid-native-editor-root.is-view-only.is-mode-hand.is-panning .mermaid-native-svg-mount svg * {
+  cursor: grabbing;
+}
+
+/* Select Mode in View-Only: Hover & Selection Highlighting */
+.mermaid-native-editor-root.is-view-only.is-mode-select {
+  cursor: default;
+}
+
+.mermaid-native-editor-root.is-view-only.is-mode-select .mermaid-native-svg-mount svg :is(.node, [class*="node"], .cluster, .actor, [class*="actor"], .task, [class*="task"], .commit, [class*="commit"], [class*="slice"], [class*="entity"], .pieCircle, g[id]):not(.label):not(text) {
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.mermaid-native-editor-root.is-view-only.is-mode-select .mermaid-native-svg-mount svg :is(.node, [class*="node"], .cluster, .actor, [class*="actor"], .task, [class*="task"], .commit, [class*="commit"], [class*="slice"], [class*="entity"], .pieCircle, g[id]):not(.label):not(text):hover {
+  filter: drop-shadow(0 0 4px var(--mermaid-accent, #7c3aed));
+}
+
+/* Active Highlight for View-Only Selected Elements */
+.mermaid-native-editor-root.is-view-only .mermaid-native-svg-mount .mermaid-view-highlight {
+  filter: drop-shadow(0 0 6px var(--mermaid-accent, #7c3aed)) drop-shadow(0 0 2px var(--mermaid-accent, #7c3aed)) !important;
+  opacity: 1 !important;
+}
+
+.mermaid-native-editor-root.is-view-only .mermaid-native-svg-mount .mermaid-view-highlight > :is(rect, circle, polygon, ellipse, path) {
+  stroke: var(--mermaid-accent, #7c3aed) !important;
+  stroke-width: 2.5px !important;
+}
+
+.mermaid-canvas-hint-bar.mermaid-view-only-banner {
+  background: var(--background-secondary, #252525);
+  border: 1px solid var(--mermaid-border, rgba(255, 255, 255, 0.16));
+  color: var(--text-muted, #a0a0a0);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.mermaid-canvas-hint-bar.mermaid-view-only-banner strong {
+  color: var(--text-normal, #dcddde);
+  font-weight: 600;
+}
+
+.mermaid-diagram-badge.is-view-only {
+  background: var(--background-modifier-box, rgba(255, 255, 255, 0.08));
+  border: 1px dashed var(--mermaid-border, rgba(255, 255, 255, 0.25));
+  color: var(--text-muted, #999);
+}
+

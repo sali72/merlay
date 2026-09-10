@@ -22,6 +22,7 @@ import { useCanvasRenderer } from './hooks/useCanvasRenderer';
 
 import { CanvasTopBar } from './components/CanvasTopBar';
 import { CanvasOverlays } from './components/CanvasOverlays';
+import { SelectionMarquee } from './components/SelectionMarquee';
 import { SyntaxDrawer } from './components/SyntaxDrawer';
 import { useCanvasStore } from './store/canvasStore';
 
@@ -78,6 +79,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     pinNodeForCamera,
   });
   const driver = astHook.driver;
+  const isEditable = driver.capabilities.editable !== false;
 
   // 3. Selection & Halos
   const selection = useCanvasSelection({
@@ -143,12 +145,12 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
 
   const handleStartEditingNode = useCallback(
     (nodeId: string, nodeEl: Element) => {
-      if (!driver.mutations.isNodeTextEditable(astHook.ast, nodeId)) {
+      if (!isEditable || !driver.mutations.isNodeTextEditable(astHook.ast, nodeId)) {
         return;
       }
       inlineEditing.startEditingNode(nodeId, nodeEl);
     },
-    [driver, astHook.ast, inlineEditing]
+    [isEditable, driver, astHook.ast, inlineEditing]
   );
 
   const canRenameSelectedNode = selection.selectedNodeId
@@ -161,8 +163,11 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     selection.updateSelectedEdgeHalo(new Set());
     if (svgMountRef.current) {
       svgMountRef.current
-        .querySelectorAll('.mermaid-cluster-selected')
-        .forEach((c) => c.classList.remove('mermaid-cluster-selected'));
+        .querySelectorAll('.mermaid-cluster-selected, .mermaid-view-highlight')
+        .forEach((c) => {
+          c.classList.remove('mermaid-cluster-selected');
+          c.classList.remove('mermaid-view-highlight');
+        });
     }
   }, [selection, svgMountRef]);
 
@@ -186,6 +191,15 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
   }, [redoHistory, onCodeChange, mutations, resetTransientUiState]);
 
   const handleSelectAll = useCallback(() => {
+    if (!isEditable) {
+      if (svgMountRef.current) {
+        const selectables = svgMountRef.current.querySelectorAll(
+          '.node, .actor, .task, .section, .cluster, g[id]:not(#defs):not(.grid):not([id*="arrowhead"]), .label'
+        );
+        selectables.forEach((el) => el.classList.add('mermaid-view-highlight'));
+      }
+      return;
+    }
     const anchors = driver.mutations.anchors;
     const allNodeIds = new Set(
       Array.from(mutations.displayNodes.keys()).filter(
@@ -205,7 +219,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     selection.setActiveSubgraphPopover(null);
     selection.updateSelectedNodeHalo(allNodeIds);
     selection.updateSelectedEdgeHalo(allEdgeIds);
-  }, [driver, mutations.displayNodes, mutations.displayEdges, selection]);
+  }, [isEditable, driver, mutations.displayNodes, mutations.displayEdges, selection]);
 
   // 8. Keyboard Shortcuts
   const hasActivePopovers = !!(
@@ -220,6 +234,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     !!selection.selectedSubgraphId;
 
   const { isSpacePressed } = useCanvasShortcuts({
+    isEditable,
     setCursorMode,
     handleUndo,
     handleRedo,
@@ -228,7 +243,14 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     handleCopySelected: mutations.handleCopySelected,
     handlePasteSelected: mutations.handlePasteSelected,
     handleBatchDeleteSelected: mutations.handleBatchDeleteSelected,
-    clearSelection: selection.clearSelection,
+    clearSelection: () => {
+      selection.clearSelection();
+      if (svgMountRef.current) {
+        svgMountRef.current
+          .querySelectorAll('.mermaid-view-highlight')
+          .forEach((el) => el.classList.remove('mermaid-view-highlight'));
+      }
+    },
     hasActivePopovers,
     clearActivePopovers: () => {
       selection.setActiveNodePopover(null);
@@ -285,7 +307,7 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     <div
       className={`mermaid-native-editor-root is-mode-${cursorMode} ${
         isPanning ? 'is-panning' : ''
-      } ${isSpacePressed ? 'is-space-held' : ''}`}
+      } ${isSpacePressed ? 'is-space-held' : ''} ${!isEditable ? 'is-view-only' : ''}`}
       ref={containerRef}
       onWheel={handleWheel}
       onMouseDown={mouse.handleMouseDown}
@@ -335,25 +357,38 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         {/* Native Mermaid SVG Output */}
         <div className="mermaid-native-svg-mount mermaid" ref={svgMountRef} />
 
-        {/* Interactive Overlay Layer */}
-        <CanvasOverlays
-          mouse={mouse}
-          marquee={marquee}
-          selection={selection}
-          mutations={mutations}
-          inlineEditing={inlineEditing}
-          cursorMode={cursorMode}
-          isSpacePressed={isSpacePressed}
-          canRenameSelectedNode={canRenameSelectedNode}
-          svgMountRef={svgMountRef}
-          handleStartEditingNode={handleStartEditingNode}
-        />
+        {/* Interactive Overlay Layer (full editing overlays for editable diagrams, marquee only for view-only) */}
+        {isEditable ? (
+          <CanvasOverlays
+            mouse={mouse}
+            marquee={marquee}
+            selection={selection}
+            mutations={mutations}
+            inlineEditing={inlineEditing}
+            cursorMode={cursorMode}
+            isSpacePressed={isSpacePressed}
+            canRenameSelectedNode={canRenameSelectedNode}
+            svgMountRef={svgMountRef}
+            handleStartEditingNode={handleStartEditingNode}
+          />
+        ) : (
+          <div className="mermaid-native-overlay">
+            <SelectionMarquee box={marquee.selectionBox} />
+          </div>
+        )}
       </div>
 
       {/* Sequence Diagram Affordance Guide */}
-      {driver.type === 'sequenceDiagram' && (
+      {isEditable && driver.type === 'sequenceDiagram' && (
         <div className="mermaid-canvas-hint-bar nodrag">
           <span>💡 <strong>Tip:</strong> Drag from a participant handle to connect &bull; Click message to edit &bull; Double-click to rename</span>
+        </div>
+      )}
+
+      {/* Unsupported Diagram View-Only Banner */}
+      {!isEditable && (
+        <div className="mermaid-canvas-hint-bar mermaid-view-only-banner nodrag">
+          <span>ℹ️ Editing <strong>{driver.displayName}</strong> diagrams is not yet supported &bull; View mode only (pan, zoom, and highlight available)</span>
         </div>
       )}
 
@@ -362,10 +397,10 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
         isOpen={showCodeDrawer}
         code={code}
         syntaxError={mutations.syntaxError}
+        readOnly={!isEditable}
         onClose={() => setShowCodeDrawer(false)}
         onChangeCode={(newCode) => {
-          // setCode triggers the re-parse effect inside useDiagramAst,
-          // which also surfaces syntax errors.
+          if (!isEditable) return;
           setCode(newCode);
           onCodeChange(newCode);
         }}

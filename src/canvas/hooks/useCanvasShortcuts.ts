@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CursorMode } from '../types';
 
 export interface UseCanvasShortcutsOptions {
+  isEditable?: boolean;
   setCursorMode: (mode: CursorMode) => void;
   handleUndo: () => void;
   handleRedo: () => void;
@@ -18,6 +19,7 @@ export interface UseCanvasShortcutsOptions {
 }
 
 export function useCanvasShortcuts({
+  isEditable = true,
   setCursorMode,
   handleUndo,
   handleRedo,
@@ -61,6 +63,7 @@ export function useCanvasShortcuts({
 
       // Hotkey Ctrl+Z (Undo)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && !isInputActive) {
+        if (!isEditable) return;
         e.preventDefault();
         handleUndo();
         return;
@@ -72,6 +75,7 @@ export function useCanvasShortcuts({
         ((e.shiftKey && (e.key === 'z' || e.key === 'Z')) || e.key === 'y' || e.key === 'Y') &&
         !isInputActive
       ) {
+        if (!isEditable) return;
         e.preventDefault();
         handleRedo();
         return;
@@ -79,6 +83,7 @@ export function useCanvasShortcuts({
 
       // Hotkey Ctrl+A (Select All)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && !isInputActive) {
+        if (!isEditable) return;
         e.preventDefault();
         handleSelectAll();
         return;
@@ -86,6 +91,7 @@ export function useCanvasShortcuts({
 
       // Hotkey Ctrl+D (Duplicate Selected)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D') && !isInputActive) {
+        if (!isEditable) return;
         e.preventDefault();
         handleDuplicateSelected();
         return;
@@ -93,6 +99,7 @@ export function useCanvasShortcuts({
 
       // Hotkey Ctrl+C (Copy Selected)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && !isInputActive) {
+        if (!isEditable) return;
         if (canCopy) {
           e.preventDefault();
           handleCopySelected();
@@ -102,6 +109,7 @@ export function useCanvasShortcuts({
 
       // Hotkey Ctrl+V (Paste Selected)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V') && !isInputActive) {
+        if (!isEditable) return;
         e.preventDefault();
         handlePasteSelected();
         return;
@@ -119,6 +127,7 @@ export function useCanvasShortcuts({
 
       // Delete / Backspace: Delete selected elements
       if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputActive) {
+        if (!isEditable) return;
         if (hasSelectedElements) {
           e.preventDefault();
           handleBatchDeleteSelected();

@@ -151,7 +151,10 @@ export function useCanvasMouseInteractions({
     }
 
     const isMiddleClick = e.button === 1;
-    const isHandModeActive = cursorMode === 'hand' || isSpacePressed || isMiddleClick;
+    const isHandModeActive =
+      cursorMode === 'hand' ||
+      isSpacePressed ||
+      isMiddleClick;
 
     if (isHandModeActive) {
       startPan(e.clientX, e.clientY);

@@ -17,10 +17,27 @@ import {
 export type SupportedDiagramType =
   | 'flowchart'
   | 'stateDiagram'
-  | 'mindmap'
   | 'sequenceDiagram'
   | 'classDiagram'
   | 'erDiagram'
+  | 'journey'
+  | 'gantt'
+  | 'pie'
+  | 'quadrantChart'
+  | 'requirementDiagram'
+  | 'gitGraph'
+  | 'c4'
+  | 'mindmap'
+  | 'timeline'
+  | 'sankey'
+  | 'xychart'
+  | 'block'
+  | 'packet'
+  | 'kanban'
+  | 'architecture'
+  | 'zenuml'
+  | 'useCaseDiagram'
+  | 'agentflow'
   | 'unknown';
 
 export interface DiagramTemplate {
@@ -45,6 +62,8 @@ export interface ViewProjection {
 
 /** What the canvas UI offers for this diagram kind. */
 export interface DiagramCapabilities {
+  /** Whether this diagram type supports visual interactive editing. Defaults to true. */
+  editable?: boolean;
   supportsDirection: boolean;
   /** Node "kind" picker (shapes for flowcharts, state types for state diagrams). */
   supportsNodeKinds: boolean;
