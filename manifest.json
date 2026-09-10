@@ -4,8 +4,7 @@
   "version": "0.1.0",
   "minAppVersion": "1.4.0",
   "description": "Visual overlay editor for Mermaid diagrams. Mermaid, your way.",
-  "author": "Ali",
-  "authorUrl": "https://github.com/sali72",
-  "fundingUrl": "https://github.com/sali72/merlay",
+  "author": "Seyed Ali Hashemi",
+  "authorUrl": "https://github.com/dev-hashemi",
   "isDesktopOnly": false
 }

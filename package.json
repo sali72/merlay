@@ -18,16 +18,16 @@
     "visual-editor",
     "drag-and-drop"
   ],
-  "author": "Ali",
+  "author": "Seyed Ali Hashemi",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sali72/merlay.git"
+    "url": "git+https://github.com/dev-hashemi/merlay.git"
   },
   "bugs": {
-    "url": "https://github.com/sali72/merlay/issues"
+    "url": "https://github.com/dev-hashemi/merlay/issues"
   },
-  "homepage": "https://github.com/sali72/merlay#readme",
+  "homepage": "https://github.com/dev-hashemi/merlay#readme",
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

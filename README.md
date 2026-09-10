@@ -9,104 +9,114 @@
 # Merlay
 
 > **Mermaid, your way.**  
-> A native visual overlay editor for [Mermaid](https://mermaid.js.org/) diagrams in [Obsidian](https://obsidian.md).
+> A visual overlay editor for [Mermaid](https://mermaid.js.org/) diagrams in [Obsidian](https://obsidian.md).
 
-Edit and construct **Mermaid diagrams visually** directly on top of Obsidian's native Mermaid rendering engine. No spatial fighting, no layout drift, and zero code lock-in—just **100% clean, standard, portable Mermaid syntax** that AI assistants and humans can collaborate on seamlessly.
+**Merlay** lets you create and edit Mermaid diagrams visually directly inside your Obsidian notes. Build flowcharts with single-click node sprouting, drag-and-drop connections, and inline renaming — without writing code or fighting diagram syntax.
+
+Everything you create is saved as **100% standard, clean Mermaid syntax** right inside your note. No proprietary lock-in, no layout drift, and fully compatible with Obsidian mobile, GitHub, and AI assistants.
+
+<p align="center">
+  <img src="assets/demo-merlay.webp" alt="Merlay Demo — visual flowchart editing in Obsidian" width="760">
+</p>
+
+<p align="center"><em>Select → Sprout → Connect → Edit — all visual, all native Mermaid.</em></p>
 
 ---
 
-## 💡 The Philosophy: Structural, Not Spatial
+## ⚡ Quick Start (In 10 Seconds)
 
-Mermaid was designed as a code-first, declarative diagramming tool without arbitrary coordinate positioning. Traditional visual editors attempt to fight this by imposing foreign coordinate systems (e.g. React Flow, Elk), leading to broken round-trips and layout mismatches.
-
-**Merlay** embraces Mermaid's design principles:
-- **1:1 Native Obsidian Parity:** Overlays direct-manipulation controls directly on Obsidian's exact Mermaid SVG output.
-- **Topological Operations:** Add steps, sprout downstream connections, link nodes, and adjust labels without manual pixel alignment.
-- **Ultra-Lean Footprint:** Zero heavy canvas dependencies (no Elk, Dagre, or React Flow). Bundled at just ~170 KB.
+1. **Open Visual Mode:**
+   - **Hover** over any ````mermaid```` code block in your note (Reading View or Live Preview) and click the **"Visual Mode"** button next to *Edit this block*.
+   - Or simply type `/flowchart` or `/Insert Mermaid Diagram` anywhere in your note.
+2. **Edit Visually:**
+   - **Click a node** to select it and click **`+ Next Step`** to sprout a connected child node.
+   - **Double-click** any node to edit its label inline.
+   - **Drag** from a node's handle to connect it to another node.
+   - **Click an edge** to edit its condition label or delete it.
+3. **Save Automatically:**
+   - Close the editor when you're done — your note's Mermaid block is updated automatically in real time.
 
 ---
 
 ## ✨ Features
 
-- 🎯 **Inline "Visual Mode" Integration:**
-  - Appears seamlessly on hover adjacent to Obsidian's native `Edit this block` button on any ````mermaid```` block in Reading View or Live Preview.
-  - Matches Obsidian's native theme styling (light & dark mode compatible).
-  - Launches a focused, full-screen interactive modal with zero note distraction.
+- 🎯 **Native Obsidian Integration:**
+  - Appears seamlessly on hover alongside Obsidian's native block controls in both Reading View and Live Preview.
+  - Matches your active Obsidian theme (dark and light mode).
+  - Opens in a clean, focused visual overlay modal.
 - ⚡ **Relational Sprouting (`+ Next Step`):**
-  - Select any node to reveal the directional sprout button, automatically oriented with diagram flow (`LR` or `TD`). Spawns a downstream connected step in one click.
+  - Select any node to reveal the directional sprout button (oriented to your diagram flow: `LR` or `TD`). Spawns a downstream connected step in one click.
 - 🔗 **Drag-to-Connect Handles:**
-  - Hover any node to expose an interactive anchor handle; drag and drop onto any other step to create a new connection.
+  - Hover any node to grab an anchor handle; drag and release onto any other step to create a new connection.
 - ✏️ **Inline Label Editing:**
-  - Double-click any node to edit its text inline.
-  - Click any arrow to open the floating Edge HUD for editing edge condition labels or deleting connections.
-- 📷 **Camera Stabilization (No Jump-Scare):**
-  - Automatically tracks and pins the active node on screen when the diagram re-renders, preventing jarring jumps during structural edits.
+  - Double-click any node to rename it directly on the canvas.
+  - Click any arrow to open the floating Edge HUD for editing edge labels or removing connections.
 - 💻 **Live Syntax Drawer:**
-  - Slide-out side drawer displaying the live Mermaid text in real-time.
+  - Slide out the live syntax panel at any time to inspect, edit, or copy the underlying Mermaid source code.
 - 📂 **Standalone File Editor:**
-  - Open and edit standalone `.mmd` and `.mermaid` files directly from the Obsidian file explorer.
-- 🤖 **Zero Lock-In & AI Co-Pilot Ready:**
-  - Generates pure, pristine Mermaid syntax without comment hacks (`%% mv: ... %%`). Full bidirectional compatibility with LLMs and git.
+  - Create and edit standalone `.mmd` and `.mermaid` diagram files directly from Obsidian's File Explorer.
+- 🤖 **Zero Lock-In & AI-Friendly:**
+  - Generates pristine, human-readable Mermaid syntax without comment hacks (`%% mv: ... %%`). Fully compatible with LLMs, git diffs, and other Markdown tools.
+
+---
+
+## 🎯 How to Use
+
+### 1. In Your Notes
+- **Slash Commands (`/`):** Type `/flowchart` or `/state` to insert a diagram template and immediately launch Visual Mode.
+- **Hover Button:** Hover over any Mermaid diagram in your note and click **"Visual Mode"**.
+- **Right-Click Menu:** Right-click anywhere in your note editor → **Insert Mermaid Diagram**, or right-click inside an existing Mermaid code block → **Edit Diagram in Visual Mode**.
+
+### 2. Standalone `.mmd` Files
+- **File Explorer:** Right-click any folder in the Obsidian File Explorer → **New Mermaid Diagram**.
+- **Ribbon Icon:** Click the **Merlay** icon in the left ribbon sidebar.
+- **Command Palette (`Ctrl/Cmd + P`):** Run `Merlay: Create New Mermaid Diagram (File)`.
+
+---
+
+## ⌨️ Interaction Cheat Sheet
+
+| Action | Shortcut / Gesture |
+| :--- | :--- |
+| **Select Node** | `Click` node |
+| **Sprout Child Step** | Click **`+ Next Step`** on selected node |
+| **Connect Nodes** | `Drag` from node handle onto target node |
+| **Edit Node Label** | `Double-Click` node |
+| **Edit Edge Label** | `Click` edge arrow |
+| **Delete Node / Edge** | Select node/edge and press `Delete` or `Backspace` |
+| **Pan Canvas** | `Click + Drag` canvas background |
+| **Zoom** | `Mouse Wheel` or trackpad pinch |
+| **Toggle Syntax Drawer** | Click **`<> Syntax`** button in top bar |
+
+---
+
+## 💡 Why Merlay? (Structural, Not Spatial)
+
+Mermaid is a declarative, code-first diagramming language that computes its own layout. Traditional visual diagramming tools often attempt to impose arbitrary spatial coordinates (like React Flow or Excalidraw), leading to broken round-trips, messy syntax, and layout drift.
+
+**Merlay takes a different approach:**
+- **1:1 Native Parity:** Controls are overlaid directly on Obsidian's exact Mermaid SVG rendering — what you see is what you get.
+- **Topological Operations:** You manipulate relationships (nodes and connections), and Mermaid handles clean layout automatically.
+- **Ultra-Lean Footprint:** Zero heavy canvas framework dependencies. Bundled at just ~170 KB.
 
 ---
 
 ## 🚀 Installation
 
+### Via Community Plugins *(Coming Soon)*
+1. Open **Settings → Community plugins** in Obsidian.
+2. Search for **Merlay** and click **Install**, then **Enable**.
+
 ### Via BRAT (Beta Testing)
-1. Install the [Obsidian BRAT](https://github.com/TfTHacker/obsidian42-brat) community plugin.
+1. Install the [Obsidian BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin.
 2. Open BRAT settings → click **"Add Beta plugin"**.
-3. Enter this GitHub repository URL: `https://github.com/sali72/merlay`
+3. Enter: `https://github.com/dev-hashemi/merlay`
 4. Click **"Add Plugin"**.
 
 ### Manual Installation
-1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com/sali72/merlay/releases).
-2. Copy them into your vault under `.obsidian/plugins/merlay/`.
-3. In Obsidian, open **Settings → Community plugins** and enable **Merlay**.
-
----
-
-## 📖 Usage
-
-### 1. In-Note Diagram Editing & Insertion
-- **Slash Commands (`/`):**
-  - Type `/Insert Mermaid Diagram` in Live Preview to pick from template types (Flowchart, State Diagram, etc.).
-  - Or type `/flowchart` or `/state` directly to insert and immediately launch Visual Mode.
-- **Right-Click Context Menu:**
-  - Right-click anywhere in your note editor → **Insert Mermaid Diagram** → select a diagram template.
-  - Right-click directly inside an existing Mermaid code block → **Edit Diagram in Visual Mode**.
-- **Hover Button:**
-  - Hover over any ````mermaid```` block in your notes (Live Preview or Reading View).
-  - Click the **"Visual Mode"** button beside "Edit this block".
-  - Add nodes, sprout next steps, connect edges, or edit labels. Changes are debounced and saved automatically into your note.
-
-### 2. Standalone `.mmd` Files
-- **File Explorer Right-Click:** Right-click any folder in the Obsidian File Explorer → **New Mermaid Diagram** to create a `.mmd` file directly inside that folder.
-- **Ribbon & Command Palette:**
-  - Click the **Merlay** ribbon icon on the left sidebar.
-  - Or press `Ctrl + P` / `Cmd + P` and run `Merlay: Create New Mermaid Diagram (File)`.
-  - Or open any `.mmd` or `.mermaid` file in your vault.
-
-### 3. Command Palette
-- `Merlay: Insert Mermaid Diagram`: Insert a diagram block into the current note at cursor.
-- `Merlay: Insert Mermaid Diagram: Flowchart`: Directly insert a flowchart block and launch Visual Mode.
-- `Merlay: Insert Mermaid Diagram: State Diagram`: Directly insert a state diagram block and launch Visual Mode.
-- `Merlay: Open Visual Mode for Current Diagram`: Open the visual editor for the diagram block under cursor.
-- `Merlay: Create New Mermaid Diagram (File)`: Create a standalone `.mmd` file.
-
----
-
-## ⌨️ Interaction Guide
-
-| Interaction | Action |
-| :--- | :--- |
-| `Click Node` | Select node and reveal `+ Next Step` sprout HUD |
-| `Click "+ Next Step"` | Sprout a connected child step downstream |
-| `Drag from Node Handle` | Connect to another node |
-| `Double Click Node` | Edit node label inline |
-| `Click Edge` | Open Edge HUD (edit label or delete) |
-| `Delete` / `Backspace` | Delete selected node or edge |
-| `Mouse Drag Canvas` | Pan diagram |
-| `Mouse Wheel / Trackpad` | Zoom in / out |
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [GitHub Release](https://github.com/dev-hashemi/merlay/releases).
+2. Copy them into your vault folder under `.obsidian/plugins/merlay/`.
+3. In Obsidian, open **Settings → Community plugins** and toggle on **Merlay**.
 
 ---
 
@@ -125,10 +135,11 @@ npm test
 
 ### Architecture & Contributing
 - [Architecture Guide](ARCHITECTURE.md): Design philosophy, module map, and engineering rules.
-- [Adding a New Diagram Type](docs/ADDING_NEW_DIAGRAM.md): 5-phase procedure and AI prompt template for extending the diagram driver system.
+- [Adding a New Diagram Type](docs/ADDING_NEW_DIAGRAM.md): 5-phase procedure for extending diagram driver support.
 
 ---
 
 ## 📄 License
 
-MIT License © 2026 Ali
+MIT License © 2026 Seyed Ali Hashemi
+
