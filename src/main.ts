@@ -103,7 +103,7 @@ export default class MerlayPlugin extends Plugin {
         if (blockInCursor && view?.file) {
           menu.addItem((item) => {
             item
-              .setTitle('Edit Diagram in Visual Mode')
+              .setTitle('Edit diagram in visual mode')
               .setIcon(MERLAY_ICON_ID)
               .setSection('action')
               .onClick(() => {
@@ -121,7 +121,7 @@ export default class MerlayPlugin extends Plugin {
         // Insert Mermaid Diagram option (with submenu if supported)
         menu.addItem((item) => {
           item
-            .setTitle('Insert Mermaid Diagram')
+            .setTitle('Insert Mermaid diagram')
             .setIcon(MERLAY_ICON_ID)
             .setSection('action');
 
@@ -133,7 +133,7 @@ export default class MerlayPlugin extends Plugin {
           if (submenu && view) {
             submenu.addItem((subItem: MenuItem) => {
               subItem
-                .setTitle('Choose Template...')
+                .setTitle('Choose template...')
                 .setIcon('list')
                 .onClick(() => {
                   new DiagramTemplateModal(this.app, (template) => {
@@ -181,7 +181,7 @@ export default class MerlayPlugin extends Plugin {
         ) {
           menu.addItem((item) => {
             item
-              .setTitle('Open in Visual Editor')
+              .setTitle('Open in visual editor')
               .setIcon(MERLAY_ICON_ID)
               .setSection('open')
               .onClick(async () => {
@@ -202,7 +202,7 @@ export default class MerlayPlugin extends Plugin {
 
         menu.addItem((item) => {
           item
-            .setTitle('New Mermaid Diagram')
+            .setTitle('New Mermaid diagram')
             .setIcon(MERLAY_ICON_ID)
             .setSection('action');
 
@@ -214,7 +214,7 @@ export default class MerlayPlugin extends Plugin {
           if (submenu) {
             submenu.addItem((subItem: MenuItem) => {
               subItem
-                .setTitle('Choose Template...')
+                .setTitle('Choose template...')
                 .setIcon('list')
                 .onClick(() => {
                   new DiagramTemplateModal(this.app, (template) => {
@@ -264,7 +264,7 @@ export default class MerlayPlugin extends Plugin {
     // 6.1 Insert Mermaid Diagram (in active note at cursor)
     this.addCommand({
       id: 'insert-mermaid-diagram',
-      name: 'Insert Mermaid Diagram',
+      name: 'Insert Mermaid diagram',
       editorCheckCallback: (checking, editor, view) => {
         if (!this.settings.enableInsertCommands) return false;
         if (view instanceof MarkdownView) {
@@ -283,7 +283,7 @@ export default class MerlayPlugin extends Plugin {
     for (const template of DIAGRAM_TEMPLATES) {
       this.addCommand({
         id: `insert-mermaid-${template.type.toLowerCase()}`,
-        name: `Insert Mermaid Diagram: ${template.label}`,
+        name: `Insert Mermaid diagram: ${template.label}`,
         editorCheckCallback: (checking, editor, view) => {
           if (!this.settings.enableInsertCommands) return false;
           if (view instanceof MarkdownView) {
@@ -301,7 +301,7 @@ export default class MerlayPlugin extends Plugin {
     // 6.3 Create New Standalone Mermaid Diagram File (.mmd)
     this.addCommand({
       id: 'create-new-mermaid-diagram',
-      name: 'Create New Mermaid Diagram (File)',
+      name: 'Create new Mermaid diagram (file)',
       callback: () => {
         void this.createNewDiagram();
       },
@@ -310,7 +310,7 @@ export default class MerlayPlugin extends Plugin {
     // 6.4 Open Visual Mode for Current Diagram in Note
     this.addCommand({
       id: 'open-visual-mode-active-note',
-      name: 'Open Visual Mode for Current Diagram',
+      name: 'Open visual mode for current diagram',
       checkCallback: (checking) => {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (view) {

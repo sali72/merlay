@@ -8,7 +8,7 @@ export class DiagramTemplateModal extends SuggestModal<DiagramTemplate> {
   constructor(app: App, onChoose: (template: DiagramTemplate) => void) {
     super(app);
     this.onChoose = onChoose;
-    this.setPlaceholder('Choose a Mermaid diagram type (Default: Flowchart)...');
+    this.setPlaceholder('Choose a Mermaid diagram type (default: Flowchart)...');
   }
 
   getSuggestions(query: string): DiagramTemplate[] {

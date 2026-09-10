@@ -46,14 +46,14 @@ export class MerlaySettingTab extends PluginSettingTab {
     });
 
     new Setting(containerEl)
-      .setName('Default Flow Direction')
+      .setName('Default flow direction')
       .setDesc('Default flow direction for newly created diagrams.')
       .addDropdown((drop) =>
         drop
-          .addOption('LR', 'Left to Right (LR)')
-          .addOption('TD', 'Top to Bottom (TD)')
-          .addOption('BT', 'Bottom to Top (BT)')
-          .addOption('RL', 'Right to Left (RL)')
+          .addOption('LR', 'Left to right (lr)')
+          .addOption('TD', 'Top to bottom (td)')
+          .addOption('BT', 'Bottom to top (bt)')
+          .addOption('RL', 'Right to left (rl)')
           .setValue(this.plugin.settings.defaultDirection)
           .onChange(async (value) => {
             this.plugin.settings.defaultDirection = value as FlowchartDirection;
@@ -62,7 +62,7 @@ export class MerlaySettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Show Code Drawer by Default')
+      .setName('Show code drawer by default')
       .setDesc('Displays the Mermaid syntax code drawer by default inside visual mode.')
       .addToggle((toggle) =>
         toggle
@@ -73,11 +73,11 @@ export class MerlaySettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl).setName('Commands & Context Menus').setHeading();
+    new Setting(containerEl).setName('Commands & context menus').setHeading();
 
     new Setting(containerEl)
-      .setName('Editor Context Menu')
-      .setDesc('Show "Insert Mermaid Diagram" and "Edit Diagram in Visual Mode" in the note editor right-click menu.')
+      .setName('Editor context menu')
+      .setDesc('Show "insert Mermaid diagram" and "edit diagram in visual mode" in the note editor right-click menu.')
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.enableEditorContextMenu)
@@ -88,8 +88,8 @@ export class MerlaySettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('File Explorer Context Menu')
-      .setDesc('Show "New Mermaid Diagram" and "Open in Visual Editor" in the file explorer right-click menu.')
+      .setName('File explorer context menu')
+      .setDesc('Show "new Mermaid diagram" and "open in visual editor" in the file explorer right-click menu.')
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.enableFileContextMenu)
@@ -100,8 +100,8 @@ export class MerlaySettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Insert Diagram Commands & Slash Commands')
-      .setDesc('Enable "Insert Mermaid Diagram" commands in the Command Palette and Obsidian slash (/) menu.')
+      .setName('Insert diagram commands & slash commands')
+      .setDesc('Enable "insert Mermaid diagram" commands in the command palette and Obsidian slash (/) menu.')
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.enableInsertCommands)
