@@ -9,8 +9,8 @@ import {
 } from 'obsidian';
 import {
   DEFAULT_SETTINGS,
-  VisualMermaidSettings,
-  VisualMermaidSettingTab,
+  MerlaySettings,
+  MerlaySettingTab,
 } from './settings/SettingsTab';
 import {
   MermaidFileView,
@@ -35,8 +35,8 @@ import { DIAGRAM_TEMPLATES } from './diagrams/registry';
 import { DiagramTemplate } from './diagrams/types';
 import { isCursorInMermaidBlock } from './utils/markdownBlock';
 
-export default class VisualMermaidPlugin extends Plugin {
-  public settings: VisualMermaidSettings = DEFAULT_SETTINGS;
+export default class MerlayPlugin extends Plugin {
+  public settings: MerlaySettings = DEFAULT_SETTINGS;
 
   async onload() {
     await this.loadSettings();
@@ -72,7 +72,7 @@ export default class VisualMermaidPlugin extends Plugin {
     });
 
     // 4. Ribbon Icon
-    this.addRibbonIcon('git-pull-request', 'Visual Mermaid Studio', () => {
+    this.addRibbonIcon('git-pull-request', 'Merlay', () => {
       this.createNewDiagram();
     });
 
@@ -316,7 +316,7 @@ export default class VisualMermaidPlugin extends Plugin {
     });
 
     // 7. Settings Tab
-    this.addSettingTab(new VisualMermaidSettingTab(this.app, this));
+    this.addSettingTab(new MerlaySettingTab(this.app, this));
   }
 
   // Delegated helpers for backward compatibility
@@ -375,4 +375,7 @@ export default class VisualMermaidPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 }
+
+export type { MerlayPlugin as VisualMermaidPlugin };
+
 

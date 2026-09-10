@@ -10,13 +10,13 @@ import {
   TFile,
   WorkspaceLeaf,
 } from 'obsidian';
-import type VisualMermaidPlugin from '../main';
+import type MerlayPlugin from '../main';
 import { findTargetMermaidBlock } from '../utils/markdownBlock';
 import { openDiagramModal } from './diagramOpener';
 
 export function attachEditButton(
   parent: HTMLElement,
-  plugin: VisualMermaidPlugin,
+  plugin: MerlayPlugin,
   sourcePath?: string,
   context?: MarkdownPostProcessorContext
 ): void {
@@ -31,7 +31,7 @@ export function attachEditButton(
     return;
   }
 
-  if (parent.querySelector(':scope > .mermaid-studio-edit-btn')) return;
+  if (parent.querySelector(':scope > .merlay-edit-btn, :scope > .mermaid-studio-edit-btn')) return;
 
   if (context) {
     const info = context.getSectionInfo(parent);
@@ -44,7 +44,7 @@ export function attachEditButton(
   parent.style.position = 'relative';
 
   const editBtn = createEl('button', {
-    cls: 'mermaid-studio-edit-btn clickable-icon',
+    cls: 'merlay-edit-btn clickable-icon',
     attr: {
       'aria-label': 'Edit in visual mode',
     },
@@ -160,7 +160,7 @@ export function attachEditButton(
       try {
         const viewEl = targetLeaf.view.containerEl;
         const allBtns = Array.from(
-          viewEl.querySelectorAll('.mermaid-studio-edit-btn')
+          viewEl.querySelectorAll('.merlay-edit-btn, .mermaid-studio-edit-btn')
         );
         const idx = allBtns.indexOf(editBtn);
         if (idx >= 0) domIndex = idx;

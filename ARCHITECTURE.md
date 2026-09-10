@@ -1,6 +1,6 @@
-# Obsidian Visual Mermaid — Architecture & Agent Guide
+# Merlay — Architecture & Agent Guide
 
-This document provides a comprehensive technical overview of the architecture of **Visual Mermaid Studio (`obsidian-visual-mermaid`)**. It is designed specifically to help human contributors and AI coding assistants understand the system's principles, component responsibilities, file organization, and extension patterns.
+This document provides a comprehensive technical overview of the architecture of **Merlay (`merlay`)**. It is designed specifically to help human contributors and AI coding assistants understand the system's principles, component responsibilities, file organization, and extension patterns.
 
 ---
 
@@ -8,7 +8,7 @@ This document provides a comprehensive technical overview of the architecture of
 
 Mermaid is a declarative, code-first diagramming language. It calculates layout automatically using graph layout algorithms (dagre, elk, or d3). Traditional visual editors attempt to impose absolute pixel coordinates onto diagrams, causing layout conflicts, syntax degradation, and synchronization nightmares.
 
-**Visual Mermaid Studio** adopts a **structural, non-spatial architecture**:
+**Merlay** adopts a **structural, non-spatial architecture**:
 1. **Source of Truth**: The Mermaid syntax string in the Markdown document is always the single source of truth.
 2. **Pure AST Operations**: User actions (click, sprout, drag-to-connect, delete) mutate an in-memory Abstract Syntax Tree (AST), which serializes back to standard Mermaid code.
 3. **100% Native Obsidian Rendering**: The code is passed directly to Obsidian's native Mermaid renderer. No custom layout engines or canvas libraries (React Flow, Elk) are used.

@@ -3,7 +3,7 @@ import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { NativeMermaidView } from '../canvas/NativeMermaidView';
 import { replaceMermaidBlock } from '../utils/markdownBlock';
-import type VisualMermaidPlugin from '../main';
+import type MerlayPlugin from '../main';
 
 export interface SectionInfo {
   lineStart: number;
@@ -17,12 +17,12 @@ export class MermaidBlockModal extends Modal {
   private sectionInfo: SectionInfo;
   private initialCode: string;
   private latestCode: string;
-  private plugin: VisualMermaidPlugin;
+  private plugin: MerlayPlugin;
   private saveTimeout: number | null = null;
 
   constructor(
     app: App,
-    plugin: VisualMermaidPlugin,
+    plugin: MerlayPlugin,
     filePath: string,
     sectionInfo: SectionInfo,
     initialCode: string

@@ -2,16 +2,16 @@ import { TextFileView, WorkspaceLeaf } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { NativeMermaidView } from '../canvas/NativeMermaidView';
-import type VisualMermaidPlugin from '../main';
+import type MerlayPlugin from '../main';
 
 export const VIEW_TYPE_MERMAID_FILE = 'mermaid-visual-file-view';
 
 export class MermaidFileView extends TextFileView {
   private root: Root | null = null;
   private currentData: string = '';
-  private plugin: VisualMermaidPlugin;
+  private plugin: MerlayPlugin;
 
-  constructor(leaf: WorkspaceLeaf, plugin: VisualMermaidPlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: MerlayPlugin) {
     super(leaf);
     this.plugin = plugin;
   }
@@ -21,7 +21,7 @@ export class MermaidFileView extends TextFileView {
   }
 
   getDisplayText(): string {
-    return this.file ? this.file.basename : 'Visual Mermaid Diagram';
+    return this.file ? this.file.basename : 'Merlay Diagram';
   }
 
   getIcon(): string {
@@ -44,7 +44,7 @@ export class MermaidFileView extends TextFileView {
     if (!this.root) {
       const container = this.contentEl;
       container.empty();
-      container.addClass('mermaid-studio-leaf-root');
+      container.addClass('merlay-leaf-root');
       this.root = createRoot(container);
     }
 

@@ -1,6 +1,6 @@
 # Mermaid Diagram Expansion Playbook & Architecture Procedure
 
-This document defines the standardized, 5-phase engineering and product procedure for introducing support for any new Mermaid diagram type (e.g. Class, Entity-Relationship, Mindmap, Sequence, Git Graph, Gantt, Timeline, Architecture) into **Visual Mermaid Studio (`obsidian-visual-mermaid`)**.
+This document defines the standardized, 5-phase engineering and product procedure for introducing support for any new Mermaid diagram type (e.g. Class, Entity-Relationship, Mindmap, Sequence, Git Graph, Gantt, Timeline, Architecture) into **Merlay (`merlay`)**.
 
 It is designed to be directly actionable by human developers and autonomous AI coding assistants, guaranteeing zero regressions, strict round-trip syntax fidelity, and UX coherence across the entire app.
 
@@ -110,7 +110,7 @@ Identify all syntax valid in Mermaid that the visual editor will not mutate dire
 
 ## Phase 2: Product & UX Design (Coherence, Simplicity, Accuracy)
 
-Visual Mermaid Studio aims for an intuitive, direct-manipulation interface that feels familiar regardless of diagram type, while respecting each diagram's specific rules.
+Merlay aims for an intuitive, direct-manipulation interface that feels familiar regardless of diagram type, while respecting each diagram's specific rules.
 
 ### Step 2.1: UI Vocabulary Adaptation (`DiagramLabels`)
 The canvas UI components ([`CanvasTopBar`](../src/canvas/components/CanvasTopBar.tsx), [`NodeActionHud`](../src/canvas/components/NodeActionHud.tsx), [`EdgeActionHud`](../src/canvas/components/EdgeActionHud.tsx)) dynamically render their text from [`driver.labels`](../src/diagrams/types.ts#L62-L73).
@@ -344,7 +344,7 @@ npm run build
 When instructing an AI coding assistant to add a new diagram type, use the following standardized prompt template:
 
 ```markdown
-You are tasked with adding support for the Mermaid `<DIAGRAM_TYPE>` diagram (e.g. Class Diagram, ER Diagram, Mindmap) to Visual Mermaid Studio.
+You are tasked with adding support for the Mermaid `<DIAGRAM_TYPE>` diagram (e.g. Class Diagram, ER Diagram, Mindmap) to Merlay.
 
 Follow the procedure defined in `new_diagram_playbook.md` and `ARCHITECTURE.md`.
 

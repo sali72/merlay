@@ -1,5 +1,6 @@
 /* ==========================================================================
-   Visual Mermaid Studio - Native Structural Editor Styles
+   Merlay - Visual Overlay Editor for Mermaid Diagrams
+   "Mermaid, your way."
    ========================================================================== */
 
 :root {
@@ -21,6 +22,7 @@ pre.language-mermaid {
   position: relative;
 }
 
+.merlay-edit-btn,
 .mermaid-studio-edit-btn {
   position: absolute;
   top: var(--size-2-2, 8px);
@@ -45,15 +47,21 @@ pre.language-mermaid {
   user-select: none !important;
 }
 
+.block-language-mermaid:hover .merlay-edit-btn,
 .block-language-mermaid:hover .mermaid-studio-edit-btn,
+.cm-embed-block:hover .merlay-edit-btn,
 .cm-embed-block:hover .mermaid-studio-edit-btn,
+.cm-preview-code-block:hover .merlay-edit-btn,
 .cm-preview-code-block:hover .mermaid-studio-edit-btn,
+.merlay-edit-btn:hover,
+.merlay-edit-btn:focus,
 .mermaid-studio-edit-btn:hover,
 .mermaid-studio-edit-btn:focus {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
 
+.merlay-edit-btn:hover,
 .mermaid-studio-edit-btn:hover {
   color: var(--text-normal) !important;
   background-color: var(--background-modifier-hover) !important;
@@ -61,6 +69,7 @@ pre.language-mermaid {
   transform: none !important;
 }
 
+.merlay-edit-btn svg,
 .mermaid-studio-edit-btn svg {
   width: 14px;
   height: 14px;
@@ -68,11 +77,19 @@ pre.language-mermaid {
 }
 
 /* Fail-safe: NEVER render inline edit button inside modals or editor views */
+.mod-mermaid-block-modal .merlay-edit-btn,
 .mod-mermaid-block-modal .mermaid-studio-edit-btn,
+.mermaid-native-container .merlay-edit-btn,
 .mermaid-native-container .mermaid-studio-edit-btn,
+.mermaid-file-view-root .merlay-edit-btn,
 .mermaid-file-view-root .mermaid-studio-edit-btn,
+.mermaid-block-modal-root .merlay-edit-btn,
 .mermaid-block-modal-root .mermaid-studio-edit-btn,
+.merlay-leaf-root .merlay-edit-btn,
+.merlay-leaf-root .mermaid-studio-edit-btn,
+.mermaid-studio-leaf-root .merlay-edit-btn,
 .mermaid-studio-leaf-root .mermaid-studio-edit-btn,
+.mermaid-native-editor-root .merlay-edit-btn,
 .mermaid-native-editor-root .mermaid-studio-edit-btn {
   display: none !important;
   pointer-events: none !important;
@@ -91,12 +108,14 @@ pre.language-mermaid {
 }
 
 .mod-mermaid-block-modal .modal-close-button {
-  display: flex !important;
+  top: 14px !important;
+  right: 14px !important;
   z-index: 1000 !important;
   cursor: pointer !important;
 }
 
 .mermaid-block-modal-root,
+.merlay-leaf-root,
 .mermaid-studio-leaf-root {
   width: 100%;
   height: 100%;

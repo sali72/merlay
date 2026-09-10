@@ -3,7 +3,7 @@
  */
 
 import { MarkdownView, Notice, TFile, WorkspaceLeaf } from 'obsidian';
-import type VisualMermaidPlugin from '../main';
+import type MerlayPlugin from '../main';
 import { findTargetMermaidBlock } from '../utils/markdownBlock';
 import { detectDiagramType } from '../diagrams/registry';
 import { DiagramTemplate } from '../diagrams/types';
@@ -11,7 +11,7 @@ import { MermaidBlockModal } from '../views/MermaidBlockModal';
 import { DiagramTemplateModal } from '../views/DiagramTemplateModal';
 
 export async function openVisualModeForActiveFile(
-  plugin: VisualMermaidPlugin,
+  plugin: MerlayPlugin,
   view: MarkdownView
 ): Promise<void> {
   const file = view.file;
@@ -33,7 +33,7 @@ export async function openVisualModeForActiveFile(
 }
 
 export function openDiagramModal(
-  plugin: VisualMermaidPlugin,
+  plugin: MerlayPlugin,
   filePath: string,
   blockMatch: { rawCode: string; lineStart: number; lineEnd: number },
   content: string
@@ -45,24 +45,21 @@ export function openDiagramModal(
     return false;
   }
 
-  const sectionInfo = {
-    lineStart: blockMatch.lineStart,
-    lineEnd: blockMatch.lineEnd,
-    text: content,
-  };
-
   new MermaidBlockModal(
     plugin.app,
     plugin,
     filePath,
-    sectionInfo,
+    {
+      lineStart: blockMatch.lineStart,
+      lineEnd: blockMatch.lineEnd,
+    },
     rawCode
   ).open();
   return true;
 }
 
 export async function createNewDiagram(
-  plugin: VisualMermaidPlugin,
+  plugin: MerlayPlugin,
   targetFolder?: string
 ): Promise<void> {
   new DiagramTemplateModal(plugin.app, (template) => {
@@ -71,7 +68,7 @@ export async function createNewDiagram(
 }
 
 export async function createDiagramFileWithTemplate(
-  plugin: VisualMermaidPlugin,
+  plugin: MerlayPlugin,
   initialCode: string,
   targetFolder?: string
 ): Promise<void> {
@@ -105,7 +102,7 @@ export async function createDiagramFileWithTemplate(
 }
 
 export async function insertMermaidBlockAtCursor(
-  plugin: VisualMermaidPlugin,
+  plugin: MerlayPlugin,
   view: MarkdownView,
   template: DiagramTemplate,
   openVisualMode = true

@@ -1,8 +1,8 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import type VisualMermaidPlugin from '../main';
+import type MerlayPlugin from '../main';
 import { FlowchartDirection } from '../diagrams/viewModel';
 
-export interface VisualMermaidSettings {
+export interface MerlaySettings {
   defaultDirection: FlowchartDirection;
   showCodeDrawerByDefault: boolean;
   enableEditorContextMenu: boolean;
@@ -10,7 +10,9 @@ export interface VisualMermaidSettings {
   enableInsertCommands: boolean;
 }
 
-export const DEFAULT_SETTINGS: VisualMermaidSettings = {
+export type VisualMermaidSettings = MerlaySettings;
+
+export const DEFAULT_SETTINGS: MerlaySettings = {
   defaultDirection: 'LR',
   showCodeDrawerByDefault: false,
   enableEditorContextMenu: true,
@@ -18,10 +20,10 @@ export const DEFAULT_SETTINGS: VisualMermaidSettings = {
   enableInsertCommands: true,
 };
 
-export class VisualMermaidSettingTab extends PluginSettingTab {
-  plugin: VisualMermaidPlugin;
+export class MerlaySettingTab extends PluginSettingTab {
+  plugin: MerlayPlugin;
 
-  constructor(app: App, plugin: VisualMermaidPlugin) {
+  constructor(app: App, plugin: MerlayPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -30,7 +32,7 @@ export class VisualMermaidSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'Visual Mermaid Studio Settings' });
+    containerEl.createEl('h2', { text: 'Merlay Settings' });
 
     new Setting(containerEl)
       .setName('Default Flow Direction')

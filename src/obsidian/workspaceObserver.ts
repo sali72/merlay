@@ -7,7 +7,7 @@ import {
   MarkdownRenderChild,
   MarkdownView,
 } from 'obsidian';
-import type VisualMermaidPlugin from '../main';
+import type MerlayPlugin from '../main';
 import { attachEditButton } from './buttonInjector';
 
 export class MermaidObserverChild extends MarkdownRenderChild {
@@ -23,7 +23,7 @@ export class MermaidObserverChild extends MarkdownRenderChild {
   }
 }
 
-export function setupGlobalWorkspaceObserver(plugin: VisualMermaidPlugin): void {
+export function setupGlobalWorkspaceObserver(plugin: MerlayPlugin): void {
   let scanTimer: number | null = null;
   const scheduleScan = (delay = 100) => {
     if (scanTimer !== null) window.clearTimeout(scanTimer);
@@ -71,12 +71,12 @@ export function setupGlobalWorkspaceObserver(plugin: VisualMermaidPlugin): void 
   );
 }
 
-export function scanActiveWorkspace(plugin: VisualMermaidPlugin): void {
+export function scanActiveWorkspace(plugin: MerlayPlugin): void {
   const root = plugin.app.workspace.containerEl || document.body;
   scanAndAttachToElement(root, plugin);
 }
 
-export function scanActiveView(plugin: VisualMermaidPlugin): void {
+export function scanActiveView(plugin: MerlayPlugin): void {
   const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
   if (!view) return;
   scanAndAttachToElement(view.contentEl, plugin, view.file?.path);
@@ -84,7 +84,7 @@ export function scanActiveView(plugin: VisualMermaidPlugin): void {
 
 export function scanAndAttachToElement(
   container: HTMLElement,
-  plugin: VisualMermaidPlugin,
+  plugin: MerlayPlugin,
   sourcePath?: string,
   context?: MarkdownPostProcessorContext
 ): void {
@@ -96,6 +96,7 @@ export function scanAndAttachToElement(
     container.closest('.mermaid-native-container') ||
     container.closest('.mermaid-native-view') ||
     container.closest('.mermaid-native-editor-root') ||
+    container.closest('.merlay-leaf-root') ||
     container.closest('.mermaid-studio-leaf-root') ||
     container.closest('.mermaid-native-world') ||
     container.closest('.mermaid-native-svg-mount')
@@ -132,7 +133,7 @@ export function scanAndAttachToElement(
 }
 
 export function findMermaidContainer(el: HTMLElement): HTMLElement | null {
-  // 1. STRICT: Never attach button inside Visual Mermaid modals or editor views
+  // 1. STRICT: Never attach button inside Merlay modals or editor views
   if (
     el.closest('.mod-mermaid-block-modal') ||
     el.closest('.mermaid-block-modal-root') ||
@@ -140,6 +141,7 @@ export function findMermaidContainer(el: HTMLElement): HTMLElement | null {
     el.closest('.mermaid-native-container') ||
     el.closest('.mermaid-native-view') ||
     el.closest('.mermaid-native-editor-root') ||
+    el.closest('.merlay-leaf-root') ||
     el.closest('.mermaid-studio-leaf-root') ||
     el.closest('.mermaid-native-world') ||
     el.closest('.mermaid-native-svg-mount')

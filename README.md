@@ -1,8 +1,9 @@
-# Visual Mermaid Studio (`obsidian-visual-mermaid`)
+# Merlay
 
-A native, structural visual diagramming plugin for [Obsidian](https://obsidian.md).
+> **Mermaid, your way.**  
+> A native visual overlay editor for [Mermaid](https://mermaid.js.org/) diagrams in [Obsidian](https://obsidian.md).
 
-Edit and construct **Mermaid flowcharts visually** directly on top of Obsidian's native Mermaid rendering engine. No spatial fighting, no layout drift, and zero code lock-in—just **100% clean, standard, portable Mermaid syntax** that AI assistants and humans can collaborate on seamlessly.
+Edit and construct **Mermaid diagrams visually** directly on top of Obsidian's native Mermaid rendering engine. No spatial fighting, no layout drift, and zero code lock-in—just **100% clean, standard, portable Mermaid syntax** that AI assistants and humans can collaborate on seamlessly.
 
 ---
 
@@ -10,7 +11,7 @@ Edit and construct **Mermaid flowcharts visually** directly on top of Obsidian's
 
 Mermaid was designed as a code-first, declarative diagramming tool without arbitrary coordinate positioning. Traditional visual editors attempt to fight this by imposing foreign coordinate systems (e.g. React Flow, Elk), leading to broken round-trips and layout mismatches.
 
-**Visual Mermaid Studio** embraces Mermaid's design principles:
+**Merlay** embraces Mermaid's design principles:
 - **1:1 Native Obsidian Parity:** Overlays direct-manipulation controls directly on Obsidian's exact Mermaid SVG output.
 - **Topological Operations:** Add steps, sprout downstream connections, link nodes, and adjust labels without manual pixel alignment.
 - **Ultra-Lean Footprint:** Zero heavy canvas dependencies (no Elk, Dagre, or React Flow). Bundled at just ~170 KB.
@@ -46,13 +47,13 @@ Mermaid was designed as a code-first, declarative diagramming tool without arbit
 ### Via BRAT (Beta Testing)
 1. Install the [Obsidian BRAT](https://github.com/TfTHacker/obsidian42-brat) community plugin.
 2. Open BRAT settings → click **"Add Beta plugin"**.
-3. Enter this GitHub repository URL: `https://github.com/sali72/obsidian-visual-mermaid`
+3. Enter this GitHub repository URL: `https://github.com/sali72/merlay`
 4. Click **"Add Plugin"**.
 
 ### Manual Installation
-1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com/sali72/obsidian-visual-mermaid/releases).
-2. Copy them into your vault under `.obsidian/plugins/obsidian-visual-mermaid/`.
-3. In Obsidian, open **Settings → Community plugins** and enable **Visual Mermaid Studio**.
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com/sali72/merlay/releases).
+2. Copy them into your vault under `.obsidian/plugins/merlay/`.
+3. In Obsidian, open **Settings → Community plugins** and enable **Merlay**.
 
 ---
 
@@ -73,16 +74,16 @@ Mermaid was designed as a code-first, declarative diagramming tool without arbit
 ### 2. Standalone `.mmd` Files
 - **File Explorer Right-Click:** Right-click any folder in the Obsidian File Explorer → **New Mermaid Diagram** to create a `.mmd` file directly inside that folder.
 - **Ribbon & Command Palette:**
-  - Click the **Visual Mermaid Studio** ribbon icon on the left sidebar.
-  - Or press `Ctrl + P` / `Cmd + P` and run `Visual Mermaid Studio: Create New Mermaid Diagram (File)`.
+  - Click the **Merlay** ribbon icon on the left sidebar.
+  - Or press `Ctrl + P` / `Cmd + P` and run `Merlay: Create New Mermaid Diagram (File)`.
   - Or open any `.mmd` or `.mermaid` file in your vault.
 
 ### 3. Command Palette
-- `Visual Mermaid Studio: Insert Mermaid Diagram`: Insert a diagram block into the current note at cursor.
-- `Visual Mermaid Studio: Insert Mermaid Diagram: Flowchart`: Directly insert a flowchart block and launch Visual Mode.
-- `Visual Mermaid Studio: Insert Mermaid Diagram: State Diagram`: Directly insert a state diagram block and launch Visual Mode.
-- `Visual Mermaid Studio: Open Visual Mode for Current Diagram`: Open the visual editor for the diagram block under cursor.
-- `Visual Mermaid Studio: Create New Mermaid Diagram (File)`: Create a standalone `.mmd` file.
+- `Merlay: Insert Mermaid Diagram`: Insert a diagram block into the current note at cursor.
+- `Merlay: Insert Mermaid Diagram: Flowchart`: Directly insert a flowchart block and launch Visual Mode.
+- `Merlay: Insert Mermaid Diagram: State Diagram`: Directly insert a state diagram block and launch Visual Mode.
+- `Merlay: Open Visual Mode for Current Diagram`: Open the visual editor for the diagram block under cursor.
+- `Merlay: Create New Mermaid Diagram (File)`: Create a standalone `.mmd` file.
 
 ---
 

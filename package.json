@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-visual-mermaid",
+  "name": "merlay",
   "version": "0.1.0",
-  "description": "Native structural visual editor for Mermaid diagrams with 1:1 Obsidian rendering and zero code lock-in.",
+  "description": "Visual overlay editor for Mermaid diagrams. Mermaid, your way.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -12,6 +12,7 @@
     "obsidian",
     "obsidian-plugin",
     "mermaid",
+    "merlay",
     "diagram",
     "flowchart",
     "visual-editor",
@@ -21,12 +22,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sali72/obsidian-visual-mermaid.git"
+    "url": "git+https://github.com/sali72/merlay.git"
   },
   "bugs": {
-    "url": "https://github.com/sali72/obsidian-visual-mermaid/issues"
+    "url": "https://github.com/sali72/merlay/issues"
   },
-  "homepage": "https://github.com/sali72/obsidian-visual-mermaid#readme",
+  "homepage": "https://github.com/sali72/merlay#readme",
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

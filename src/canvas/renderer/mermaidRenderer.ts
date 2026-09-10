@@ -13,7 +13,7 @@ export async function getMermaidApi(): Promise<any> {
     return cachedMermaidApi;
   } catch (err) {
     console.warn(
-      'Visual Mermaid: Direct loadMermaid not available, fallback to MarkdownRenderer',
+      'Merlay: Direct loadMermaid not available, fallback to MarkdownRenderer',
       err
     );
     return null;
