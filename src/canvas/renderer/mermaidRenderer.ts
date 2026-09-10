@@ -99,7 +99,7 @@ export async function renderMermaidSvg(app: App, code: string): Promise<string> 
   }
 
   // Fallback to MarkdownRenderer if direct API is unavailable
-  const tempContainer = document.createDiv();
+  const tempContainer = document.createElement('div');
   const comp = new Component();
   comp.load();
   await MarkdownRenderer.render(

@@ -84,13 +84,13 @@ export function setupEdgeInteractivity({
     let hitArea: SVGElement;
     if (isLine) {
       const lineEl = pathEl as SVGLineElement;
-      hitArea = document.createSvg('line');
+      hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       hitArea.setAttribute('x1', lineEl.getAttribute('x1') || '0');
       hitArea.setAttribute('y1', lineEl.getAttribute('y1') || '0');
       hitArea.setAttribute('x2', lineEl.getAttribute('x2') || '0');
       hitArea.setAttribute('y2', lineEl.getAttribute('y2') || '0');
     } else {
-      hitArea = document.createSvg('path');
+      hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       hitArea.setAttribute('d', pathEl.getAttribute('d') || '');
     }
     hitArea.setAttribute('class', 'mermaid-edge-hit-area');
@@ -117,7 +117,7 @@ export function setupEdgeInteractivity({
         let closestDist = Infinity;
         for (const p of edgePaths) {
           let dist = Infinity;
-          if (p.instanceOf(SVGPathElement)) {
+          if (p instanceof SVGPathElement) {
             dist = getDistanceToSvgPath(p, e.clientX, e.clientY);
           } else if (typeof p.getBoundingClientRect === 'function') {
             const bbox = p.getBoundingClientRect();
