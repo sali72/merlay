@@ -2,6 +2,7 @@ import { TextFileView, WorkspaceLeaf } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { NativeMermaidView } from '../canvas/NativeMermaidView';
+import { MERLAY_ICON_ID } from '../obsidian/icons';
 import type MerlayPlugin from '../main';
 
 export const VIEW_TYPE_MERMAID_FILE = 'mermaid-visual-file-view';
@@ -25,7 +26,7 @@ export class MermaidFileView extends TextFileView {
   }
 
   getIcon(): string {
-    return 'git-pull-request';
+    return MERLAY_ICON_ID;
   }
 
   getViewData(): string {

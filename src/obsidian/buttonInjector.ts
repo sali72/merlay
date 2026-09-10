@@ -11,6 +11,7 @@ import {
   WorkspaceLeaf,
 } from 'obsidian';
 import type MerlayPlugin from '../main';
+import { MERLAY_ICON_ID } from './icons';
 import { findTargetMermaidBlock } from '../utils/markdownBlock';
 import { openDiagramModal } from './diagramOpener';
 
@@ -49,7 +50,7 @@ export function attachEditButton(
       'aria-label': 'Open in visual mode',
     },
   });
-  setIcon(editBtn, 'git-pull-request');
+  setIcon(editBtn, MERLAY_ICON_ID);
 
   // Dynamic positioning: match dimensions and place cleanly to the left of Obsidian's "Edit this block"
   const adjustPosition = () => {

@@ -34,11 +34,15 @@ import { DiagramTemplateModal } from './views/DiagramTemplateModal';
 import { DIAGRAM_TEMPLATES } from './diagrams/registry';
 import { DiagramTemplate } from './diagrams/types';
 import { isCursorInMermaidBlock } from './utils/markdownBlock';
+import { MERLAY_ICON_ID, registerMerlayIcons } from './obsidian/icons';
 
 export default class MerlayPlugin extends Plugin {
   public settings: MerlaySettings = DEFAULT_SETTINGS;
 
   async onload() {
+    // Register custom Merlay logo icon in Obsidian icon library
+    registerMerlayIcons();
+
     await this.loadSettings();
 
     // 1. Register custom File View for standalone .mmd and .mermaid files
@@ -72,7 +76,7 @@ export default class MerlayPlugin extends Plugin {
     });
 
     // 4. Ribbon Icon
-    this.addRibbonIcon('git-pull-request', 'Merlay', () => {
+    this.addRibbonIcon(MERLAY_ICON_ID, 'Merlay', () => {
       this.createNewDiagram();
     });
 
@@ -96,7 +100,7 @@ export default class MerlayPlugin extends Plugin {
           menu.addItem((item) => {
             item
               .setTitle('Edit Diagram in Visual Mode')
-              .setIcon('git-pull-request')
+              .setIcon(MERLAY_ICON_ID)
               .setSection('action')
               .onClick(() => {
                 openDiagramModal(
@@ -114,7 +118,7 @@ export default class MerlayPlugin extends Plugin {
         menu.addItem((item) => {
           item
             .setTitle('Insert Mermaid Diagram')
-            .setIcon('git-pull-request')
+            .setIcon(MERLAY_ICON_ID)
             .setSection('action');
 
           const submenu =
@@ -174,7 +178,7 @@ export default class MerlayPlugin extends Plugin {
           menu.addItem((item) => {
             item
               .setTitle('Open in Visual Editor')
-              .setIcon('git-pull-request')
+              .setIcon(MERLAY_ICON_ID)
               .setSection('open')
               .onClick(async () => {
                 const targetLeaf = leaf || this.app.workspace.getLeaf('tab');
@@ -195,7 +199,7 @@ export default class MerlayPlugin extends Plugin {
         menu.addItem((item) => {
           item
             .setTitle('New Mermaid Diagram')
-            .setIcon('git-pull-request')
+            .setIcon(MERLAY_ICON_ID)
             .setSection('action');
 
           const submenu =

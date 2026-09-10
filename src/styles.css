@@ -1183,3 +1183,71 @@ pre.language-mermaid {
   color: var(--text-muted, #999);
 }
 
+/* Brand Mark in Top Bar */
+.merlay-top-bar-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  color: var(--text-accent, var(--interactive-accent));
+  opacity: 0.85;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  user-select: none;
+}
+
+.merlay-top-bar-brand:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+/* Settings Page Brand Header */
+.merlay-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+}
+
+.merlay-settings-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-accent, var(--interactive-accent));
+  box-shadow: var(--shadow-s, 0 1px 3px rgba(0, 0, 0, 0.1));
+}
+
+.merlay-settings-logo svg {
+  width: 32px;
+  height: 32px;
+}
+
+.merlay-settings-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.merlay-settings-title {
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.merlay-settings-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+

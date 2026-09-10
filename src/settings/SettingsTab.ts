@@ -1,6 +1,7 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting, setIcon } from 'obsidian';
 import type MerlayPlugin from '../main';
 import { FlowchartDirection } from '../diagrams/viewModel';
+import { MERLAY_ICON_ID } from '../obsidian/icons';
 
 export interface MerlaySettings {
   defaultDirection: FlowchartDirection;
@@ -32,7 +33,15 @@ export class MerlaySettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'Merlay Settings' });
+    const headerContainer = containerEl.createDiv({ cls: 'merlay-settings-header' });
+    const logoEl = headerContainer.createDiv({ cls: 'merlay-settings-logo' });
+    setIcon(logoEl, MERLAY_ICON_ID);
+    const titleContainer = headerContainer.createDiv({ cls: 'merlay-settings-title-group' });
+    titleContainer.createEl('h2', { text: 'Merlay Settings', cls: 'merlay-settings-title' });
+    titleContainer.createEl('div', {
+      text: 'Visual overlay editor for Mermaid diagrams. Mermaid, your way.',
+      cls: 'merlay-settings-subtitle',
+    });
 
     new Setting(containerEl)
       .setName('Default Flow Direction')

@@ -9,6 +9,7 @@ import {
   RedoIcon,
   FitViewIcon,
   CodeIcon,
+  MerlayLogoIcon,
 } from '../icons/Icons';
 
 import { DiagramDriver } from '../../diagrams/types';
@@ -60,6 +61,12 @@ export const CanvasTopBar: React.FC<CanvasTopBarProps> = ({
   return (
     <div className="mermaid-native-top-bar nodrag">
       <div className="mermaid-top-bar-left">
+        {/* Brand Mark */}
+        <div className="merlay-top-bar-brand" title="Merlay - Mermaid, your way">
+          <MerlayLogoIcon size={16} />
+        </div>
+        <div className="mermaid-bar-divider" />
+
         {/* Mode Switcher: Select (V) vs Hand (H) */}
         <div className="mermaid-mode-segmented">
           <button
