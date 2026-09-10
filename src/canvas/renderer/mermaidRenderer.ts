@@ -1,4 +1,4 @@
-import { App, MarkdownRenderer, Component, loadMermaid } from 'obsidian';
+import { App, MarkdownRenderer, Component, loadMermaid, sanitizeHTMLToDom } from 'obsidian';
 
 let cachedMermaidApi: any = null;
 
@@ -21,6 +21,50 @@ export async function getMermaidApi(): Promise<any> {
 }
 
 let renderSeq = 0;
+
+/**
+ * Insert Mermaid-produced SVG into the canvas mount without using innerHTML.
+ *
+ * Obsidian's HTML sanitizer strips the <style> block Mermaid embeds for
+ * diagram theming, so instead the SVG string is parsed into inert nodes and
+ * adopted into the live DOM with full fidelity. Script elements and inline
+ * event-handler attributes are removed before insertion (Mermaid itself also
+ * runs with its default strict security level, which strips scripts from
+ * diagram source).
+ *
+ * The markup is parsed as HTML (not XML) because Mermaid serializes the SVG
+ * the same way innerHTML does — e.g. unclosed <br> inside foreignObject
+ * labels — which would fail XML parsing whenever a label wraps.
+ */
+export function mountMermaidSvg(mountEl: HTMLElement, svgHtml: string): void {
+  mountEl.empty();
+
+  let svg: SVGSVGElement | null = null;
+  try {
+    const doc = new DOMParser().parseFromString(svgHtml, 'text/html');
+    svg = doc.querySelector('svg') as SVGSVGElement | null;
+  } catch {
+    svg = null;
+  }
+
+  if (!svg) {
+    // Last-resort fallback: sanitized insertion (may lose diagram theming).
+    mountEl.append(sanitizeHTMLToDom(svgHtml));
+    return;
+  }
+
+  const scrubHandlers = (el: Element): void => {
+    for (const attr of Array.from(el.attributes)) {
+      if (attr.name.toLowerCase().startsWith('on')) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  };
+  scrubHandlers(svg);
+  svg.querySelectorAll('script').forEach((s) => s.remove());
+  svg.querySelectorAll('*').forEach(scrubHandlers);
+  mountEl.append(document.importNode(svg, true));
+}
 
 export async function renderMermaidSvg(app: App, code: string): Promise<string> {
   const mermaidApi = await getMermaidApi();

@@ -4,11 +4,11 @@
  */
 
 import React, { useEffect, useRef, useCallback } from 'react';
-import { App, sanitizeHTMLToDom } from 'obsidian';
+import { App } from 'obsidian';
 import { Rect } from '../types';
 import { MermaidNodeDef, MermaidEdgeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { DiagramDriver } from '../../diagrams/types';
-import { renderMermaidSvg } from '../renderer/mermaidRenderer';
+import { renderMermaidSvg, mountMermaidSvg } from '../renderer/mermaidRenderer';
 import { applySelectedNodeHalos } from '../renderer/selectionHalo';
 import { setupSvgInteractivity } from '../interaction/setupSvgInteractivity';
 import { setupViewOnlyInteractivity } from '../interaction/setupViewOnlyInteractivity';
@@ -237,10 +237,10 @@ export function useCanvasRenderer({
     renderMermaidSvg(app, code)
       .then((svgHtml) => {
         if (ticket !== renderTicketRef.current) return;
-        // Mermaid library output is sanitized through Obsidian's sanitizer
-        // instead of assigning raw HTML via innerHTML.
-        mountEl.empty();
-        mountEl.append(sanitizeHTMLToDom(svgHtml));
+        // Parsed as XML and adopted into the DOM (no innerHTML), preserving
+        // Mermaid's embedded theme <style> that Obsidian's HTML sanitizer
+        // would strip.
+        mountMermaidSvg(mountEl, svgHtml);
         setSyntaxError(null);
 
         setupRef.current();
