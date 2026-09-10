@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useCallback } from 'react';
-import { App } from 'obsidian';
+import { App, sanitizeHTMLToDom } from 'obsidian';
 import { Rect } from '../types';
 import { MermaidNodeDef, MermaidEdgeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { DiagramDriver } from '../../diagrams/types';
@@ -237,7 +237,10 @@ export function useCanvasRenderer({
     renderMermaidSvg(app, code)
       .then((svgHtml) => {
         if (ticket !== renderTicketRef.current) return;
-        mountEl.innerHTML = svgHtml;
+        // Mermaid library output is sanitized through Obsidian's sanitizer
+        // instead of assigning raw HTML via innerHTML.
+        mountEl.empty();
+        mountEl.append(sanitizeHTMLToDom(svgHtml));
         setSyntaxError(null);
 
         setupRef.current();

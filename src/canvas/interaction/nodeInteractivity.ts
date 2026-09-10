@@ -48,7 +48,7 @@ export function setupNodeInteractivity({
   const nodeElements = mountEl.querySelectorAll(nodeSelector);
   nodeElements.forEach((el) => {
     const htmlEl = el as SVGGraphicsElement;
-    htmlEl.style.cursor = 'pointer';
+    htmlEl.setCssStyles({ cursor: 'pointer' });
 
     const idAttr = htmlEl.getAttribute('id') || '';
     let matchedNodeId: string | null = null;
@@ -214,8 +214,7 @@ export function setupNodeInteractivity({
       hitArea.setAttribute('fill', 'none');
       hitArea.setAttribute('stroke', 'transparent');
       hitArea.setAttribute('stroke-width', '28');
-      hitArea.style.cursor = 'pointer';
-      hitArea.style.pointerEvents = 'stroke';
+      hitArea.setCssStyles({ cursor: 'pointer', pointerEvents: 'stroke' });
 
       const updateLifelineHover = (e: MouseEvent) => {
         const lineRect = getLocalRect(lineEl);
@@ -276,7 +275,7 @@ export function setupNodeInteractivity({
         (el as SVGGraphicsElement);
       container.setAttribute('data-mermaid-node-id', anchorNodeId);
       container.setAttribute('data-mermaid-start-end', kind);
-      container.style.cursor = 'pointer';
+      container.setCssStyles({ cursor: 'pointer' });
 
       container.onclick = (e) => {
         e.stopPropagation();

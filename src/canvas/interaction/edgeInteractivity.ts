@@ -77,7 +77,7 @@ export function setupEdgeInteractivity({
     const targetEdgeId = targetEdge.id;
 
     pathEl.setAttribute('data-mermaid-edge-id', targetEdgeId);
-    pathEl.style.cursor = 'pointer';
+    pathEl.setCssStyles({ cursor: 'pointer' });
 
     // Create an invisible 10px stroke hit overlay
     const isLine = pathEl.tagName.toLowerCase() === 'line';
@@ -99,8 +99,7 @@ export function setupEdgeInteractivity({
     hitArea.setAttribute('stroke', 'transparent');
     hitArea.setAttribute('stroke-width', '14');
     hitArea.setAttribute('stroke-linecap', 'round');
-    hitArea.style.cursor = 'pointer';
-    hitArea.style.pointerEvents = 'stroke';
+    hitArea.setCssStyles({ cursor: 'pointer', pointerEvents: 'stroke' });
 
     pathEl.parentNode?.insertBefore(hitArea, pathEl.nextSibling);
 
@@ -182,7 +181,7 @@ export function setupEdgeInteractivity({
     const targetEdgeId = targetEdge.id;
 
     htmlEl.setAttribute('data-mermaid-edge-id', targetEdgeId);
-    htmlEl.style.cursor = 'pointer';
+    htmlEl.setCssStyles({ cursor: 'pointer' });
 
     htmlEl.onclick = (e) => {
       const edgeDef = displayEdges.find((ed) => ed.id === targetEdgeId) || targetEdge;

@@ -42,7 +42,7 @@ export function attachEditButton(
     }
   }
 
-  parent.style.position = 'relative';
+  parent.setCssStyles({ position: 'relative' });
 
   const editBtn = createEl('button', {
     cls: 'merlay-edit-btn clickable-icon',
@@ -64,32 +64,33 @@ export function attachEditButton(
 
       if (ebRect.width > 0 && parentRect.width > 0) {
         // Exactly match Obsidian's button dimensions
-        editBtn.style.width = `${Math.round(ebRect.width)}px`;
-        editBtn.style.height = `${Math.round(ebRect.height)}px`;
-
         // Position immediately to the left with 4px gap
         const offsetRight = Math.max(
           4,
           Math.round(parentRect.right - ebRect.left + 4)
         );
-        editBtn.style.right = `${offsetRight}px`;
-        editBtn.style.left = 'auto';
 
         // Match exact vertical top offset
         const topDiff = Math.round(ebRect.top - parentRect.top);
-        if (topDiff >= 0) {
-          editBtn.style.top = `${topDiff}px`;
-        }
+        editBtn.setCssStyles({
+          width: `${Math.round(ebRect.width)}px`,
+          height: `${Math.round(ebRect.height)}px`,
+          right: `${offsetRight}px`,
+          left: 'auto',
+          ...(topDiff >= 0 ? { top: `${topDiff}px` } : {}),
+        });
         return;
       }
     }
 
     // Default fallback
-    editBtn.style.width = '28px';
-    editBtn.style.height = '28px';
-    editBtn.style.right = '36px';
-    editBtn.style.top = 'var(--size-2-2, 8px)';
-    editBtn.style.left = 'auto';
+    editBtn.setCssStyles({
+      width: '28px',
+      height: '28px',
+      right: '36px',
+      top: 'var(--size-2-2, 8px)',
+      left: 'auto',
+    });
   };
 
   adjustPosition();

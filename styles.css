@@ -1237,6 +1237,11 @@ pre.language-mermaid {
   gap: 3px;
 }
 
+.merlay-settings-title-group .setting-item {
+  border: none;
+  padding: 0;
+}
+
 .merlay-settings-title {
   margin: 0 !important;
   padding: 0 !important;

@@ -48,12 +48,12 @@ export function setupClusterInteractivity({
     // composite states, edges between flowchart subgraphs). Drivers decide
     // whether the id is connectable; the canvas just resolves the drop.
     htmlEl.setAttribute('data-mermaid-node-id', targetSubId);
-    htmlEl.style.cursor = 'pointer';
+    htmlEl.setCssStyles({ cursor: 'pointer' });
 
     // Ensure all child rects and texts receive clicks and have pointer cursor
     htmlEl.querySelectorAll('rect, text').forEach((child) => {
       const childEl = child as SVGGraphicsElement;
-      childEl.style.cursor = 'pointer';
+      childEl.setCssStyles({ cursor: 'pointer' });
       childEl.setAttribute('pointer-events', 'all');
       childEl.onclick = (e) => {
         e.stopPropagation();
@@ -141,7 +141,7 @@ export function setupClusterInteractivity({
   const unassignedClusters: Element[] = [];
   for (const el of clusterElements) {
     const htmlEl = el as SVGGraphicsElement;
-    htmlEl.style.cursor = 'pointer';
+    htmlEl.setCssStyles({ cursor: 'pointer' });
     const matched = matchByIdOrContainment(htmlEl);
     if (matched) {
       usedSubIds.add(matched);
@@ -190,7 +190,7 @@ export function setupClusterInteractivity({
   for (const el of pendingLabelClusters) {
     const htmlEl = el as SVGGraphicsElement;
     if (!htmlEl.onclick) {
-      htmlEl.style.cursor = 'default';
+      htmlEl.setCssStyles({ cursor: 'default' });
     }
   }
 }

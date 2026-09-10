@@ -27,11 +27,13 @@ export async function renderMermaidSvg(app: App, code: string): Promise<string> 
   if (mermaidApi && typeof mermaidApi.render === 'function') {
     const id = `vmm_${Date.now()}_${++renderSeq}`;
     const scratch = document.body.createDiv('mermaid');
-    scratch.style.position = 'absolute';
-    scratch.style.visibility = 'hidden';
-    scratch.style.top = '-9999px';
-    scratch.style.left = '-9999px';
-    scratch.style.width = '1200px';
+    scratch.setCssStyles({
+      position: 'absolute',
+      visibility: 'hidden',
+      top: '-9999px',
+      left: '-9999px',
+      width: '1200px',
+    });
 
     try {
       const res = await mermaidApi.render(id, code, scratch);

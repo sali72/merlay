@@ -1,6 +1,6 @@
 {
   "name": "merlay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Visual overlay editor for Mermaid diagrams. Mermaid, your way.",
   "main": "main.js",
   "scripts": {
@@ -37,7 +37,6 @@
     "@types/node": "^20.14.9",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "builtin-modules": "^3.3.0",
     "esbuild": "^0.23.0",
     "obsidian": "latest",
     "tslib": "^2.6.3",

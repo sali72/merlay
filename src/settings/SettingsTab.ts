@@ -37,7 +37,7 @@ export class MerlaySettingTab extends PluginSettingTab {
     const logoEl = headerContainer.createDiv({ cls: 'merlay-settings-logo' });
     setIcon(logoEl, MERLAY_ICON_ID);
     const titleContainer = headerContainer.createDiv({ cls: 'merlay-settings-title-group' });
-    titleContainer.createEl('h2', { text: 'Merlay Settings', cls: 'merlay-settings-title' });
+    new Setting(titleContainer).setName('Merlay Settings').setHeading();
     titleContainer.createEl('div', {
       text: 'Visual overlay editor for Mermaid diagrams. Mermaid, your way.',
       cls: 'merlay-settings-subtitle',
@@ -71,7 +71,7 @@ export class MerlaySettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl('h3', { text: 'Commands & Context Menus' });
+    new Setting(containerEl).setName('Commands & Context Menus').setHeading();
 
     new Setting(containerEl)
       .setName('Editor Context Menu')
