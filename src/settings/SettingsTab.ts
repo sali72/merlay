@@ -37,8 +37,10 @@ export class MerlaySettingTab extends PluginSettingTab {
     const logoEl = headerContainer.createDiv({ cls: 'merlay-settings-logo' });
     setIcon(logoEl, MERLAY_ICON_ID);
     const titleContainer = headerContainer.createDiv({ cls: 'merlay-settings-title-group' });
-    new Setting(titleContainer).setName('Merlay Settings').setHeading();
-    titleContainer.createEl('div', {
+    // Plain div (not a heading element): settings headings must not contain
+    // the plugin name or the word "settings" per community review rules.
+    titleContainer.createDiv({ text: 'Merlay Settings', cls: 'merlay-settings-title' });
+    titleContainer.createDiv({
       text: 'Visual overlay editor for Mermaid diagrams. Mermaid, your way.',
       cls: 'merlay-settings-subtitle',
     });
