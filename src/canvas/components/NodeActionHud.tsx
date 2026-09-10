@@ -14,10 +14,12 @@ import {
 
 import { DiagramDriver } from '../../diagrams/types';
 
-function kindIcon(kind: string | undefined): React.FC<{ size?: number }> {
+type KindIcon = React.FC<{ size?: number }>;
+
+function kindIcon(kind: string | undefined): KindIcon {
   if (kind === 'actor') return UserIcon;
-  const shapes = ShapeIcons as Record<string, any>;
-  const stateTypes = StateTypeIcons as Record<string, any>;
+  const shapes = ShapeIcons as Record<string, KindIcon>;
+  const stateTypes = StateTypeIcons as Record<string, KindIcon>;
   const key = kind || 'rectangle';
   return shapes[key] || stateTypes[key] || ShapeIcons.rectangle;
 }

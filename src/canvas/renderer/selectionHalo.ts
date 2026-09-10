@@ -40,12 +40,12 @@ export function applySelectedNodeHalos(
     if (activeId === '[*]' && starKind) {
       selector = `[data-mermaid-node-id="${activeId}"][data-mermaid-start-end="${starKind}"]`;
     }
-    const nodeEls = Array.from(mountEl.querySelectorAll(selector)) as SVGGraphicsElement[];
+    const nodeEls = Array.from(mountEl.querySelectorAll(selector));
     // Fallback to any [*] element if kind-filtered query found nothing (e.g. re-render race)
     const elsToUse =
       nodeEls.length > 0
         ? nodeEls
-        : (Array.from(mountEl.querySelectorAll(`[data-mermaid-node-id="${activeId}"]`) as unknown as SVGGraphicsElement[]) as SVGGraphicsElement[]);
+        : Array.from(mountEl.querySelectorAll(`[data-mermaid-node-id="${activeId}"]`));
     if (elsToUse.length === 0) continue;
 
     for (const nodeEl of elsToUse) {

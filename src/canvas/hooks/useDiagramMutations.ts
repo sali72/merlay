@@ -12,13 +12,14 @@ import { useCallback, useRef } from 'react';
 import { useCanvasStore } from '../store/canvasStore';
 import { useDiagramAst } from './mutations/useDiagramAst';
 import { EdgeThemePreset, ThemePreset } from '../constants';
+import { ArrowType } from '../../diagrams/viewModel';
 
 export interface UseDiagramMutationsOptions {
   astHook: ReturnType<typeof useDiagramAst>;
-  updateSelectedNodeHalo?: (targets?: any) => void;
-  updateSelectedEdgeHalo?: (targets?: any) => void;
+  updateSelectedNodeHalo?: (targets?: string | null | Set<string> | string[]) => void;
+  updateSelectedEdgeHalo?: (targets?: string | null | Set<string> | string[]) => void;
   // Backward compatibility: allow any legacy options to be passed without error
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export function useDiagramMutations(options: UseDiagramMutationsOptions) {
@@ -270,7 +271,7 @@ export function useDiagramMutations(options: UseDiagramMutationsOptions) {
       });
       const pos = useCanvasStore.getState().selectedEdgePos;
       if (pos) {
-        useCanvasStore.getState().setSelectedEdgePos({ ...pos, arrowType: newType as any });
+        useCanvasStore.getState().setSelectedEdgePos({ ...pos, arrowType: newType as ArrowType });
       }
     },
     [m, applyMutation]

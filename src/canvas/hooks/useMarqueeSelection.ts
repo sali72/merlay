@@ -72,7 +72,7 @@ export function useMarqueeSelection({
       pendingMarqueeRef.current = box;
 
       if (!marqueeRafRef.current) {
-        marqueeRafRef.current = requestAnimationFrame(() => {
+        marqueeRafRef.current = window.requestAnimationFrame(() => {
           marqueeRafRef.current = 0;
           const pending = pendingMarqueeRef.current;
           pendingMarqueeRef.current = null;
@@ -190,7 +190,7 @@ export function useMarqueeSelection({
       dragBoxStartRef.current = null;
       setSelectionBox(null);
       if (marqueeRafRef.current) {
-        cancelAnimationFrame(marqueeRafRef.current);
+        window.cancelAnimationFrame(marqueeRafRef.current);
         marqueeRafRef.current = 0;
       }
 
@@ -252,7 +252,7 @@ export function useMarqueeSelection({
         onSelectionChange(newSelectedNodes, newSelectedEdges);
       }
 
-      setTimeout(() => {
+      window.setTimeout(() => {
         isMarqueeActiveRef.current = false;
       }, 50);
     },

@@ -37,7 +37,7 @@ export interface UseCanvasMouseInteractionsOptions {
   displayEdges: MermaidEdgeDef[];
   displaySubgraphs?: Map<string, MermaidSubgraphDef>;
   driver: DiagramDriver;
-  applyMutation: (mutator: (currentAst: any) => void, keepNodeId?: string) => void;
+  applyMutation: (mutator: (currentAst: unknown) => void, keepNodeId?: string) => void;
   setSelectedNodeId: (id: string | null) => void;
 }
 
@@ -233,9 +233,9 @@ export function useCanvasMouseInteractions({
     const cSourceKind = store.connectingSourceKind ?? store.connectingHandleKind;
 
     if (cSourceId) {
-      let targetNodeEl = (e.target as HTMLElement).closest(
+      let targetNodeEl: Element | null = (e.target as HTMLElement).closest(
         '[data-mermaid-node-id]'
-      ) as HTMLElement | null;
+      );
 
       // Fallback 1: check if target is inside an element with name matching displayNodes
       if (!targetNodeEl) {
@@ -245,7 +245,7 @@ export function useCanvasMouseInteractions({
         if (nameVal && displayNodes.has(nameVal)) {
           targetNodeEl =
             (namedContainer as HTMLElement).closest('[data-mermaid-node-id]') ||
-            (namedContainer as HTMLElement);
+            namedContainer;
         }
       }
 
@@ -257,7 +257,7 @@ export function useCanvasMouseInteractions({
         let closestDist = 50;
         const candidates = Array.from(
           worldRef.current.querySelectorAll('[data-mermaid-node-id]')
-        ) as HTMLElement[];
+        );
         for (const cand of candidates) {
           const nid = cand.getAttribute('data-mermaid-node-id');
           if (nid && nid !== cSourceId) {
@@ -288,7 +288,7 @@ export function useCanvasMouseInteractions({
 
       const targetEdgeEl = (e.target as HTMLElement).closest(
         '[data-mermaid-edge-id]'
-      ) as HTMLElement | null;
+      );
       const targetEdgeId = targetEdgeEl?.getAttribute('data-mermaid-edge-id');
 
       // Directional guard for start/end anchors.

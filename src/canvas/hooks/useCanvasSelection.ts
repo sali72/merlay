@@ -148,7 +148,7 @@ export function useCanvasSelection({
       currentId === '[*]' && selectedStarKind
         ? `[data-mermaid-node-id="${currentId}"][data-mermaid-start-end="${selectedStarKind}"]`
         : `[data-mermaid-node-id="${currentId}"]`;
-    const nodeEls = Array.from(svgMountRef.current.querySelectorAll(selector)) as Element[];
+    const nodeEls = Array.from(svgMountRef.current.querySelectorAll(selector));
     // Fallback to any [*] element if kind-filtered query found nothing (e.g. during re-render)
     const elsToUse =
       nodeEls.length > 0
@@ -215,7 +215,7 @@ export function useCanvasSelection({
           id === '[*]' && selectedStarKind
             ? `[data-mermaid-node-id="${id}"][data-mermaid-start-end="${selectedStarKind}"]`
             : `[data-mermaid-node-id="${id}"]`;
-        let nodeEls = Array.from(svgMountRef.current.querySelectorAll(selector)) as Element[];
+        let nodeEls = Array.from(svgMountRef.current.querySelectorAll(selector));
         if (nodeEls.length === 0) {
           nodeEls = Array.from(svgMountRef.current.querySelectorAll(`[data-mermaid-node-id="${id}"]`));
         }

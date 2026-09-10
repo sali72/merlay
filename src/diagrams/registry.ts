@@ -45,7 +45,7 @@ export const DIAGRAM_DISPLAY_NAMES: Record<SupportedDiagramType, string> = {
 /**
  * Returns true if visual interactive editing is supported for this diagram type.
  */
-export function isDiagramSupported(type: SupportedDiagramType | string): boolean {
+export function isDiagramSupported(type: string): boolean {
   const driver = drivers.get(type as SupportedDiagramType);
   return !!driver && driver.capabilities.editable !== false;
 }

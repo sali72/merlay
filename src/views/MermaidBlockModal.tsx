@@ -62,7 +62,7 @@ export class MermaidBlockModal extends Modal {
     }
 
     if (this.latestCode !== this.initialCode) {
-      this.saveToNote();
+      void this.saveToNote();
     }
 
     if (this.root) {
@@ -77,7 +77,7 @@ export class MermaidBlockModal extends Modal {
     }
     this.saveTimeout = window.setTimeout(() => {
       this.saveTimeout = null;
-      this.saveToNote();
+      void this.saveToNote();
     }, 250);
   }
 
@@ -101,9 +101,9 @@ export class MermaidBlockModal extends Modal {
 
         return res.updatedText;
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Error saving mermaid block to note:', e);
-      new Notice(`Failed to save Mermaid diagram: ${e.message}`);
+      new Notice(`Failed to save Mermaid diagram: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

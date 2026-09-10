@@ -15,6 +15,11 @@ import { MERLAY_ICON_ID } from './icons';
 import { findTargetMermaidBlock } from '../utils/markdownBlock';
 import { openDiagramModal } from './diagramOpener';
 
+/** Obsidian's Editor extended with the underlying CodeMirror 6 view (Live Preview only). */
+interface EditorWithCm {
+  cm?: { posAtDOM: (node: Node) => number };
+}
+
 export function attachEditButton(
   parent: HTMLElement,
   plugin: MerlayPlugin,
@@ -97,7 +102,8 @@ export function attachEditButton(
   parent.addEventListener('mouseenter', adjustPosition);
   editBtn.addEventListener('mouseenter', adjustPosition);
 
-  editBtn.addEventListener('click', async (e) => {
+  editBtn.addEventListener('click', (e) => {
+    void (async () => {
     e.stopPropagation();
     e.preventDefault();
 
@@ -139,7 +145,7 @@ export function attachEditButton(
     if (targetLeaf?.view instanceof MarkdownView) {
       try {
         const editor = targetLeaf.view.editor;
-        const cm = (editor as any)?.cm;
+        const cm = (editor as unknown as EditorWithCm).cm;
         if (cm && typeof cm.posAtDOM === 'function') {
           let pos: number | null = null;
           try {
@@ -203,6 +209,7 @@ export function attachEditButton(
     }
 
     openDiagramModal(plugin, filePath, blockMatch, content);
+    })();
   });
 
   parent.appendChild(editBtn);

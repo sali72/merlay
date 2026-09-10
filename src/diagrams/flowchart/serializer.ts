@@ -5,7 +5,6 @@
 import {
   ArrowType,
   MermaidFlowchartAST,
-  MermaidNodeDef,
   MermaidShapeType,
 } from './types';
 

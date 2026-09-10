@@ -5,6 +5,7 @@ import {
   MarkdownPostProcessorContext,
   TFile,
   TFolder,
+  Menu,
   MenuItem,
 } from 'obsidian';
 import {
@@ -35,6 +36,9 @@ import { DIAGRAM_TEMPLATES } from './diagrams/registry';
 import { DiagramTemplate } from './diagrams/types';
 import { isCursorInMermaidBlock } from './utils/markdownBlock';
 import { MERLAY_ICON_ID, registerMerlayIcons } from './obsidian/icons';
+
+/** Newer Obsidian MenuItem with submenu support (absent from current typings). */
+type MenuItemWithSubmenu = MenuItem & { setSubmenu?: () => Menu };
 
 export default class MerlayPlugin extends Plugin {
   public settings: MerlaySettings = DEFAULT_SETTINGS;
@@ -77,7 +81,7 @@ export default class MerlayPlugin extends Plugin {
 
     // 4. Ribbon Icon
     this.addRibbonIcon(MERLAY_ICON_ID, 'Merlay', () => {
-      this.createNewDiagram();
+      void this.createNewDiagram();
     });
 
     // 5. Context Menus (Right-Click)
@@ -122,8 +126,8 @@ export default class MerlayPlugin extends Plugin {
             .setSection('action');
 
           const submenu =
-            typeof (item as any).setSubmenu === 'function'
-              ? (item as any).setSubmenu()
+            typeof (item as MenuItemWithSubmenu).setSubmenu === 'function'
+              ? (item as MenuItemWithSubmenu).setSubmenu!()
               : null;
 
           if (submenu && view) {
@@ -133,7 +137,7 @@ export default class MerlayPlugin extends Plugin {
                 .setIcon('list')
                 .onClick(() => {
                   new DiagramTemplateModal(this.app, (template) => {
-                    insertMermaidBlockAtCursor(this, view, template, true);
+                    void insertMermaidBlockAtCursor(this, view, template, true);
                   }).open();
                 });
             });
@@ -148,7 +152,7 @@ export default class MerlayPlugin extends Plugin {
                     template.type === 'flowchart' ? 'git-fork' : 'git-commit'
                   )
                   .onClick(() => {
-                    insertMermaidBlockAtCursor(this, view, template, true);
+                    void insertMermaidBlockAtCursor(this, view, template, true);
                   });
               });
             }
@@ -156,7 +160,7 @@ export default class MerlayPlugin extends Plugin {
             item.onClick(() => {
               if (view) {
                 new DiagramTemplateModal(this.app, (template) => {
-                  insertMermaidBlockAtCursor(this, view, template, true);
+                  void insertMermaidBlockAtCursor(this, view, template, true);
                 }).open();
               }
             });
@@ -203,8 +207,8 @@ export default class MerlayPlugin extends Plugin {
             .setSection('action');
 
           const submenu =
-            typeof (item as any).setSubmenu === 'function'
-              ? (item as any).setSubmenu()
+            typeof (item as MenuItemWithSubmenu).setSubmenu === 'function'
+              ? (item as MenuItemWithSubmenu).setSubmenu!()
               : null;
 
           if (submenu) {
@@ -214,7 +218,7 @@ export default class MerlayPlugin extends Plugin {
                 .setIcon('list')
                 .onClick(() => {
                   new DiagramTemplateModal(this.app, (template) => {
-                    createDiagramFileWithTemplate(
+                    void createDiagramFileWithTemplate(
                       this,
                       template.defaultCode,
                       targetFolder
@@ -233,7 +237,7 @@ export default class MerlayPlugin extends Plugin {
                     template.type === 'flowchart' ? 'git-fork' : 'git-commit'
                   )
                   .onClick(() => {
-                    createDiagramFileWithTemplate(
+                    void createDiagramFileWithTemplate(
                       this,
                       template.defaultCode,
                       targetFolder
@@ -244,7 +248,7 @@ export default class MerlayPlugin extends Plugin {
           } else {
             item.onClick(() => {
               new DiagramTemplateModal(this.app, (template) => {
-                createDiagramFileWithTemplate(
+                void createDiagramFileWithTemplate(
                   this,
                   template.defaultCode,
                   targetFolder
@@ -266,7 +270,7 @@ export default class MerlayPlugin extends Plugin {
         if (view instanceof MarkdownView) {
           if (!checking) {
             new DiagramTemplateModal(this.app, (template) => {
-              insertMermaidBlockAtCursor(this, view, template, true);
+              void insertMermaidBlockAtCursor(this, view, template, true);
             }).open();
           }
           return true;
@@ -284,7 +288,7 @@ export default class MerlayPlugin extends Plugin {
           if (!this.settings.enableInsertCommands) return false;
           if (view instanceof MarkdownView) {
             if (!checking) {
-              insertMermaidBlockAtCursor(this, view, template, true);
+              void insertMermaidBlockAtCursor(this, view, template, true);
             }
             return true;
           }
@@ -299,7 +303,7 @@ export default class MerlayPlugin extends Plugin {
       id: 'create-new-mermaid-diagram',
       name: 'Create New Mermaid Diagram (File)',
       callback: () => {
-        this.createNewDiagram();
+        void this.createNewDiagram();
       },
     });
 
@@ -311,7 +315,7 @@ export default class MerlayPlugin extends Plugin {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (view) {
           if (!checking) {
-            this.openVisualModeForActiveFile(view);
+            void this.openVisualModeForActiveFile(view);
           }
           return true;
         }
@@ -364,15 +368,17 @@ export default class MerlayPlugin extends Plugin {
       return insertMermaidBlockAtCursor(this, view, template, openVisualMode);
     }
     return new Promise((resolve) => {
-      new DiagramTemplateModal(this.app, async (chosen) => {
-        await insertMermaidBlockAtCursor(this, view, chosen, openVisualMode);
-        resolve();
+      new DiagramTemplateModal(this.app, (chosen) => {
+        void insertMermaidBlockAtCursor(this, view, chosen, openVisualMode).then(
+          () => resolve()
+        );
       }).open();
     });
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded: unknown = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded as Partial<MerlaySettings>);
   }
 
   async saveSettings(): Promise<void> {

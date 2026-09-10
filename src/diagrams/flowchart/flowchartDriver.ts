@@ -5,6 +5,7 @@
 
 import { DiagramDriver } from '../types';
 import {
+  ArrowType,
   FlowchartDirection,
   MermaidFlowchartAST,
   MermaidShapeType,
@@ -150,10 +151,10 @@ export const FlowchartDriver: DiagramDriver<MermaidFlowchartAST> = {
       return res ? res.nodeId : null;
     },
     updateEdgeType: (ast, edgeId, type) => {
-      fc.updateEdgeType(ast, edgeId, type as any);
+      fc.updateEdgeType(ast, edgeId, type as ArrowType);
     },
     updateEdgesType: (ast, edgeIds, type) => {
-      fc.updateEdgesType(ast, edgeIds, type as any);
+      fc.updateEdgesType(ast, edgeIds, type as ArrowType);
     },
 
     getNodeStyle: (ast, nodeId) => fc.getNodeStyle(ast, nodeId),

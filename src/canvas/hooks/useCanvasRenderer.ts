@@ -269,10 +269,10 @@ export function useCanvasRenderer({
           /* ignore */
         }
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (ticket !== renderTicketRef.current) return;
         console.error('Mermaid render error:', err);
-        setSyntaxError(err?.message || 'Diagram syntax error');
+        setSyntaxError(err instanceof Error ? err.message : 'Diagram syntax error');
       });
   }, [code, app, setSyntaxError, svgMountRef]);
 }

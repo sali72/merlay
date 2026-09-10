@@ -2,7 +2,7 @@
  * Diagram Opener and File Creator helpers for Obsidian Markdown integration
  */
 
-import { MarkdownView, Notice, TFile, WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, Notice } from 'obsidian';
 import type MerlayPlugin from '../main';
 import { findTargetMermaidBlock } from '../utils/markdownBlock';
 import {
@@ -70,7 +70,7 @@ export async function createNewDiagram(
   targetFolder?: string
 ): Promise<void> {
   new DiagramTemplateModal(plugin.app, (template) => {
-    createDiagramFileWithTemplate(plugin, template.defaultCode, targetFolder);
+    void createDiagramFileWithTemplate(plugin, template.defaultCode, targetFolder);
   }).open();
 }
 
@@ -103,8 +103,8 @@ export async function createDiagramFileWithTemplate(
     await leaf.openFile(createdFile);
 
     new Notice(`Created diagram: ${fileName}`);
-  } catch (e: any) {
-    new Notice(`Error creating diagram: ${e.message}`);
+  } catch (e: unknown) {
+    new Notice(`Error creating diagram: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -158,7 +158,7 @@ export async function insertMermaidBlockAtCursor(
       if (blockMatch) {
         openDiagramModal(plugin, view.file.path, blockMatch, content);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to open visual mode after inserting diagram:', err);
     }
   }

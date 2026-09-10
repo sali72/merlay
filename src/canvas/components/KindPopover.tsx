@@ -19,10 +19,12 @@ export interface KindPopoverProps {
   onSelectKind: (kind: string) => void;
 }
 
-function kindIcon(kind: string): React.FC<{ size?: number }> {
+type KindIcon = React.FC<{ size?: number }>;
+
+function kindIcon(kind: string): KindIcon {
   if (kind === 'actor') return UserIcon;
-  const shapes = ShapeIcons as Record<string, any>;
-  const stateTypes = StateTypeIcons as Record<string, any>;
+  const shapes = ShapeIcons as Record<string, KindIcon>;
+  const stateTypes = StateTypeIcons as Record<string, KindIcon>;
   return shapes[kind] || stateTypes[kind] || ShapeIcons.rectangle;
 }
 

@@ -1,15 +1,24 @@
 import { App, MarkdownRenderer, Component, loadMermaid, sanitizeHTMLToDom } from 'obsidian';
 
-let cachedMermaidApi: any = null;
+let cachedMermaidApi: MermaidApi | null = null;
 
-export async function getMermaidApi(): Promise<any> {
+export interface MermaidRenderResult {
+  svg: string;
+}
+
+export interface MermaidApi {
+  render(id: string, text: string, container?: HTMLElement): Promise<MermaidRenderResult | string>;
+}
+
+export async function getMermaidApi(): Promise<MermaidApi | null> {
   if (cachedMermaidApi) return cachedMermaidApi;
-  if (typeof window !== 'undefined' && (window as any).mermaid) {
-    cachedMermaidApi = (window as any).mermaid;
+  if (typeof window !== 'undefined' && (window as unknown as { mermaid?: MermaidApi }).mermaid) {
+    cachedMermaidApi = (window as unknown as { mermaid?: MermaidApi }).mermaid ?? null;
     return cachedMermaidApi;
   }
   try {
-    cachedMermaidApi = await loadMermaid();
+    const loaded: unknown = await loadMermaid();
+    cachedMermaidApi = (loaded as MermaidApi).render ? (loaded as MermaidApi) : null;
     return cachedMermaidApi;
   } catch (err) {
     console.warn(
@@ -42,7 +51,7 @@ export function mountMermaidSvg(mountEl: HTMLElement, svgHtml: string): void {
   let svg: SVGSVGElement | null = null;
   try {
     const doc = new DOMParser().parseFromString(svgHtml, 'text/html');
-    svg = doc.querySelector('svg') as SVGSVGElement | null;
+    svg = doc.querySelector<SVGSVGElement>('svg');
   } catch {
     svg = null;
   }
@@ -80,7 +89,7 @@ export async function renderMermaidSvg(app: App, code: string): Promise<string> 
     });
 
     try {
-      const res = await mermaidApi.render(id, code, scratch);
+      const res: MermaidRenderResult | string = await mermaidApi.render(id, code, scratch);
       scratch.remove();
       return typeof res === 'string' ? res : res.svg;
     } catch (err) {
@@ -90,7 +99,7 @@ export async function renderMermaidSvg(app: App, code: string): Promise<string> 
   }
 
   // Fallback to MarkdownRenderer if direct API is unavailable
-  const tempContainer = document.createElement('div');
+  const tempContainer = document.createDiv();
   const comp = new Component();
   comp.load();
   await MarkdownRenderer.render(

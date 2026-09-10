@@ -5,7 +5,6 @@
 
 import { DiagramDriver } from '../types';
 import {
-  FlowchartDirection,
   MermaidEdgeDef,
   MermaidNodeDef,
   MermaidShapeType,
@@ -127,7 +126,7 @@ export const StateDiagramDriver: DiagramDriver<MermaidStateAST> = {
         type: 'subgraph',
         id,
         label: comp.label,
-        direction: (comp.direction as FlowchartDirection) || (ast.direction as FlowchartDirection) || 'TD',
+        direction: comp.direction || ast.direction || 'TD',
         nodeIds: comp.stateIds,
         subgraphIds: comp.compositeIds,
         style: comp.style,
@@ -137,7 +136,7 @@ export const StateDiagramDriver: DiagramDriver<MermaidStateAST> = {
       nodes,
       edges,
       subgraphs,
-      direction: ast.direction as FlowchartDirection | undefined,
+      direction: ast.direction,
     };
   },
 

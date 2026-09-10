@@ -286,7 +286,7 @@ export function tokenizeStateDiagram(input: string): StateToken[] {
       let wordEnd = pos;
       while (
         wordEnd < rawLine.length &&
-        !/[\s\{\}\:\"]/.test(rawLine[wordEnd]) &&
+        !/[\s{}:"]/.test(rawLine[wordEnd]) &&
         !rawLine.startsWith('-->', wordEnd) &&
         !rawLine.startsWith('[*]', wordEnd) &&
         !rawLine.startsWith('<<', wordEnd)

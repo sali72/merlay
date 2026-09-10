@@ -5,7 +5,7 @@
  * All diagram-specific behavior comes from the DiagramDriver — no type branching here.
  */
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useState, useCallback, useMemo } from 'react';
 import { detectDiagramType } from '../diagrams/registry';
 import { CursorMode, NativeMermaidViewProps } from './types';
 import { useHistory } from './useHistory';

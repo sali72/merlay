@@ -102,7 +102,7 @@ export interface NodeKindOption {
  * visuals but share one id; the UI tracks which visual is selected via a
  * 'start' | 'end' kind obtained from the DOM adapter.
  */
-export interface AnchorApi<TAst = any> {
+export interface AnchorApi<TAst = unknown> {
   isAnchor(nodeId: string): boolean;
   has(ast: TAst, kind: 'start' | 'end'): boolean;
   /** Create the anchor plus an initial node; returns the created node id. */
@@ -122,7 +122,7 @@ export interface ConnectionContext {
  * The full mutation surface the canvas needs. Core members are required;
  * optional members are gated by DiagramCapabilities.
  */
-export interface DiagramMutations<TAst = any> {
+export interface DiagramMutations<TAst = unknown> {
   // Nodes
   addNode(ast: TAst, label: string): string;
   addChildNode(ast: TAst, parentId: string, label: string): string;
@@ -200,12 +200,12 @@ export interface SvgDomAdapter {
   /** View-model node id of the anchor pseudo-node ('[*]'), if this diagram has them. */
   anchorNodeId?: string;
   /** True if this element renders a start/end anchor. */
-  isAnchorElement?(el: Element): boolean;
+  isAnchorElement?: (el: Element) => boolean;
   /** Derive 'start' | 'end' from an anchor element. */
   getAnchorKind?(el: Element): 'start' | 'end' | null;
 }
 
-export interface DiagramDriver<TAst = any> {
+export interface DiagramDriver<TAst = unknown> {
   type: SupportedDiagramType;
   displayName: string;
   supportsDirection: boolean;

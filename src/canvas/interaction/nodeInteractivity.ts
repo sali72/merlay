@@ -204,7 +204,7 @@ export function setupNodeInteractivity({
     // and drag-to-connect dropping completely effortless anywhere along the column timeline.
     if (isLifeline) {
       const lineEl = htmlEl as unknown as SVGLineElement;
-      const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      const hitArea = document.createSvg('line');
       hitArea.setAttribute('x1', lineEl.getAttribute('x1') || '0');
       hitArea.setAttribute('y1', lineEl.getAttribute('y1') || '0');
       hitArea.setAttribute('x2', lineEl.getAttribute('x2') || '0');
@@ -266,10 +266,10 @@ export function setupNodeInteractivity({
   // selection and drag-to-connect.
   if (dom.anchorSelectors && anchorNodeId) {
     mountEl.querySelectorAll(dom.anchorSelectors).forEach((shapeEl) => {
-      const el = shapeEl as Element;
+      const el = shapeEl;
       const kind = dom.getAnchorKind?.(el) ?? null;
       if (!kind) return;
-      const rawContainer = (el as Element).closest('g.node, g');
+      const rawContainer = el.closest('g.node, g');
       const container =
         (rawContainer as SVGGraphicsElement | null) ||
         (el as SVGGraphicsElement);

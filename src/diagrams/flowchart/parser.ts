@@ -6,19 +6,16 @@ import { Token, tokenize } from './lexer';
 import {
   ArrowType,
   FlowchartDirection,
-  MermaidClassDef,
   MermaidEdgeDef,
   MermaidFlowchartAST,
   MermaidNodeDef,
   MermaidShapeType,
-  MermaidStyleDef,
   MermaidSubgraphDef,
 } from './types';
 import {
   parseStyleDeclarations,
   mapArrowType,
   resolveStylesOntoAst,
-  PendingLinkStyle,
 } from './styleParser';
 
 export { parseStyleDeclarations };

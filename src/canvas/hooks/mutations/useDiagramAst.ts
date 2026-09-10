@@ -31,7 +31,7 @@ export function useDiagramAst({
   // The single active AST. Re-parsed whenever code changes from outside this
   // hook (undo/redo, syntax drawer, external edits) — never when we emitted
   // the change ourselves via applyMutation.
-  const [ast, setAst] = useState<any>(() => {
+  const [ast, setAst] = useState<unknown>(() => {
     try {
       return driver.parse(code);
     } catch {
@@ -48,8 +48,8 @@ export function useDiagramAst({
     try {
       setAst(driver.parse(code));
       setSyntaxError(null);
-    } catch (err: any) {
-      setSyntaxError(err?.message || 'Syntax Error');
+    } catch (err: unknown) {
+      setSyntaxError(err instanceof Error ? err.message : 'Syntax Error');
     }
   }, [code, driver]);
 
@@ -70,7 +70,7 @@ export function useDiagramAst({
   // Apply a mutation: clone the committed AST, mutate the clone, serialize
   // and emit. Never mutates the current AST in place.
   const applyMutation = useCallback(
-    (mutator: (currentAst: any) => void, keepNodeId?: string) => {
+    (mutator: (currentAst: unknown) => void, keepNodeId?: string) => {
       try {
         if (keepNodeId) pinNodeForCamera(keepNodeId);
         const next = driver.clone(ast);
@@ -82,7 +82,7 @@ export function useDiagramAst({
         setAst(next);
         setSyntaxError(null);
         onCodeChange(serialized);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('AST Mutation Error:', err);
       }
     },
