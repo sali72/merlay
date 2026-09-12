@@ -13,7 +13,7 @@ import { useCanvasMouseInteractions } from '../hooks/useCanvasMouseInteractions'
 
 import { ConnectionLine } from './ConnectionLine';
 import { SelectionMarquee } from './SelectionMarquee';
-import { ConnectionHandle } from './ConnectionHandle';
+import { ConnectionHintPill } from './ConnectionHintPill';
 import { NodeOverlays } from '../overlays/NodeOverlays';
 import { EdgeOverlays } from '../overlays/EdgeOverlays';
 import { SubgraphOverlays } from '../overlays/SubgraphOverlays';
@@ -72,18 +72,18 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({
       {/* Marquee Drag Selection Box */}
       <SelectionMarquee box={marquee.selectionBox} />
 
-      {/* Node Connection Handle */}
-      <ConnectionHandle
+      {/* Node Drag-to-Connect Hint Pill */}
+      <ConnectionHintPill
         hoveredNodeRect={mouse.hoveredNodeRect}
+        hoveredNodeId={mouse.hoveredNodeId}
+        hoveredNodeKind={mouse.hoveredNodeKind}
         isLR={selection.isLR}
         cursorMode={cursorMode}
         isSpacePressed={isSpacePressed}
-        hidden={
-          !!mouse.hoveredNodeId &&
-          !!driver.mutations.anchors?.isAnchor(mouse.hoveredNodeId) &&
-          mouse.hoveredNodeKind === 'end'
-        }
-        onStartConnect={mouse.handleStartConnect}
+        isConnecting={!!mouse.connectingSourceId}
+        isEditing={!!inlineEditing.editingNodeId}
+        isMultiSelect={selection.isMultiSelect}
+        isAnchor={driver.mutations.anchors?.isAnchor}
       />
 
       {/* Multi-Select Layer */}

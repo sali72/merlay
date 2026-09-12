@@ -281,6 +281,11 @@ pre.language-mermaid {
   cursor: grabbing !important;
 }
 
+.mermaid-native-editor-root.is-connecting,
+.mermaid-native-editor-root.is-connecting * {
+  cursor: crosshair !important;
+}
+
 /* 4. Native SVG World & Mount */
 .mermaid-native-world {
   position: absolute;
@@ -527,35 +532,45 @@ pre.language-mermaid {
   margin: 0 2px;
 }
 
-/* Connection Handle (Anchor Dot) */
+/* Connection Hint Pill (replaces permanent anchor handle) */
+.mermaid-connect-hint-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: var(--background-secondary, #1e1e1e);
+  color: var(--text-muted, #a0a0a0);
+  border: 1px solid var(--mermaid-border, rgba(255, 255, 255, 0.14));
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  animation: mermaid-hint-fade 0.15s ease-out;
+  backdrop-filter: blur(4px);
+}
+
+.mermaid-connect-hint-pill svg {
+  color: var(--mermaid-accent, #6366f1);
+  flex-shrink: 0;
+}
+
+@keyframes mermaid-hint-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Legacy handle hidden */
 .mermaid-connection-handle {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--mermaid-accent);
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 6px var(--mermaid-accent);
-  cursor: pointer;
-  pointer-events: all;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
-  box-sizing: border-box;
-}
-
-/* Invisible hit-area bridge around the handle so the mouse never falls into a gap */
-.mermaid-connection-handle::before {
-  content: '';
-  position: absolute;
-  top: -8px;
-  left: -8px;
-  right: -8px;
-  bottom: -8px;
-  border-radius: 50%;
-  pointer-events: all;
-}
-
-.mermaid-connection-handle:hover {
-  background: var(--mermaid-accent-hover);
-  box-shadow: 0 0 10px var(--mermaid-accent);
+  display: none !important;
 }
 
 /* Edge Action HUD */

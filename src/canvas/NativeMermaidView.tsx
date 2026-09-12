@@ -307,7 +307,9 @@ export const NativeMermaidView: React.FC<NativeMermaidViewProps> = ({
     <div
       className={`mermaid-native-editor-root is-mode-${cursorMode} ${
         isPanning ? 'is-panning' : ''
-      } ${isSpacePressed ? 'is-space-held' : ''} ${!isEditable ? 'is-view-only' : ''}`}
+      } ${isSpacePressed ? 'is-space-held' : ''} ${!isEditable ? 'is-view-only' : ''} ${
+        mouse.connectingSourceId ? 'is-connecting' : ''
+      }`}
       ref={containerRef}
       onWheel={handleWheel}
       onMouseDown={mouse.handleMouseDown}

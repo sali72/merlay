@@ -2,11 +2,42 @@
  * Hook for Canvas mouse interactions: panning, connection dragging, node hover proximity, and marquee triggering.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { CursorMode, Rect } from '../types';
 import { DiagramDriver } from '../../diagrams/types';
 import { MermaidNodeDef, MermaidEdgeDef, MermaidSubgraphDef } from '../../diagrams/viewModel';
 import { DragLine, useCanvasStore } from '../store/canvasStore';
+
+/**
+ * Calculates the point on the perimeter of a rectangle that intersects
+ * the ray from the center of the rectangle to (targetX, targetY).
+ */
+export function getPerimeterAnchor(
+  rect: Rect,
+  targetX: number,
+  targetY: number
+): { x: number; y: number } {
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  const dx = targetX - cx;
+  const dy = targetY - cy;
+
+  if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
+    return { x: cx, y: rect.y + rect.height };
+  }
+
+  const halfW = Math.max(rect.width / 2, 1);
+  const halfH = Math.max(rect.height / 2, 1);
+
+  const scaleX = Math.abs(dx) > 0.0001 ? halfW / Math.abs(dx) : Infinity;
+  const scaleY = Math.abs(dy) > 0.0001 ? halfH / Math.abs(dy) : Infinity;
+  const scale = Math.min(scaleX, scaleY);
+
+  return {
+    x: cx + dx * scale,
+    y: cy + dy * scale,
+  };
+}
 
 export interface UseCanvasMouseInteractionsOptions {
   worldRef: React.RefObject<HTMLDivElement>;
@@ -118,6 +149,18 @@ export function useCanvasMouseInteractions({
   const isAnchorId = (id: string | null | undefined): boolean =>
     !!anchors && !!id && anchors.isAnchor(id);
 
+  const pendingConnectRef = useRef<{
+    sourceId: string;
+    sourceKind: 'start' | 'end' | null;
+    startClientX: number;
+    startClientY: number;
+    sourceEl: Element;
+    sourceRect: Rect | null;
+    isLifeline: boolean;
+  } | null>(null);
+
+  const DRAG_THRESHOLD = 6; // px movement deadband to protect clicks & double-clicks
+
   const handleStartConnect = (
     e: React.MouseEvent,
     startX: number,
@@ -145,7 +188,7 @@ export function useCanvasMouseInteractions({
       (e.target as HTMLElement).closest('.nodrag') ||
       (e.target as HTMLElement).closest('.mermaid-action-hud') ||
       (e.target as HTMLElement).closest('.mermaid-multiselect-hud') ||
-      (e.target as HTMLElement).closest('.mermaid-connection-handle')
+      (e.target as HTMLElement).closest('.mermaid-edge-hud')
     ) {
       return;
     }
@@ -161,9 +204,39 @@ export function useCanvasMouseInteractions({
       return;
     }
 
-    if (e.button === 0) {
-      marquee.startMarquee(e.clientX, e.clientY);
+    if (e.button !== 0) return;
+
+    // Check if clicking on an interactive node, anchor, lifeline, or cluster
+    const nodeEl = (e.target as HTMLElement).closest('[data-mermaid-node-id]');
+    const sourceNodeId = nodeEl?.getAttribute('data-mermaid-node-id');
+    const sourceKind =
+      (nodeEl?.getAttribute('data-mermaid-start-end') as 'start' | 'end' | null) ?? null;
+
+    // End anchors in state diagrams cannot have outgoing transitions
+    const isEndAnchor = isAnchorId(sourceNodeId) && sourceKind === 'end';
+
+    if (nodeEl && sourceNodeId && !isEndAnchor) {
+      const isLifeline =
+        nodeEl.classList.contains('mermaid-lifeline-hit-area') ||
+        nodeEl.classList.contains('actor-line');
+
+      const sourceRect = getLocalRect ? getLocalRect(nodeEl) : null;
+
+      pendingConnectRef.current = {
+        sourceId: sourceNodeId,
+        sourceKind,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        sourceEl: nodeEl,
+        sourceRect,
+        isLifeline,
+      };
+      // Do not start marquee when clicking on a node!
+      return;
     }
+
+    // Empty canvas click starts marquee selection
+    marquee.startMarquee(e.clientX, e.clientY);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -172,20 +245,99 @@ export function useCanvasMouseInteractions({
       return;
     }
 
+    // Check if pending shape drag has exceeded the movement threshold
+    if (pendingConnectRef.current && worldRef.current) {
+      const dx = e.clientX - pendingConnectRef.current.startClientX;
+      const dy = e.clientY - pendingConnectRef.current.startClientY;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist >= DRAG_THRESHOLD) {
+        const { sourceId, sourceKind, sourceRect, isLifeline, startClientY, sourceEl } =
+          pendingConnectRef.current;
+        pendingConnectRef.current = null;
+
+        const worldRect = worldRef.current.getBoundingClientRect();
+        const currentWorldX = (e.clientX - worldRect.left) / zoom;
+        const currentWorldY = (e.clientY - worldRect.top) / zoom;
+
+        const resolvedRect =
+          sourceRect || (getLocalRect ? getLocalRect(sourceEl) : null);
+
+        let startPoint: { x: number; y: number };
+
+        if (isLifeline && resolvedRect) {
+          const startWorldY = (startClientY - worldRect.top) / zoom;
+          startPoint = {
+            x: resolvedRect.x + resolvedRect.width / 2,
+            y: Math.max(
+              resolvedRect.y,
+              Math.min(resolvedRect.y + resolvedRect.height, startWorldY)
+            ),
+          };
+        } else if (resolvedRect) {
+          startPoint = getPerimeterAnchor(resolvedRect, currentWorldX, currentWorldY);
+        } else {
+          startPoint = { x: currentWorldX, y: currentWorldY };
+        }
+
+        // Highlight/select the source node as drag begins
+        setSelectedNodeId(sourceId);
+
+        useCanvasStore.getState().setConnecting(sourceId, sourceKind, {
+          x1: startPoint.x,
+          y1: startPoint.y,
+          x2: currentWorldX,
+          y2: currentWorldY,
+        });
+        return;
+      }
+      // Below threshold: hold off to let click / double-click pass cleanly
+      return;
+    }
+
     const store = useCanvasStore.getState();
     if (store.connectingSourceId && worldRef.current) {
       const worldRect = worldRef.current.getBoundingClientRect();
       const currentWorldX = (e.clientX - worldRect.left) / zoom;
       const currentWorldY = (e.clientY - worldRect.top) / zoom;
-      store.setDragLine((prev) =>
-        prev
-          ? {
-              ...prev,
-              x2: currentWorldX,
-              y2: currentWorldY,
-            }
-          : null
-      );
+      const sourceId = store.connectingSourceId;
+
+      let sourceRect: Rect | null = null;
+      if (getLocalRect && worldRef.current) {
+        const sourceEl = worldRef.current.querySelector(
+          `[data-mermaid-node-id="${sourceId}"]:not(.mermaid-edge-hit-area)`
+        );
+        if (sourceEl) {
+          sourceRect = getLocalRect(sourceEl);
+        }
+      }
+
+      store.setDragLine((prev) => {
+        if (!prev) return null;
+        let x1 = prev.x1;
+        let y1 = prev.y1;
+
+        if (sourceRect) {
+          const isLifeline =
+            worldRef.current?.querySelector(
+              `.mermaid-lifeline-hit-area[data-mermaid-node-id="${sourceId}"]`
+            ) !== null;
+
+          if (!isLifeline) {
+            const anchor = getPerimeterAnchor(sourceRect, currentWorldX, currentWorldY);
+            x1 = anchor.x;
+            y1 = anchor.y;
+          }
+        }
+
+        return {
+          ...prev,
+          x1,
+          y1,
+          x2: currentWorldX,
+          y2: currentWorldY,
+        };
+      });
       return;
     }
 
@@ -206,8 +358,8 @@ export function useCanvasMouseInteractions({
       const worldRect = worldRef.current.getBoundingClientRect();
       const mouseX = (e.clientX - worldRect.left) / zoom;
       const mouseY = (e.clientY - worldRect.top) / zoom;
-      const padX = 32;
-      const padY = 48;
+      const padX = 16;
+      const padY = 24;
       const withinX =
         mouseX >= store.hoveredNodeRect.x - padX &&
         mouseX <= store.hoveredNodeRect.x + store.hoveredNodeRect.width + padX;
@@ -223,6 +375,9 @@ export function useCanvasMouseInteractions({
 
   const handleMouseUp = (e: React.MouseEvent) => {
     endPan();
+
+    // Discard pending connection if it never exceeded the threshold (it was just a click or dblclick)
+    pendingConnectRef.current = null;
 
     if (marquee.dragBoxStartRef.current) {
       marquee.endMarquee(displayNodes, displayEdges);
