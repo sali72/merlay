@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/merlay-logo-plus-title-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/merlay-logo-plus-title.svg">
-    <img alt="Merlay Logo" src="assets/merlay-logo-plus-title.svg" width="460">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dev-hashemi/merlay/main/assets/merlay-logo-plus-title-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/dev-hashemi/merlay/main/assets/merlay-logo-plus-title.svg">
+    <img alt="Merlay Logo" src="https://raw.githubusercontent.com/dev-hashemi/merlay/main/assets/merlay-logo-plus-title.svg" width="460">
   </picture>
 </p>
 
